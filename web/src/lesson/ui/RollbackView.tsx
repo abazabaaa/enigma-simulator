@@ -1,9 +1,11 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import type { Choice } from '../../contracts/core'
 import type { CheckResult, ItemLogic, ItemUi, Rollback } from '../../contracts/lesson'
-import { createMachine, positionsToString, step, type MachineConfig } from '../../engine'
+import type { MachineStoreHook } from '../../contracts/machine'
+import { createMachine, positionsToString, step, type MachineConfig, type MachineConfigInput } from '../../engine'
 import { partForStage } from '../kinds/helpers'
 import { partName } from '../kinds/widgets'
+import { useMachineApi } from '../../state/activeMachine'
 import { BUTTON, QUIET_BUTTON } from './controls'
 
 type Of<K extends Rollback['kind']> = Extract<Rollback, { kind: K }>
@@ -31,7 +33,25 @@ function PathView({ rb }: { rb: Of<'path'> }): JSX.Element {
   )
 }
 
-/** The machine stepped press by press from `from`, up to the first wrong window. */
+/**
+ * [contracts-v2] G5 'windows' on the machine itself: set the active machine to the windows before one press and
+ * press once (key A; the item's locks keep the lamps hidden), so the stage, the rotor windows and the trace's
+ * stepping row show that press, double step included. The item's locks are restored afterwards.
+ */
+export function replayPress(api: MachineStoreHook, from: MachineConfig, before: string): void {
+  const locks = api.getState().locks
+  try {
+    api.getState().setConfig({ ...from, positions: before })
+    api.getState().setLocks({ ...locks, keyboard: false, hold: false })
+    api.getState().pressKey('A')
+  } catch {
+    // An unusable configuration leaves the machine as the item set it.
+  } finally {
+    api.getState().setLocks(locks)
+  }
+}
+
+/** The machine stepped press by press from `from`, up to the first wrong window, on the stage too. */
 function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
   const presses: { before: string; after: string; moved: string }[] = []
   let state = createMachine(rb.from as MachineConfig)
@@ -43,6 +63,19 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
   }
   const [shown, setShown] = useState(rb.firstWrong)
   const p = presses[shown]
+  const api = useMachineApi()
+  const before = p?.before
+  useEffect(() => {
+    if (!before) return
+    // After the effect flush: the gate re-applies the item's setup in the same flush (parents after children).
+    let live = true
+    queueMicrotask(() => {
+      if (live) replayPress(api, rb.from as MachineConfig, before)
+    })
+    return () => {
+      live = false
+    }
+  }, [api, rb.from, before])
   return (
     <div className="flex flex-col gap-2">
       <div className="max-w-full overflow-x-auto">
@@ -66,7 +99,7 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
         </table>
       </div>
       {p ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="stepping-preview">
+        <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="stepping-preview" data-press={shown}>
           <button type="button" className={QUIET_BUTTON} disabled={shown === 0} onClick={() => setShown(shown - 1)} aria-label="Previous press">
             ◀
           </button>
@@ -117,6 +150,29 @@ function OrderView({ rb, logic, instance, answer }: { rb: Of<'order'>; logic: It
   )
 }
 
+/**
+ * [contracts-v2] G5 'machine' for a set-the-machine item: while its feedback shows, the machine holds the setting
+ * the learner submitted (the gate has re-applied the item's start), so the failed predicate's highlighted parts
+ * sit on the learner's own setting. The item's locks stay; the gate restores the machine on Continue.
+ */
+function useSubmittedSetting(api: MachineStoreHook, show: boolean, answer: unknown): void {
+  useEffect(() => {
+    if (!show) return
+    let live = true
+    queueMicrotask(() => {
+      if (!live) return
+      try {
+        api.getState().setConfig(answer as MachineConfigInput)
+      } catch {
+        // Not a usable setting: the machine keeps the item's start.
+      }
+    })
+    return () => {
+      live = false
+    }
+  }, [api, show, answer])
+}
+
 /** G5: the learner's own answer rolled back per kind (§4.1 table), then Continue. */
 export function RollbackView(p: {
   result: CheckResult
@@ -131,6 +187,7 @@ export function RollbackView(p: {
   const { result } = p
   const rb = result.rollback
   const Feedback = p.ui.Feedback
+  useSubmittedSetting(useMachineApi(), !result.correct && rb.kind === 'machine' && p.logic.kind === 'set-machine', p.answer)
   return (
     <section
       data-testid="rollback"

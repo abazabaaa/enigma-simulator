@@ -7,6 +7,12 @@ import { BUTTON, INPUT, QUIET_BUTTON } from './controls'
 export interface SceneRuntime {
   readonly fired: ReadonlySet<string>
   isCommitted(bet: string): boolean
+  /**
+   * Whether the reveal's trigger works now: its bet is committed and, for a repeat of a fired Step reveal, no
+   * later reveal's bet is pending (G10: the key a Step presses stays locked until that bet is committed).
+   * Defaults to isCommitted.
+   */
+  allowed?(bet: string): boolean
   fire(bet: string): void
 }
 
@@ -26,9 +32,9 @@ const TRIGGER_LABEL: Record<RevealSpec['trigger'], string> = {
 }
 
 /** The trigger of a reveal (reveal-<bet>): disabled until its bet is committed. */
-export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: string }): JSX.Element {
+export function RevealButton({ reveal, label = reveal.label }: { reveal: RevealSpec; label?: string }): JSX.Element {
   const rt = useContext(SceneRuntimeContext)
-  const allowed = rt?.isCommitted(reveal.bet) ?? false
+  const allowed = (rt?.allowed ?? rt?.isCommitted)?.(reveal.bet) ?? false
   return (
     <button
       type="button"
@@ -39,7 +45,7 @@ export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: st
       onClick={() => rt?.fire(reveal.bet)}
     >
       {label ?? TRIGGER_LABEL[reveal.trigger]}
-      {!allowed ? ' (bet first)' : ''}
+      {allowed ? '' : !rt?.isCommitted(reveal.bet) ? ' (bet first)' : rt.fired.has(reveal.bet) ? ' (bet on the next one first)' : ' (after the earlier steps)'}
     </button>
   )
 }

@@ -137,10 +137,26 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
 
   const isCommitted = useCallback((bet: string) => useProgress.getState().bets[betKey(chapter, bet)] !== undefined, [chapter])
 
+  // [contracts-v2] Step reveals press the machine, so each Step's bet is about the machine the earlier Steps left:
+  // they fire in the order listed. A fired Step presses again (a repeat press), but not while the next reveal's
+  // bet is still open: that key stays locked until the bet is committed (G10), so a Step cannot slip past it.
+  const allowed = useCallback(
+    (bet: string) => {
+      const r = reveals.find((x) => x.bet === bet)
+      if (!r || !isCommitted(bet)) return false
+      if (r.trigger !== 'step') return true
+      const fired = firedRef.current
+      if (!fired.has(bet)) return reveals.slice(0, reveals.indexOf(r)).every((x) => x.trigger !== 'step' || fired.has(x.bet))
+      const pending = reveals.find((x) => !fired.has(x.bet))
+      return !pending || isCommitted(pending.bet)
+    },
+    [reveals, isCommitted],
+  )
+
   const fire = useCallback(
     (bet: string) => {
       const r = reveals.find((x) => x.bet === bet)
-      if (!r || !isCommitted(bet)) return
+      if (!r || !allowed(bet)) return
       if (r.trigger === 'step') stepPress(r.key ?? 'A')
       if (firedRef.current.has(bet)) return
       const next = new Set(firedRef.current).add(bet)
@@ -148,7 +164,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       setFired(next)
       emit({ type: 'reveal', bet: betKey(chapter, bet), trigger: r.trigger })
     },
-    [chapter, reveals, isCommitted],
+    [chapter, reveals, allowed],
   )
 
   // G10 gating for the next reveal that has not fired.
@@ -180,7 +196,8 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     }
   }, [reveals, fire, isCommitted])
 
-  const runtime: SceneRuntime = useMemo(() => ({ fired, isCommitted, fire }), [fired, isCommitted, fire])
+  // `bets` re-creates the runtime when a bet is committed, so the reveal buttons re-read allowed().
+  const runtime: SceneRuntime = useMemo(() => ({ fired, isCommitted, allowed, fire }), [fired, isCommitted, allowed, fire, bets])
 
   const betHandle = useCallback(
     (id: string): BetHandle => {
@@ -202,7 +219,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     store: useMachineStore,
     completeTask: (id) => useProgress.getState().addTask(chapter, taskKey(scene.id, id)),
     bet: betHandle,
-    reveal: (id) => ({ allowed: isCommitted(id), fire: () => fire(id) }),
+    reveal: (id) => ({ allowed: allowed(id), fire: () => fire(id) }),
     gate: gateHandle,
   }
 

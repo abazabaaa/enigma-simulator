@@ -193,6 +193,11 @@ export interface RevealSpec {
   readonly bet: string
   readonly trigger: 'press' | 'step' | 'run' | 'toggle' | 'play'
   readonly key?: Letter
+  /**
+   * [contracts-v2] The text of the reveal button (reveal-<bet>), e.g. 'Second step' when a scene has several Step
+   * reveals. Default: the trigger's name ('Step', 'Run', 'Toggle', 'Play'). Press reveals have no button.
+   */
+  readonly label?: string
 }
 
 export interface TaskDef {
