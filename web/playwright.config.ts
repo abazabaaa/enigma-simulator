@@ -8,7 +8,8 @@ import { defineConfig, devices } from '@playwright/test'
  * Projects (tags live in test titles):
  *   2d    every spec except @3d and @walk, forced 2D stage, reduced motion
  *   3d    @3d and @sync specs, forced 3D stage (falls back to 2D until the 3D view exists)
- *   walk  the full course walk (@walk)
+ *   walk     the full course walk (@walk), 2D stage
+ *   walk-3d  the same walk on the 3D stage (SwiftShader here and in CI)
  *
  * The site is served under the same base path as on GitHub Pages ('/enigma-simulator/');
  * set VITE_BASE to test another base (it is read by vite.config.ts too).
@@ -64,6 +65,7 @@ export default defineConfig<object, StageOption>({
     { name: '2d', grepInvert: /@3d|@walk/, use: { stage: '2d', contextOptions: { reducedMotion: 'reduce' } } },
     { name: '3d', grep: /@3d|@sync/, use: { stage: '3d', contextOptions: { reducedMotion: 'no-preference' } } },
     { name: 'walk', grep: /@walk/, use: { stage: '2d' }, timeout: 300_000 },
+    { name: 'walk-3d', grep: /@walk/, use: { stage: '3d' }, timeout: 600_000 },
   ],
   webServer: WEB_SERVER,
 })
