@@ -9,7 +9,8 @@ const PAD = 8
  * The crib slid along the cipher text. Columns where a crib letter equals the cipher letter above it are crashes
  * (red): Enigma never enciphers a letter to itself, so the crib cannot sit there. When `onOffset` is given (and not
  * readOnly) the strip is a slider: arrow keys move the crib one letter, Home/End jump to the ends, and the buttons
- * do the same. data-offset, data-crashes (crib indices) and data-crash-count describe it.
+ * do the same. Read-only, the strip is a focusable, labelled region, so the keyboard can scroll a long cipher.
+ * data-offset, data-crashes (crib indices) and data-crash-count describe it.
  */
 export function CribStrip(p: CribStripProps): JSX.Element {
   const cipher = p.cipher.toUpperCase()
@@ -31,6 +32,8 @@ export function CribStrip(p: CribStripProps): JSX.Element {
   }
   const crashText = hits.length === 0 ? 'no crash' : `${hits.length} crash${hits.length > 1 ? 'es' : ''}`
   const valueText = `offset ${offset}: ${crashText}`
+  const crashLetters = hits.length ? ` (crib letters ${hits.map((i) => i + 1).join(', ')})` : ''
+  const regionLabel = `Crib ${crib} under ${cipher} at ${valueText}${crashLetters}`
   const width = cipher.length * CELL + 2 * PAD
   const scroller = useRef<HTMLDivElement>(null)
   // keep the crib in view when it moves along a long cipher
@@ -73,7 +76,7 @@ export function CribStrip(p: CribStripProps): JSX.Element {
     </svg>
   )
   return (
-    <div className="flex flex-col gap-2" data-testid={testId} data-offset={offset} data-max-offset={max}
+    <div className="flex min-w-0 flex-col gap-2" data-testid={testId} data-offset={offset} data-max-offset={max}
       data-crashes={hits.join(',')} data-crash-count={hits.length}>
       {interactive ? (
         <div role="slider" tabIndex={0} aria-label="Crib position under the cipher text" aria-valuemin={0}
@@ -83,8 +86,9 @@ export function CribStrip(p: CribStripProps): JSX.Element {
           {strip}
         </div>
       ) : (
-        <div role="img" aria-label={`Crib ${crib} under ${cipher} at ${valueText}`} ref={scroller}
-          className="max-w-full overflow-x-auto">
+        <div role="region" tabIndex={0} ref={scroller} data-testid={`${testId}-scroller`}
+          aria-label={regionLabel}
+          className="max-w-full overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
           {strip}
         </div>
       )}

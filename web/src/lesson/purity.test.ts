@@ -60,6 +60,9 @@ function allowed(root: string, file: string): boolean {
   if (/^lesson\/rules\.ts$/.test(f) || /^lesson\/kinds\/[^/]+\.ts$/.test(f)) return true
   if (f.startsWith('crypto/') && !/\.worker\.ts$|Client\.ts$/.test(f)) return true
   if (dirname(f) === own && /^(gates|facts|pool|data[^/]*)\.ts$/.test(f.slice(own.length + 1))) return true
+  // The fixture (not a chapter) reuses the recall pool's items for its gate-lab 'plugs' gate; the pool is a
+  // purity root itself.
+  if (r === 'lesson/fixture/gates.ts' && f === 'lesson/recall/pool.ts') return true
   return false
 }
 

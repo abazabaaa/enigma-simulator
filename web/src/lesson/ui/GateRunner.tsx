@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore, type ComponentType, t
 import type { GateKey } from '../../contracts/core'
 import type { GateBinding, ItemRuntimeView, Rollback } from '../../contracts/lesson'
 import type { Highlight, PartId } from '../../contracts/stage'
+import { ANSWER_CONTROL, firstUsable, focusSettled } from './focus'
 import { createMachine, step } from '../../engine'
 import { useMachineApi } from '../../state/activeMachine'
 import { useStageStore } from '../../state/stageStore'
@@ -136,17 +137,14 @@ export function GateRunner(p: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedKey])
 
-  // Stage highlights: the hint (L1+) while answering, the rollback's parts after a wrong answer.
+  // Stage highlights: the hint (L1+) while answering, the rollback's parts after a wrong answer. The hint comes
+  // from the instance the last wrong answer belonged to, not the fresh one now shown (controller.hints()).
   const lastWrong = current ? state.lastWrong[current.itemId] : undefined
-  const hintHighlights: readonly Highlight[] = useMemo(() => {
-    if (feedback || !current || !currentShown || current.hintLevel < 1) return []
-    try {
-      return currentShown.logic.highlight(currentShown.instance, lastWrong ?? null)
-    } catch {
-      return []
-    }
+  const hintHighlights: readonly Highlight[] = useMemo(
+    () => (feedback || !current || current.hintLevel < 1 ? [] : controller.hints()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayedKey, current?.hintLevel, lastWrong, feedback])
+    [controller, displayedKey, current?.hintLevel, lastWrong, feedback],
+  )
   useEffect(() => {
     if (feedback && !feedback.result.correct) {
       setHighlight(rollbackParts(feedback.result.rollback).map((part) => ({ part, tone: 'error' as const })))
@@ -171,13 +169,14 @@ export function GateRunner(p: {
     const item = sectionRef.current?.querySelector('[data-current="true"]')
     if (!item) return
     moveFocus.current = false
-    const control =
-      feedback || level === 3
-        ? item.querySelector<HTMLElement>('[data-testid="gate-continue"]')
-        : item.querySelector<HTMLElement>(
-            '[data-role="answer"] :is(input, textarea, select, button, [tabindex="0"]):not([disabled]):not([tabindex="-1"])',
-          )
-    ;(control ?? item.querySelector<HTMLElement>('[data-testid="item-prompt"]'))?.focus()
+    // The first control that can take the focus: a locked keyboard before a set-machine item's own controls is
+    // skipped (aria-disabled / inert keys), and the focus is put back if a lock lands just after this render.
+    const onContinue = !!feedback || level === 3
+    focusSettled(
+      () =>
+        (onContinue ? firstUsable(item, '[data-testid="gate-continue"]') : firstUsable(item, ANSWER_CONTROL)) ??
+        item.querySelector<HTMLElement>('[data-testid="item-prompt"]'),
+    )
   }, [displayedKey, feedback, level])
 
   // One persistent polite live region for the gate's news.

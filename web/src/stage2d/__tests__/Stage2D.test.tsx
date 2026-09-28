@@ -18,7 +18,7 @@ import { useMachineStore } from '../../state/machineStore'
 import { usePlaybackStore } from '../../state/playbackStore'
 import { useStageStore } from '../../state/stageStore'
 import { useToyStore } from '../../state/toyStore'
-import Stage2D, { focusCenter } from '../index'
+import Stage2D, { attentionRange, focusCenter, scrollToShow } from '../index'
 import { MIN_TEXT_PX, drawnPoints, makeCircuitLayout, pathPointCount, signalPath } from '../layout'
 
 const CONFIGS: Readonly<Record<ModelName, MachineConfigInput>> = {
@@ -201,6 +201,21 @@ describe('review round 2 regressions', () => {
     expect(front.querySelector('[data-part="lampboard"]')).not.toBeNull()
     expect(front.querySelector('[data-part="keyboard"]')).not.toBeNull()
     expect(path.compareDocumentPosition(front) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('review round 4: scroll to what needs attention', () => {
+  const boxes = { reflector: { x: 9, y: 0, w: 50, h: 10 }, 'rotor-left': { x: 83, y: 0, w: 98, h: 10 } } as const
+  it('prefers the divergence marker, else the highlighted parts', () => {
+    expect(attentionRange(boxes, ['rotor-left'], { x: 176, y: 40 })).toEqual({ lo: 164, hi: 188 })
+    expect(attentionRange(boxes, ['reflector', 'rotor-left'], null)).toEqual({ lo: 9, hi: 181 })
+    expect(attentionRange(boxes, ['lid'], null)).toBeNull()
+    expect(attentionRange(boxes, [], null)).toBeNull()
+  })
+  it('scrolls only when the range is not already in view, and then centres it', () => {
+    expect(scrollToShow(150, 170, 100, 358)).toBeNull()
+    expect(scrollToShow(150, 170, 314, 358)).toBe(0)
+    expect(scrollToShow(600, 620, 0, 358)).toBe(610 - 179)
   })
 })
 

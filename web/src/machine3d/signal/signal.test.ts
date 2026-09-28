@@ -30,6 +30,8 @@ import {
 import { buildCurve, buildTube, dashTube, drawSegments, segmentsFor } from './curve'
 import { divergeAnchor, ghostHops, referenceHops } from './ghost'
 import { cablePath, dist, harnessPath, reflectorArc, reflectorOuterX, signalRoute, wirePairs } from './route'
+import { HEAD_MIN_PX, HEAD_RADIUS, pxPerUnit } from './Head'
+import { headTag } from './tag'
 import { drawnFraction, headVisible, hopsDrawn, pathPointCount, type TraceClock } from './timing'
 
 const close = (a: Vec3, b: Vec3, eps = 1e-9) => expect(dist(a, b)).toBeLessThan(eps)
@@ -330,5 +332,52 @@ describe('ghost', () => {
         ),
       ),
     ).toBeNull()
+  })
+})
+
+describe('headTag (count the transformations)', () => {
+  it('names the part and its letters, and counts the letter changes; the entry wheel changes nothing', () => {
+    // Enigma I demo (AV BS CG): A is plugged, so the way in changes the letter.
+    const trace = encodeLetter(createMachine(I), 'A').trace
+    const changes = trace.filter((h) => h.input !== h.output).length
+    let seen = 0
+    trace.forEach((h, k) => {
+      const tag = headTag(trace, k)!
+      const changed = h.input !== h.output
+      if (changed) seen++
+      expect(tag.input).toBe(h.input)
+      expect(tag.output).toBe(h.output)
+      expect(tag.changes).toBe(changes)
+      expect(tag.change).toBe(changed ? seen : null)
+      expect(tag.detail).toBe(changed ? `change ${seen} of ${changes}` : 'no change')
+    })
+    const etw = trace.findIndex((h) => h.stage === 'etw-in')
+    expect(headTag(trace, etw)).toMatchObject({ sym: 'H', inverse: false, change: null, detail: 'no change' })
+    const right = trace.findIndex((h) => h.stage === 'rotor-right-fwd')
+    expect(headTag(trace, right)!.title).toBe(`N  ${trace[right]!.input} → ${trace[right]!.output}`)
+    const back = trace.findIndex((h) => h.stage === 'rotor-right-bwd')
+    expect(headTag(trace, back)).toMatchObject({ sym: 'N', inverse: true })
+    expect(headTag(trace, back)!.title.startsWith('N⁻¹  ')).toBe(true)
+    const u = trace.findIndex((h) => h.kind === 'reflector')
+    expect(headTag(trace, u)).toMatchObject({ sym: 'U', inverse: false })
+    expect(headTag(trace, u)!.change).not.toBeNull()
+    expect(headTag(trace, 11)).toBeNull()
+  })
+
+  it('an unplugged socket changes nothing; a plain path has 7 changes (3 rotors, reflector, 3 rotors)', () => {
+    const trace = encodeLetter(createMachine({ ...I, plugboard: '' }), 'Q').trace
+    expect(headTag(trace, 0)).toMatchObject({ sym: 'S', change: null, changes: 7 })
+    expect(headTag(trace, 10)).toMatchObject({ sym: 'S', inverse: true, change: null })
+    expect(headTag(trace, 2)).toMatchObject({ change: 1, detail: 'change 1 of 7' })
+    expect(headTag(trace, 8)).toMatchObject({ change: 7, detail: 'change 7 of 7' })
+  })
+
+  it('pxPerUnit: a head never smaller than HEAD_MIN_PX on screen', () => {
+    // 390 × 844 portrait canvas: the phone, far from the machine
+    const ppu = pxPerUnit(35, 380, 110)
+    const scale = Math.max(1, HEAD_MIN_PX / 2 / (HEAD_RADIUS * ppu))
+    expect(2 * HEAD_RADIUS * scale * ppu).toBeGreaterThanOrEqual(HEAD_MIN_PX - 1e-9)
+    // close up, the head keeps its size in the world
+    expect(Math.max(1, HEAD_MIN_PX / 2 / (HEAD_RADIUS * pxPerUnit(35, 560, 10)))).toBe(1)
   })
 })

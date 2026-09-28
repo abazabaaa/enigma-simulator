@@ -16,7 +16,7 @@
  * After every change of what is shown it calls onReport with renderer 'svg'.
  */
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MachineStoreHook, ToySpec } from '../contracts/machine'
 import {
@@ -45,7 +45,7 @@ import {
 } from '../engine'
 import { SYM_FOR_PART, type Sym } from '../lib/symbols'
 import { toyPress, toySlots } from '../lib/toy'
-import { usePressView } from '../machine-ui/hooks'
+import { usePressView, useScrollable } from '../machine-ui/hooks'
 import { useMachine, useMachineApi } from '../state/activeMachine'
 import { useMachineStore } from '../state/machineStore'
 import { useStageStore } from '../state/stageStore'
@@ -697,6 +697,22 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
     // Only when the focus or the layout changes (focusKey), never on a press.
   }, [focusKey])
 
+  // A rollback's divergence marker, else the highlighted parts, must be seen: when they change, bring
+  // them into view (smoothly unless motion is reduced). Declared after the focus scroll, so on a
+  // fresh scene it wins.
+  const attention = attentionRange(boxes, highlight.map((h) => h.part), divergeAt)
+  const attentionKey = attention ? `${attention.lo}|${attention.hi}|${layout.width}|${scrollable}` : ''
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (!el || !scrollable || !attention) return
+    const scale = el.scrollWidth / layout.width
+    const left = scrollToShow(attention.lo * scale, attention.hi * scale, el.scrollLeft, el.clientWidth)
+    if (left === null) return
+    if (typeof el.scrollTo === 'function') el.scrollTo({ left, behavior: reducedMotion ? 'auto' : 'smooth' })
+    else el.scrollLeft = left
+    // Only when what needs attention changes (attentionKey), never on a press.
+  }, [attentionKey])
+
   return (
     <div
       ref={scroller}
@@ -739,7 +755,17 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
             strokeLinejoin="round"
           />
         ) : null}
-        {divergeAt ? <circle cx={divergeAt.x} cy={divergeAt.y} r={7} fill="none" stroke="var(--sym-ghost)" strokeWidth={2} /> : null}
+        {divergeAt ? (
+          <circle
+            data-testid="stage2d-diverge"
+            cx={divergeAt.x}
+            cy={divergeAt.y}
+            r={7}
+            fill="none"
+            stroke="var(--sym-ghost)"
+            strokeWidth={2}
+          />
+        ) : null}
         {points.length > 1 ? (
           <polyline
             data-testid="stage2d-path"
@@ -791,20 +817,34 @@ export function stageMaxWidth(l: CircuitLayout): string {
   return `min(${Math.round(l.width * 1.25)}px, calc(${STAGE_MAX_VH}vh * ${aspect}))`
 }
 
-/** Whether the element scrolls sideways (its content is wider than its box). */
-function useScrollable(ref: RefObject<HTMLElement | null>): boolean {
-  const [scrollable, setScrollable] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [ref])
-  return scrollable
+/**
+ * The x range (viewBox units) that needs attention: the ghost's divergence marker when there is one,
+ * else the union of the highlighted parts' boxes; null when there is neither.
+ */
+export function attentionRange(
+  boxes: Partial<Record<PartId, Box>>,
+  highlighted: readonly PartId[],
+  marker: Point | null,
+): { lo: number; hi: number } | null {
+  if (marker) return { lo: marker.x - 12, hi: marker.x + 12 }
+  let lo = Infinity
+  let hi = -Infinity
+  for (const part of highlighted) {
+    const b = boxes[part]
+    if (!b) continue
+    lo = Math.min(lo, b.x)
+    hi = Math.max(hi, b.x + b.w)
+  }
+  return lo === Infinity ? null : { lo, hi }
+}
+
+/**
+ * The scrollLeft that shows [lo, hi] (CSS px in the scroller's content), or null when it is
+ * already fully in view. A range is centred; one wider than the view is centred too.
+ */
+export function scrollToShow(lo: number, hi: number, scrollLeft: number, clientWidth: number): number | null {
+  if (lo >= scrollLeft && hi <= scrollLeft + clientWidth) return null
+  return Math.max(0, (lo + hi) / 2 - clientWidth / 2)
 }
 
 /** The x centre of the focused (undimmed) parts' outline boxes, or null when nothing is focused. */

@@ -16,6 +16,7 @@ import { runBombeAsync } from '../crypto/bombeClient'
 import { catalogueStats, type Catalogue } from '../crypto/catalogue'
 import { getCatalogue } from '../crypto/catalogueClient'
 import { cribbedMessage, dayKey } from '../crypto/generators'
+import { crashes } from '../crypto/cribs'
 import { closures, loops, menuFromCrib, menuFromEdges } from '../crypto/menu'
 import { REJEWSKI_65, characteristic, pairedCycles, products } from '../crypto/rejewski'
 import { femaleSheet } from '../crypto/sheets'
@@ -47,6 +48,18 @@ const V14 = { cipher: 'WSNPNLKLSTCS', crib: 'ATTACKATDAWN' }
 const V14_MENU = menuFromCrib(V14.cipher, V14.crib, 0)
 
 const STRIP = cribbedMessage(createRng(14), { day: dayKey(createRng(1940), { era: '1940' }), crib: V14.crib, length: 30 })
+
+/** The last offset of the generated message where the crib crashes (the III.9 rollback case). */
+const CRASH_OFFSET = [...Array(STRIP.cipher.length - V14.crib.length + 1).keys()]
+  .filter((k) => crashes(STRIP.cipher, V14.crib, k).length > 0)
+  .at(-1)!
+
+/** A 16-letter crib's whole menu: the crowded case for MenuGraph. */
+const MENU16 = (() => {
+  const crib = 'WETTERVORHERSAGE'
+  const m = cribbedMessage(createRng(16), { day: dayKey(createRng(16), { era: '1940' }), crib, length: 40 })
+  return menuFromCrib(m.cipher, crib, m.offset)
+})()
 
 const SHEETS = (['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const).map((left) =>
   femaleSheet({ rotors: ['I', 'II', 'III'], reflector: 'B', left }),
@@ -175,6 +188,8 @@ function CribDemo(): JSX.Element {
       <CribStrip cipher={STRIP.cipher} crib={V14.crib} offset={offset} onOffset={setOffset} />
       <p className="text-sm text-stone-400">Vector 14, read-only:</p>
       <CribStrip cipher={V14.cipher} crib={V14.crib} offset={0} readOnly testId="crib-strip-v14" />
+      <p className="text-sm text-stone-400">A rollback, read-only: the crib at an offset with crashes.</p>
+      <CribStrip cipher={STRIP.cipher} crib={V14.crib} offset={CRASH_OFFSET} readOnly testId="crib-strip-rollback" />
     </>
   )
 }
@@ -202,6 +217,8 @@ function MenuDemo(): JSX.Element {
         {found.length === 0 && <span className="text-stone-400">none yet</span>}
         <span className="text-stone-400">(position 12 is flagged as a warning, for the demo)</span>
       </div>
+      <p className="text-sm text-stone-400">A 16-letter crib’s whole menu, drawn one circle per piece:</p>
+      <MenuGraph menu={MENU16} testId="menu-graph-16" />
     </>
   )
 }

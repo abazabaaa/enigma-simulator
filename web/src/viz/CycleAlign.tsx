@@ -42,7 +42,7 @@ export function CycleAlign(p: CycleAlignProps): JSX.Element {
 
   const width = L * CELL + 20
   return (
-    <div className="flex flex-col gap-2" data-testid={testId} data-offset={offset} data-reversed={String(p.reversed)}
+    <div className="flex min-w-0 flex-col gap-2" data-testid={testId} data-offset={offset} data-reversed={String(p.reversed)}
       data-pairs={pairText}>
       <div
         role="group"
