@@ -306,10 +306,19 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await advanceTo(page, 'double')
     await page.getByTestId('code-editor').fill('function double(x) {\n  while (true) {}\n}\n')
     await page.getByTestId('gate-prediction').fill('42')
-    const started = Date.now()
-    await page.getByTestId('code-run').click()
-    await expect(page.getByTestId('rollback')).toContainText(/ran too long/, { timeout: 2_000 })
-    expect(Date.now() - started).toBeLessThan(2_000)
+    // Measured in the page (from the Run click to the rollback, frame by frame), not across the test channel.
+    const ms = await page.evaluate(async () => {
+      const started = performance.now()
+      document.querySelector<HTMLButtonElement>('[data-testid="code-run"]')!.click()
+      await new Promise<void>((resolve) => {
+        const check = () =>
+          document.querySelector('[data-testid="rollback"]') ? resolve() : requestAnimationFrame(check)
+        check()
+      })
+      return performance.now() - started
+    })
+    expect(ms).toBeLessThan(2_000)
+    await expect(page.getByTestId('rollback')).toContainText(/ran too long/)
     // The page never froze: the worker was terminated, a fresh one runs the next attempt.
     await continueGate(page)
     await typeCodeAndRun(page, DOUBLE_REFERENCE, '42')
