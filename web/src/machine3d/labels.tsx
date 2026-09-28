@@ -15,25 +15,18 @@ import type { RotorSlot } from '../engine'
 import { SYM_FOR_PART } from '../lib/symbols'
 import { HALO_OPACITY, TONE_COLORS, useFocus } from './focus'
 import { FONT_STACK, canvas2d, whiteTexture } from './glyphs'
-import {
-  AXIS_Y,
-  AXIS_Z,
-  CASE,
-  DECK,
-  PAWL_ANGLE,
-  ROTOR,
-  etwX,
-  reflectorX,
-  slotX,
-  stepAngle,
-  type Vec3,
-} from './layout'
+import { AXIS_Y, AXIS_Z, CASE, DECK, PAWL_ANGLE, ROTOR, etwX, reflectorX, slotX, stepAngle, type Vec3 } from './layout'
 import { partColor } from './palette'
 import { PAWL_DX, PAWL_PIVOT } from './parts/Pawls'
 import { EXPLODE_SCALE } from './parts/RotorStack'
 import type { SceneView } from './view'
 
-const SLOT_NAME: Readonly<Record<RotorSlot, string>> = { greek: 'Greek', left: 'Left', middle: 'Middle', right: 'Right' }
+const SLOT_NAME: Readonly<Record<RotorSlot, string>> = {
+  greek: 'Greek',
+  left: 'Left',
+  middle: 'Middle',
+  right: 'Right',
+}
 
 const slotOf = (p: PartId): RotorSlot => p.slice(p.indexOf('-') + 1) as RotorSlot
 const isRotorPart = (p: PartId, prefix: string): boolean => p.startsWith(`${prefix}-`)
@@ -68,11 +61,7 @@ export function partName(p: PartId, view: SceneView): string {
 }
 
 /** Where a part is: its label anchor and the halo's centre and radius. */
-export function partAnchor(
-  p: PartId,
-  view: SceneView,
-  explode = false,
-): { label: Vec3; center: Vec3; radius: number } {
+export function partAnchor(p: PartId, view: SceneView, explode = false): { label: Vec3; center: Vec3; radius: number } {
   const l = view.layout
   const at = (x: number, y: number, z: number): Vec3 => ({ x, y, z })
   switch (p) {
@@ -167,10 +156,27 @@ function labelTexture(text: string, color: string, symbol: boolean): { texture: 
   return { texture, aspect: w / h }
 }
 
-function Label({ text, color, symbol, position }: { text: string; color: string; symbol: boolean; position: Vec3 }): JSX.Element {
+function Label({
+  text,
+  color,
+  symbol,
+  position,
+}: {
+  text: string
+  color: string
+  symbol: boolean
+  position: Vec3
+}): JSX.Element {
   const { texture, aspect } = useMemo(() => labelTexture(text, color, symbol), [text, color, symbol])
   const material = useMemo(
-    () => new MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }),
+    () =>
+      new MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      }),
     [texture],
   )
   useEffect(
@@ -207,13 +213,31 @@ export const PartLabels = memo(function PartLabels({
     <group name="labels">
       {parts.map((p) => {
         const text = symbols ? SYM_FOR_PART[p]! : partName(p, view)
-        return <Label key={p} text={text} color={partColor(p)} symbol={symbols} position={partAnchor(p, view, directive.ringLayer).label} />
+        return (
+          <Label
+            key={p}
+            text={text}
+            color={partColor(p)}
+            symbol={symbols}
+            position={partAnchor(p, view, directive.ringLayer).label}
+          />
+        )
       })}
     </group>
   )
 })
 
-function Halo({ part, tone, view, explode }: { part: PartId; tone: Highlight['tone']; view: SceneView; explode: boolean }): JSX.Element {
+function Halo({
+  part,
+  tone,
+  view,
+  explode,
+}: {
+  part: PartId
+  tone: Highlight['tone']
+  view: SceneView
+  explode: boolean
+}): JSX.Element {
   const { registry } = useFocus()
   const { center, radius } = partAnchor(part, view, explode)
   const material = useMemo(() => {

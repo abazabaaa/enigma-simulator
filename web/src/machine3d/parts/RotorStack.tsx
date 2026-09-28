@@ -133,7 +133,13 @@ function AlphabetRing({ layout, rotor, letters, numbers, explode }: Omit<RotorPr
       out.push({ glyph: letter, position: [ROTOR.letterX, y, z], quaternion: q, size, color: PALETTE.glyphDark })
       if (numbers) {
         const glyph = String(i + 1).padStart(2, '0')
-        out.push({ glyph, position: [ROTOR.numberX, y, z], quaternion: q, size: size * 0.62, color: PALETTE.ringNumber })
+        out.push({
+          glyph,
+          position: [ROTOR.numberX, y, z],
+          quaternion: q,
+          size: size * 0.62,
+          color: PALETTE.ringNumber,
+        })
       }
     })
     return out
@@ -211,7 +217,12 @@ function WiringCore({ layout, rotor }: { layout: Layout; rotor: RotorView }): JS
         colors={colors}
         userData={{ part: `core-${slot}` }}
       />
-      <mesh name={`rotor-wheel-${slot}`} geometry={wheel} material={wheelMaterial} userData={{ part: `rotor-${slot}` }} />
+      <mesh
+        name={`rotor-wheel-${slot}`}
+        geometry={wheel}
+        material={wheelMaterial}
+        userData={{ part: `rotor-${slot}` }}
+      />
     </>
   )
 }
@@ -262,7 +273,13 @@ export interface RotorStackProps {
   readonly explode: boolean
 }
 
-export const RotorStack = memo(function RotorStack({ layout, rotors, letters, numbers, explode }: RotorStackProps): JSX.Element {
+export const RotorStack = memo(function RotorStack({
+  layout,
+  rotors,
+  letters,
+  numbers,
+  explode,
+}: RotorStackProps): JSX.Element {
   return (
     <group name="rotor-stack">
       {rotors.map((rotor, i) => (

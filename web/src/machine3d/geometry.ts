@@ -23,7 +23,13 @@ export function discX(r: number, x0: number, x1: number, segments = 48): BufferG
 
 /** A thick tube (annulus of revolution) about the x axis. */
 export function shellX(r0: number, r1: number, x0: number, x1: number, segments = 64): BufferGeometry {
-  const profile = [new Vector2(r0, x0), new Vector2(r1, x0), new Vector2(r1, x1), new Vector2(r0, x1), new Vector2(r0, x0)]
+  const profile = [
+    new Vector2(r0, x0),
+    new Vector2(r1, x0),
+    new Vector2(r1, x1),
+    new Vector2(r0, x1),
+    new Vector2(r0, x0),
+  ]
   const g = new LatheGeometry(profile, segments)
   g.rotateZ(-Math.PI / 2)
   return g
@@ -55,7 +61,8 @@ export function gearX(teeth: number, rHole: number, rIn: number, rOut: number, x
 export function merge(parts: readonly BufferGeometry[]): BufferGeometry {
   const flat = parts.map((g) => {
     const n = g.index ? g.toNonIndexed() : g
-    for (const name of Object.keys(n.attributes)) if (!['position', 'normal', 'uv'].includes(name)) n.deleteAttribute(name)
+    for (const name of Object.keys(n.attributes))
+      if (!['position', 'normal', 'uv'].includes(name)) n.deleteAttribute(name)
     n.clearGroups()
     return n
   })

@@ -41,7 +41,13 @@ export const Keyboard = memo(function Keyboard({ layout, letters, pressedKey, on
       letters.map((letter, k) => {
         const p = keyPosition(layout, k)
         const down = k === pressedKey ? PRESS_DEPTH : 0
-        return { glyph: letter, position: [p.x, p.y - down + 0.01, p.z], quaternion: FACE_UP, size: 1.25, color: PALETTE.glyphLight }
+        return {
+          glyph: letter,
+          position: [p.x, p.y - down + 0.01, p.z],
+          quaternion: FACE_UP,
+          size: 1.25,
+          color: PALETTE.glyphLight,
+        }
       }),
     [layout, letters, pressedKey],
   )

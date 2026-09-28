@@ -55,7 +55,14 @@ export const Lampboard = memo(function Lampboard({ layout, letters, litLamp }: L
         <cylinderGeometry args={[DECK.lampR, DECK.lampR, LAMP_H, 32]} />
         {letters.map((letter, k) => {
           const p = lampPosition(layout, k)
-          return <Instance key={letter} name={`lamp-${letter}`} position={[p.x, p.y - LAMP_H / 2, p.z]} userData={{ letter }} />
+          return (
+            <Instance
+              key={letter}
+              name={`lamp-${letter}`}
+              position={[p.x, p.y - LAMP_H / 2, p.z]}
+              userData={{ letter }}
+            />
+          )
         })}
       </Instances>
       <mesh

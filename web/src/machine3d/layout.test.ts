@@ -69,7 +69,8 @@ describe('contactPoint', () => {
   it('is deterministic and puts contact A (unrotated) at the window angle', () => {
     for (const l of LAYOUTS) {
       for (const part of [...ringParts(l), 'plugboard', 'keyboard', 'lampboard'] as ContactPart[]) {
-        for (let k = 0; k < l.n; k++) expect(contactPoint(l, part, 'in', k, 3)).toEqual(contactPoint(l, part, 'in', k, 3))
+        for (let k = 0; k < l.n; k++)
+          expect(contactPoint(l, part, 'in', k, 3)).toEqual(contactPoint(l, part, 'in', k, 3))
       }
     }
     const p = contactPoint(machineLayout(), 'right', 'in', 0, 0)
@@ -112,7 +113,14 @@ describe('contactPoint', () => {
 describe('pathPoints', () => {
   const configs: MachineConfigInput[] = [
     { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU', plugboard: 'AV BS CG' },
-    { model: 'M4', reflector: 'B-thin', rotors: ['Beta', 'II', 'IV', 'I'], rings: 'AAAV', positions: 'VJNA', plugboard: 'AT' },
+    {
+      model: 'M4',
+      reflector: 'B-thin',
+      rotors: ['Beta', 'II', 'IV', 'I'],
+      rings: 'AAAV',
+      positions: 'VJNA',
+      plugboard: 'AT',
+    },
   ]
 
   it('has exactly 2 + 2·hops points, from the pressed key to the lit lamp (machine traces)', () => {

@@ -34,7 +34,15 @@ export const rig = {
 
 const { ACTION } = CameraControlsImpl
 
-export function CameraRig({ shot, layout, reducedMotion }: { shot: CameraShot; layout: Layout; reducedMotion: boolean }): JSX.Element {
+export function CameraRig({
+  shot,
+  layout,
+  reducedMotion,
+}: {
+  shot: CameraShot
+  layout: Layout
+  reducedMotion: boolean
+}): JSX.Element {
   const ref = useRef<CameraControlsImpl>(null)
   const camera = useThree((s) => s.camera)
   const gl = useThree((s) => s.gl)

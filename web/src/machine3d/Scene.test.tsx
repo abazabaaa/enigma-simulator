@@ -2,7 +2,14 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Material, Mesh, Object3D, Scene } from 'three'
-import { ALL_PARTS, STAGE_PRESETS, dimmedParts, resolveStage, type PartId, type StageDirective } from '../contracts/stage'
+import {
+  ALL_PARTS,
+  STAGE_PRESETS,
+  dimmedParts,
+  resolveStage,
+  type PartId,
+  type StageDirective,
+} from '../contracts/stage'
 import { LETTERS, isAtTurnover, type MachineConfigInput } from '../engine'
 import { useMachineStore } from '../state/machineStore'
 import { usePlaybackStore } from '../state/playbackStore'
@@ -13,7 +20,14 @@ import { pawlAngle } from './parts/Pawls'
 import { Machine3DScene } from './Scene'
 import { useStageView } from './useStageView'
 
-const I: MachineConfigInput = { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU', plugboard: 'AV BS CG' }
+const I: MachineConfigInput = {
+  model: 'I',
+  reflector: 'B',
+  rotors: ['I', 'II', 'III'],
+  rings: 'AAA',
+  positions: 'ADU',
+  plugboard: 'AV BS CG',
+}
 const M4: MachineConfigInput = {
   model: 'M4',
   reflector: 'B-thin',
@@ -73,10 +87,20 @@ describe('Machine3DScene', () => {
   it('has 26 key and 26 lamp instances, and 26 plugboard sockets', async () => {
     const scene = await mount(STAGE_PRESETS.overview)
     const instances = (name: string) => named(scene, name).children.filter((c) => c.name)
-    expect(instances('key-caps').map((c) => c.name).sort()).toEqual(LETTERS.map((l) => `key-${l}`).sort())
-    expect(instances('lamps').map((c) => c.name).sort()).toEqual(LETTERS.map((l) => `lamp-${l}`).sort())
+    expect(
+      instances('key-caps')
+        .map((c) => c.name)
+        .sort(),
+    ).toEqual(LETTERS.map((l) => `key-${l}`).sort())
+    expect(
+      instances('lamps')
+        .map((c) => c.name)
+        .sort(),
+    ).toEqual(LETTERS.map((l) => `lamp-${l}`).sort())
     expect(instances('sockets')).toHaveLength(26)
-    const plugged = instances('sockets').filter((c) => c.userData.plugged).map((c) => c.userData.letter)
+    const plugged = instances('sockets')
+      .filter((c) => c.userData.plugged)
+      .map((c) => c.userData.letter)
     expect(plugged.sort()).toEqual(['A', 'B', 'C', 'G', 'S', 'V'])
   })
 
@@ -106,7 +130,11 @@ describe('Machine3DScene', () => {
     const core0 = core()
     expect(ring0).toBeCloseTo(20 * stepAngle(l), 12) // window U
     expect(core0).toBeCloseTo(20 * stepAngle(l), 12) // ring 01
-    for (const [letter, k] of [['C', 2], ['Z', 25], ['A', 0]] as const) {
+    for (const [letter, k] of [
+      ['C', 2],
+      ['Z', 25],
+      ['A', 0],
+    ] as const) {
       await act(() => useMachineStore.getState().setRing(2, letter))
       expect(useMachineStore.getState().machine.positions).toEqual([0, 3, 20])
       expect(ring()).toBe(ring0)
@@ -170,7 +198,16 @@ describe('Machine3DScene', () => {
     }
     let scene = await mount(STAGE_PRESETS.wire)
     expect(labels(scene).sort()).toEqual(
-      ['Keyboard', 'Lampboard', 'Plugboard', 'Entry wheel', 'Left rotor I', 'Middle rotor II', 'Right rotor III', 'Reflector B'].sort(),
+      [
+        'Keyboard',
+        'Lampboard',
+        'Plugboard',
+        'Entry wheel',
+        'Left rotor I',
+        'Middle rotor II',
+        'Right rotor III',
+        'Reflector B',
+      ].sort(),
     )
     await renderer!.unmount()
     scene = await mount(STAGE_PRESETS.symbols)
@@ -204,7 +241,12 @@ describe('Machine3DScene', () => {
         await renderer!.advanceFrames(1, 0.2)
         samples.push([tint.emissiveIntensity, halo.opacity])
       }
-      if (reducedMotion) expect(samples).toEqual([[0.7, HALO_OPACITY], [0.7, HALO_OPACITY], [0.7, HALO_OPACITY]])
+      if (reducedMotion)
+        expect(samples).toEqual([
+          [0.7, HALO_OPACITY],
+          [0.7, HALO_OPACITY],
+          [0.7, HALO_OPACITY],
+        ])
       else {
         expect(new Set(samples.map((s) => s[0])).size).toBe(3)
         expect(new Set(samples.map((s) => s[1])).size).toBe(3)

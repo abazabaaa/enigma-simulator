@@ -117,7 +117,10 @@ function glyphMaterial(): MeshBasicMaterial {
   m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 glyphRect;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\n\tvMapUv = uv * glyphRect.zw + glyphRect.xy;\n#endif')
+      .replace(
+        '#include <uv_vertex>',
+        '#include <uv_vertex>\n#ifdef USE_MAP\n\tvMapUv = uv * glyphRect.zw + glyphRect.xy;\n#endif',
+      )
   }
   m.customProgramCacheKey = () => 'enigma-glyph'
   return m
@@ -127,11 +130,27 @@ function glyphMaterial(): MeshBasicMaterial {
  * Instanced glyph quads for one part. Remounts when the number of glyphs changes (an instanced
  * mesh's capacity is fixed).
  */
-export function GlyphMesh({ items, part, name }: { items: readonly GlyphItem[]; part: PartKey; name?: string }): JSX.Element {
+export function GlyphMesh({
+  items,
+  part,
+  name,
+}: {
+  items: readonly GlyphItem[]
+  part: PartKey
+  name?: string
+}): JSX.Element {
   return <GlyphInstances key={items.length} items={items} part={part} name={name} />
 }
 
-function GlyphInstances({ items, part, name }: { items: readonly GlyphItem[]; part: PartKey; name?: string }): JSX.Element {
+function GlyphInstances({
+  items,
+  part,
+  name,
+}: {
+  items: readonly GlyphItem[]
+  part: PartKey
+  name?: string
+}): JSX.Element {
   const count = items.length
   const geometry = useMemo(() => {
     const g = new PlaneGeometry(1, 1)

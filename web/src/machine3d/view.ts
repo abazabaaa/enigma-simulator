@@ -126,8 +126,7 @@ export function machineView(
       coreTurn: turns[i]! - ring,
       turnovers: ROTORS[name].turnovers.split('').map(letterToIndex),
       pawl: !greek,
-      engaged:
-        !greek && engagedAt(i, config.rotors.length, (j) => isAtTurnover(config.rotors[j]!, shown[j]!)),
+      engaged: !greek && engagedAt(i, config.rotors.length, (j) => isAtTurnover(config.rotors[j]!, shown[j]!)),
     }
   })
   const playing = last !== null && pb.t < 1 + pb.hops

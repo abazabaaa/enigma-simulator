@@ -74,7 +74,13 @@ function Pawl({ layout, index, rotor }: { layout: Layout; index: number; rotor: 
   )
 }
 
-export const Pawls = memo(function Pawls({ layout, rotors }: { layout: Layout; rotors: readonly RotorView[] }): JSX.Element {
+export const Pawls = memo(function Pawls({
+  layout,
+  rotors,
+}: {
+  layout: Layout
+  rotors: readonly RotorView[]
+}): JSX.Element {
   const withPawl = useMemo(() => rotors.map((r, i) => ({ r, i })).filter(({ r }) => r.pawl), [rotors])
   const first = withPawl[0]?.i ?? 0
   const last = withPawl[withPawl.length - 1]?.i ?? 0

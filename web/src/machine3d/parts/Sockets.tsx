@@ -48,12 +48,21 @@ export const Sockets = memo(function Sockets({ layout, letters, plugs }: Sockets
     'plugboard',
     () => new MeshStandardMaterial({ color: PALETTE.metalDark, roughness: 0.6, metalness: 0.3 }),
   )
-  const socketMaterial = usePartMaterial('plugboard', () => new MeshStandardMaterial({ roughness: 0.4, metalness: 0.2 }))
+  const socketMaterial = usePartMaterial(
+    'plugboard',
+    () => new MeshStandardMaterial({ roughness: 0.4, metalness: 0.2 }),
+  )
   const glyphs = useMemo(
     (): GlyphItem[] =>
       letters.map((letter, k) => {
         const p = socketPosition(layout, k)
-        return { glyph: letter, position: [p.x, p.y + 1.1, DECK.panelZ + 0.08], quaternion: IDENTITY, size: 0.8, color: PALETTE.glyphLight }
+        return {
+          glyph: letter,
+          position: [p.x, p.y + 1.1, DECK.panelZ + 0.08],
+          quaternion: IDENTITY,
+          size: 0.8,
+          color: PALETTE.glyphLight,
+        }
       }),
     [layout, letters],
   )

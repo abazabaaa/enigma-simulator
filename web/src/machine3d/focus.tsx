@@ -87,7 +87,8 @@ interface BaseState {
   emissiveIntensity: number
 }
 
-const hasEmissive = (m: Material): m is MeshStandardMaterial => 'emissive' in m && (m as MeshStandardMaterial).emissive instanceof Color
+const hasEmissive = (m: Material): m is MeshStandardMaterial =>
+  'emissive' in m && (m as MeshStandardMaterial).emissive instanceof Color
 
 function baseOf(m: Material): BaseState {
   const data = m.userData as { base?: BaseState }

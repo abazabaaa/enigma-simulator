@@ -15,18 +15,23 @@ type Api = Machine3DDebugApi
 
 /** Calls window.__machine3d[method](...args) in the page. */
 function m3d<K extends keyof Api>(page: Page, method: K, ...args: Parameters<Api[K]>): Promise<ReturnType<Api[K]>> {
-  return page.evaluate(
-    ([m, a]) => (window.__machine3d![m] as (...x: unknown[]) => unknown)(...a),
-    [method, args] as [K, unknown[]],
-  ) as Promise<ReturnType<Api[K]>>
+  return page.evaluate(([m, a]) => (window.__machine3d![m] as (...x: unknown[]) => unknown)(...a), [method, args] as [
+    K,
+    unknown[],
+  ]) as Promise<ReturnType<Api[K]>>
 }
 
 /** Wait until the 3D view has reported `focus`. */
 async function reported3d(page: Page, focus: string) {
-  await expect.poll(async () => {
-    const i = await info(page)
-    return `${i.renderer}:${i.focus}`
-  }).toBe(`webgl2:${focus}`)
+  await expect
+    .poll(
+      async () => {
+        const i = await info(page)
+        return `${i.renderer}:${i.focus}`
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(`webgl2:${focus}`)
   return info(page)
 }
 
@@ -41,6 +46,7 @@ const l3 = makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })
 
 test.describe('machine3d', { tag: '@3d' }, () => {
   test('renders WebGL 2 through SwiftShader and reports the GPU', async ({ page }) => {
+    test.setTimeout(60_000)
     await gotoApp(page, '/lab/stage?preset=overview', { stage: '3d' })
     const i = await reported3d(page, 'overview')
     test.info().annotations.push({ type: 'gpu', description: i.gpu ?? 'none' })
@@ -52,7 +58,9 @@ test.describe('machine3d', { tag: '@3d' }, () => {
     await expect(page.locator('[data-testid="machine3d"] canvas')).toHaveCount(1)
   })
 
-  test('every preset reports focus and dimmedParts, dims exactly those parts, within 120 draw calls', async ({ page }) => {
+  test('every preset reports focus and dimmedParts, dims exactly those parts, within 120 draw calls', async ({
+    page,
+  }) => {
     test.setTimeout(120_000)
     for (const model of ['I', 'M4'] as const) {
       for (const id of STAGE_PRESET_IDS) {
@@ -62,10 +70,18 @@ test.describe('machine3d', { tag: '@3d' }, () => {
         const expected = dimmedParts(focus, model)
         expect(i.directive, `${id} on ${model}`).toEqual(STAGE_PRESETS[id])
         expect(i.dimmed, `${id} on ${model}`).toEqual(expected)
-        // The live scene: the materials of exactly those parts are dimmed.
-        const parts = await m3d(page, 'parts')
-        const drawnDimmed = expected.filter((p) => parts.present.includes(p))
-        expect(new Set(parts.dimmed), `${id} on ${model}: dimmed materials`).toEqual(new Set(drawnDimmed))
+        // The live scene (its React tree commits on its own schedule): the materials of exactly
+        // those parts are dimmed.
+        await expect
+          .poll(
+            async () => {
+              const parts = await m3d(page, 'parts')
+              const drawn = expected.filter((p) => parts.present.includes(p))
+              return [...parts.dimmed].sort().join() === [...drawn].sort().join() && parts.present.length > 10
+            },
+            { message: `${id} on ${model}: dimmed materials` },
+          )
+          .toBe(true)
         await idleFor(page, 200)
         const s = await stats(page)
         expect(s!.calls, `${id} on ${model}: draw calls`).toBeLessThanOrEqual(120)
@@ -87,10 +103,15 @@ test.describe('machine3d', { tag: '@3d' }, () => {
       const state = await page.evaluate(() => window.__enigma!.getState())
       if (state.lastStepping?.doubleStep) doubleSteps++
       await expect.poll(async () => (await info(page)).windows, { timeout: 10_000 }).toBe(state.positions)
-      // The rings in the scene show the same letters.
-      const rotors = await m3d(page, 'rotors')
-      expect(rotors.map((r) => String.fromCharCode(65 + r.window)).join('')).toBe(state.positions)
-      rotors.forEach((r) => expect(r.ringAngle).toBeCloseTo(r.window * step, 6))
+      // The rings in the scene show the same letters, at the matching angles.
+      await expect
+        .poll(async () => {
+          const rotors = await m3d(page, 'rotors')
+          const letters = rotors.map((r) => String.fromCharCode(65 + r.window)).join('')
+          const turned = rotors.every((r) => Math.abs(r.ringAngle - r.window * step) < 1e-6)
+          return turned ? letters : `${letters} (turning)`
+        })
+        .toBe(state.positions)
     }
     expect(doubleSteps).toBeGreaterThanOrEqual(1)
     // Let the last press finish: the lamp matches __enigma.
@@ -127,6 +148,7 @@ test.describe('machine3d', { tag: '@3d' }, () => {
   })
 
   test('a lost WebGL context falls back to the 2D view without a console error', async ({ page, allowContextLoss }) => {
+    test.setTimeout(60_000)
     allowContextLoss()
     await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d' })
     await reported3d(page, 'wire')
@@ -145,13 +167,15 @@ test.describe('machine3d', { tag: '@3d' }, () => {
   })
 
   test('reduced motion cuts to a new shot; full motion flies there', async ({ page }) => {
+    test.setTimeout(90_000)
+    const arrived = (shot: string) => m3d(page, 'camera').then((c) => c.shot === shot && c.settleFrames !== null)
     for (const motion of ['reduce', 'full'] as const) {
       await gotoApp(page, '/lab/stage?preset=overview', { stage: '3d', motion })
       await reported3d(page, 'overview')
-      await expect.poll(() => m3d(page, 'camera').then((c) => c.settleFrames)).not.toBeNull()
+      await expect.poll(() => arrived('overview'), { timeout: 30_000 }).toBe(true)
       await page.getByTestId('preset-rotors').click()
       await reported3d(page, 'rotor-stack')
-      await expect.poll(() => m3d(page, 'camera').then((c) => c.settleFrames), { timeout: 20_000 }).not.toBeNull()
+      await expect.poll(() => arrived('rotors'), { timeout: 30_000 }).toBe(true)
       const cam = await m3d(page, 'camera')
       expect(cam.shot).toBe('rotors')
       const shot = shotFor('rotors', l3)
@@ -163,11 +187,14 @@ test.describe('machine3d', { tag: '@3d' }, () => {
   })
 
   test('a click on a 3D key presses it through the store, unless the keyboard is locked', async ({ page }) => {
+    test.setTimeout(60_000)
     for (const locks of ['', '&locks=keyboard']) {
       await gotoApp(page, `/lab/stage?preset=type-a-word${locks}`, { stage: '3d', motion: 'reduce' })
       await reported3d(page, 'overview')
-      await expect.poll(() => m3d(page, 'camera').then((c) => c.settleFrames)).not.toBeNull()
-      const point = await page.evaluate(() => window.__machine3d!.keyPoint('Q'))
+      await expect
+        .poll(() => m3d(page, 'camera').then((c) => c.shot === 'front' && c.settleFrames !== null), { timeout: 30_000 })
+        .toBe(true)
+      const point = await m3d(page, 'keyPoint', 'Q')
       expect(point).not.toBeNull()
       await page.mouse.click(point!.x, point!.y)
       const expected = locks ? '' : 'Q'

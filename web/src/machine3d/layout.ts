@@ -200,7 +200,13 @@ function onCircle(x: number, angle: number, r: number): Vec3 {
  *  - keyboard, lampboard: the key or lamp top (face ignored).
  * `rotation` is ignored for the keyboard, lampboard and plugboard.
  */
-export function contactPoint(l: Layout, part: ContactPart, face: 'in' | 'out', contact: number, rotation: number): Vec3 {
+export function contactPoint(
+  l: Layout,
+  part: ContactPart,
+  face: 'in' | 'out',
+  contact: number,
+  rotation: number,
+): Vec3 {
   switch (part) {
     case 'keyboard':
       return keyPosition(l, contact)
@@ -241,7 +247,10 @@ function hopPoints(l: Layout, h: PathHop): [Vec3, Vec3] {
       ]
     }
     case 'reflector':
-      return [contactPoint(l, 'reflector', 'in', h.inputIndex, 0), contactPoint(l, 'reflector', 'out', h.outputIndex, 0)]
+      return [
+        contactPoint(l, 'reflector', 'in', h.inputIndex, 0),
+        contactPoint(l, 'reflector', 'out', h.outputIndex, 0),
+      ]
     case 'rotor': {
       const [, slot, dir] = h.stage.split('-') as [string, RotorSlot, 'fwd' | 'bwd']
       const fwd = dir === 'fwd'

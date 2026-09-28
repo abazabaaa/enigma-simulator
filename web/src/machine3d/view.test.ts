@@ -106,7 +106,10 @@ describe('toyView', () => {
   it('shows a toy on n letters, with its windows, lamp and pawls', () => {
     const spec = randomToy(createRng(5), 8, 3)
     const last = toyPress(spec, 'C')
-    const v = toyView({ spec: last.spec, last, lampsHidden: false }, { t: 1 + last.hops.length, hops: last.hops.length })
+    const v = toyView(
+      { spec: last.spec, last, lampsHidden: false },
+      { t: 1 + last.hops.length, hops: last.hops.length },
+    )
     expect(v.layout).toMatchObject({ n: 8, slots: ['left', 'middle', 'right'], toy: true })
     expect(v.letters).toEqual(LETTERS.slice(0, 8))
     expect(v.windows).toBe(last.spec.positions.map((p) => LETTERS[p]).join(''))

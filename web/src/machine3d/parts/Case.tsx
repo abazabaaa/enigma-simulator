@@ -10,17 +10,7 @@ import type { StageDirective } from '../../contracts/stage'
 import { usePartMaterial } from '../focus'
 import { box, discX, merge } from '../geometry'
 import { useGeometry } from '../hooks'
-import {
-  AXIS_Y,
-  AXIS_Z,
-  CASE,
-  ROTOR,
-  WINDOW_ANGLE,
-  etwX,
-  reflectorX,
-  slotX,
-  type Layout,
-} from '../layout'
+import { AXIS_Y, AXIS_Z, CASE, ROTOR, WINDOW_ANGLE, etwX, reflectorX, slotX, type Layout } from '../layout'
 import { PALETTE } from '../palette'
 
 const W = 0.6 // wood thickness
@@ -163,7 +153,10 @@ export const Case = memo(function Case({ layout, lid }: { layout: Layout; lid: S
   const key = layout.slots.join()
   const wood = useGeometry(woodBody, [])
   const metal = useGeometry(() => metalBody(layout), [key])
-  const woodMaterial = usePartMaterial('scenery', () => new MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.8 }))
+  const woodMaterial = usePartMaterial(
+    'scenery',
+    () => new MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.8 }),
+  )
   const metalMaterial = usePartMaterial(
     'scenery',
     () => new MeshStandardMaterial({ color: PALETTE.metal, roughness: 0.85, metalness: 0.2 }),
