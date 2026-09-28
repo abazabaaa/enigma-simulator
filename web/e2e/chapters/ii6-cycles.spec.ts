@@ -8,6 +8,7 @@
  *    through the API; the stecker-set locks; cycle-lengths' prediction pairing and the agent-paste probe (the code
  *    item passes, the gate stays shut while the in-page align-pair is wrong); the ladder; a reload; the gaming
  *    fallback (stecker-set, keyboard locked); chapter.complete;
+ *  - the delayed recall (§4.2): with an Act II chapter complete, the return visit asks r-compose and r-lengths;
  *  - @3d: across a scene change, stecker-toggle reports focus 'plugboard' and dimmedParts in the 3D view.
  * Answers are computed in Node from the pure gates.ts.
  */
@@ -18,6 +19,7 @@ import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
 import {
   agentPasteProbe,
+  answerCorrect,
   answerViaApi,
   answerViaUi,
   assertFocus,
@@ -30,6 +32,7 @@ import {
   configure,
   continueGate,
   current,
+  editProgress,
   enter,
   eventsOf,
   expectNextDisabled,
@@ -403,6 +406,23 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     const rec = (await progress(page)).gates[`${CHAPTER}/cycles`]!.items['lengths']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
     expect(await current(page)).toMatchObject({ itemId: 'lengths', fallback: false, kind: 'numbers' })
+  })
+
+  test('delayed recall (§4.2): with an Act II chapter complete, a return visit asks the Act II items', async ({ page }) => {
+    await enter(page, CHAPTER)
+    await editProgress(page, (p) => (p.chapters['ii5-indicators'] = { reached: 4, completed: true, tasks: [] }), `/c/${CHAPTER}`)
+    await expect.poll(async () => (await where(page)).scene).toBe('theorem')
+    await expect(page.getByTestId('return-check')).toHaveCount(0)
+    await configure(page, { now: Date.now() + 7 * 3600_000 })
+    await expect(page.getByTestId('return-check')).toBeVisible()
+    const [check] = await eventsOf(page, 'return-check')
+    // Act II alone is eligible: composing permutations and the cycle lengths of a product of swaps.
+    expect(check!.items.map((k) => k.split('/').at(-1)).sort()).toEqual(['r-compose', 'r-lengths'])
+    for (let k = 0; k < 2; k++) {
+      expect((await gate(page))!.key).toMatch(new RegExp(`^${CHAPTER}/return-\\d+-${k}$`))
+      await answerCorrect(page)
+    }
+    await expect(page.getByTestId('return-check')).toHaveCount(0)
   })
 })
 

@@ -281,23 +281,9 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
     await expect(page.getByTestId('chapter-link-ii6-cycles')).toHaveAttribute('data-locked', 'false')
   })
 
-  test('fill-ad: the hint ladder (L1, L2 on another instance, L3 reveal) and a reload mid-gate', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
-    await answerViaApi(page, 'fill-ad', await wrongAnswer(page))
-    await reloadKeepsSeed(page)
-    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
-    await answerViaApi(page, 'fill-ad', await solveInNode(page))
-    await answerViaApi(page, 'fill-ad', await solveInNode(page))
-    await answerViaApi(page, 'ad-fixed-point', 'product')
-    // The ladder on build-ad (a code item; its worked example never shows the reference).
-    expect((await current(page)).itemId).toBe('build-ad')
-    await assertLadder(page)
-    const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/build-ad'))
-    expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
-  })
-
-  test('the agent paste never passes the gate while the in-page item is wrong; gaming brings the fill-ad fallback', async ({ page }) => {
+  test('a reload keeps the instance; the ladder on build-ad; the agent paste never passes while the in-page item is wrong', async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await enter(page, CHAPTER)
     await toGate(page)
@@ -311,9 +297,19 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
       }
     })
     expect(refused).toBe(true)
+    // 7. A reload mid-gate keeps the seed and the instance.
+    await answerViaApi(page, 'fill-ad', await wrongAnswer(page))
+    await reloadKeepsSeed(page)
+    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
     await answerViaApi(page, 'fill-ad', await solveInNode(page))
     await answerViaApi(page, 'fill-ad', await solveInNode(page))
     await answerViaApi(page, 'ad-fixed-point', 'product')
+
+    // The ladder on build-ad (a code item; its worked examples never show the reference).
+    expect((await current(page)).itemId).toBe('build-ad')
+    await assertLadder(page)
+    const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/build-ad'))
+    expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
 
     // Every answer from here on counts as instant, so the second one is a gaming signal.
     await configure(page, { minLatencyMs: 600_000 })
@@ -337,7 +333,7 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
     await expect(page.getByTestId('gate')).toHaveAttribute('data-passed', 'false')
     await expect(page.getByTestId('item-build-ad')).toHaveAttribute('data-passed', 'false')
     const rec = (await progress(page)).gates[`${CHAPTER}/indicators`]!.items['build-ad']!
-    expect(rec.outcomes.map((o) => [o.result, o.fallback])).toEqual([
+    expect(rec.outcomes.slice(-3).map((o) => [o.result, o.fallback])).toEqual([
       ['correct', false],
       ['wrong', false],
       ['wrong', true],

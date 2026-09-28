@@ -12,12 +12,11 @@ import { ITEM_UI } from './items'
 import { AlignView, HexagonView, SteckerToggleView } from './scenes'
 
 const STORY =
-  'Warsaw, late 1932. Marian Rejewski had AD, BE and CF for a day, but each of them hid the plugboard and its six ' +
-  'unknown cables. Then he saw that the cables could not touch the lengths of their cycles. Two facts about ' +
-  'permutations do the work. A product of two permutations made only of swaps has its cycles in pairs of equal length. ' +
-  'And a permutation with its letters renamed, a conjugate, keeps its cycle lengths: the theorem the cryptologist ' +
-  'Deavours later called "the theorem that won World War II". A cable only renames letters in AD. This chapter lets ' +
-  'you check both facts by hand.'
+  'Warsaw, late 1932. Marian Rejewski had AD, BE and CF for a day. But every letter of them had passed through the ' +
+  'plugboard, and its six cables were unknown. Before the three permutations could tell him anything about the ' +
+  'rotors, he had to know what the cables did to them. The answer is a piece of pure mathematics, a theorem about ' +
+  'permutations that the cryptologist Deavours later called "the theorem that won World War II". In this chapter you ' +
+  "work it out for yourself: multiply two sets of swaps, add a cable to a real day's machine, and line up two cycles."
 
 const SETUP = { machine: DAY, locks: READ_ONLY } as const
 

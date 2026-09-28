@@ -110,6 +110,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
               them was copied wrongly, and the majority stands.
             </p>
           ) : null}
+          <div aria-live="polite">
           {arrived >= TOTAL ? (
             <div className="flex flex-col gap-1" data-testid="ad-cycles">
               <p>
@@ -126,21 +127,22 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
                 CF = {formatCycles(CF65)} <span className="text-stone-400">· lengths {cycleSignature(CF65).join(' ')}</span>
               </p>
               <p>
-                AD sends {fixedList(AD65)} to {fixedList(AD65) === 'no letter' ? 'itself' : 'themselves'}. No single press
-                of an Enigma ever lights the key&apos;s own letter, but AD is the product of two presses, 1 and 4, and a
-                product may bring a letter back.
+                {fixedSentence(AD65)} No single press of an Enigma ever lights the key&apos;s own letter, but AD is the
+                product of two presses, 1 and 4, and a product may bring a letter back.
               </p>
             </div>
           ) : null}
+          </div>
         </section>
       ) : null}
     </div>
   )
 }
 
-/** The fixed points of a permutation, as 'A and S'. */
-function fixedList(p: readonly number[]): string {
+/** What AD does with its fixed points: 'AD sends A and S to themselves.' */
+function fixedSentence(p: readonly number[]): string {
   const f = p.flatMap((v, x) => (v === x ? [L(x)] : []))
-  if (!f.length) return 'no letter'
-  return f.length === 1 ? f[0]! : `${f.slice(0, -1).join(', ')} and ${f.at(-1)}`
+  if (!f.length) return 'AD sends no letter to itself.'
+  if (f.length === 1) return `AD sends ${f[0]} to itself.`
+  return `AD sends ${f.slice(0, -1).join(', ')} and ${f.at(-1)} to themselves.`
 }
