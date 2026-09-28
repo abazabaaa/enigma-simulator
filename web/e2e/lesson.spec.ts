@@ -349,12 +349,13 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await expect(page.getByTestId('code-result')).toHaveAttribute('data-status', 'too-long')
     await expect(page.getByTestId('gate-prediction')).toHaveAttribute('readonly', '')
     expect((await eventsOf(page, 'item.submit')).length).toBe(submits)
-    // Tab in the editor inserts two spaces.
+    // Tab in the editor (CodeMirror, PR 17) inserts two spaces: the item's stored source is the editor's text.
     const editor = page.getByTestId('code-editor')
     await editor.fill('x')
     await editor.press('End')
     await editor.press('Tab')
-    await expect(editor).toHaveValue('x  ')
+    const stored = () => page.evaluate(() => localStorage.getItem('enigma.code.lab-fixture/lab:main/double'))
+    await expect.poll(stored).toBe('x  ')
   })
 
   test('gaming: two instant answers switch to an in-page fallback with the keyboard locked', async ({ page }) => {

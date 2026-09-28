@@ -6,7 +6,8 @@
  *   3D          static closure of src/machine3d/index.tsx, minus the entry      ≤ 400 kB (never in the entry)
  *   effects     static closure of src/machine3d/effects/index.tsx, minus the above ≤ 130 kB
  *   chapter     each src/chapters/<id>/index.ts chunk on its own                  ≤ 80 kB
- *   code editor static closure of src/code/CodeEditor.tsx, minus the entry      ≤ 150 kB
+ *   code editor static closures of src/code/CodeEditor.tsx and of the CodeMirror module it lazy-loads
+ *               (src/code/codemirror.tsx), minus the entry                      ≤ 150 kB
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -87,7 +88,11 @@ if (manifest[EFFECTS]) row('effects', minus(jsFiles(closure(EFFECTS)), entry, th
 else rows.push({ name: 'effects', kb: '-', budget: '130', status: 'n/a', note: 'not built' })
 
 const EDITOR = 'src/code/CodeEditor.tsx'
-if (manifest[EDITOR]) row('code editor', minus(jsFiles(closure(EDITOR)), entry), BUDGETS.codeEditor)
+const CODEMIRROR = 'src/code/codemirror.tsx'
+if (manifest[EDITOR]) {
+  const keys = new Set([...closure(EDITOR), ...closure(CODEMIRROR)])
+  row('code editor', minus(jsFiles(keys), entry), BUDGETS.codeEditor, manifest[CODEMIRROR] ? 'with CodeMirror' : '')
+}
 else rows.push({ name: 'code editor', kb: '-', budget: '150', status: 'n/a', note: 'not built' })
 
 const chapters = Object.keys(manifest)
