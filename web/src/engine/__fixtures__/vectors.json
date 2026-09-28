@@ -1,0 +1,410 @@
+[
+  {
+    "id": "wikipedia-default-key",
+    "kind": "message",
+    "title": "Default key: rotors I II III, UKW-B, rings AAA, start AAA",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["A", "A", "A"],
+      "positions": ["A", "A", "A"],
+      "plugboard": []
+    },
+    "plaintext": "AAAAA",
+    "ciphertext": "BDZGO",
+    "finalPositions": "AAF",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "wikipedia-rings-bbb",
+    "kind": "message",
+    "title": "Ring settings BBB (02 02 02), start AAA",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["B", "B", "B"],
+      "positions": ["A", "A", "A"],
+      "plugboard": []
+    },
+    "plaintext": "AAAAA",
+    "ciphertext": "EWTYX",
+    "finalPositions": "AAF",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "manual-1930-indicator",
+    "kind": "message",
+    "title": "1930 manual: doubled indicator enciphered at the Grundstellung FOL",
+    "source": "https://cryptocellar.org/enigma/e-message-1930.html",
+    "notes": "Wheel order II I III, Ringstellung 24 13 22 = XMV, UKW-A, Stecker AM FI NV PS TU WZ.",
+    "config": {
+      "model": "I",
+      "reflector": "A",
+      "rotors": ["II", "I", "III"],
+      "rings": ["X", "M", "V"],
+      "positions": ["F", "O", "L"],
+      "plugboard": ["AM", "FI", "NV", "PS", "TU", "WZ"]
+    },
+    "plaintext": "ABLABL",
+    "ciphertext": "PKPJXI",
+    "finalPositions": "FOR",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "manual-1930-body",
+    "kind": "message",
+    "title": "1930 manual: message body at the message key ABL",
+    "source": "https://cryptocellar.org/enigma/e-message-1930.html",
+    "notes": "Q stands for CH and X for a full stop/space, per the manual.",
+    "config": {
+      "model": "I",
+      "reflector": "A",
+      "rotors": ["II", "I", "III"],
+      "rings": ["X", "M", "V"],
+      "positions": ["A", "B", "L"],
+      "plugboard": ["AM", "FI", "NV", "PS", "TU", "WZ"]
+    },
+    "plaintext": "FEINDLIQEINFANTERIEKOLONNEBEOBAQTETXANFANGSUEDAUSGANGBAERWALDEXENDEDREIKMOSTWAERTSNEUSTADT",
+    "ciphertext": "GCDSEAHUGWTQGRKVLFGXUCALXVYMIGMMNMFDXTGNVHVRMMEVOUYFZSLRHDRRXFJWCFHUHMUNZEFRDISIKBGPMYVXUZ",
+    "finalPositions": "AFX",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "barbarossa-part-1",
+    "kind": "message",
+    "title": "Operation Barbarossa, 7 July 1941, part 1 (first 30 letters) at BLA",
+    "source": "https://www.sarcnet.org/the-enigma-project.html",
+    "notes": "Rotors II IV V, rings 02 21 12 = BUL, UKW-B, 10 plugs. Originally Franklin Heath sample messages.",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["II", "IV", "V"],
+      "rings": ["B", "U", "L"],
+      "positions": ["B", "L", "A"],
+      "plugboard": ["AV", "BS", "CG", "DL", "FU", "HZ", "IN", "KM", "OW", "RX"]
+    },
+    "plaintext": "AUFKLXABTEILUNGXVONXKURTINOWAX",
+    "ciphertext": "EDPUDNRGYSZRCXNUYTPOMRMBOFKTBZ",
+    "finalPositions": "BME",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "barbarossa-part-2",
+    "kind": "message",
+    "title": "Operation Barbarossa, 7 July 1941, part 2 (first 30 letters) at LSD",
+    "source": "https://www.sarcnet.org/the-enigma-project.html",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["II", "IV", "V"],
+      "rings": ["B", "U", "L"],
+      "positions": ["L", "S", "D"],
+      "plugboard": ["AV", "BS", "CG", "DL", "FU", "HZ", "IN", "KM", "OW", "RX"]
+    },
+    "plaintext": "DREIGEHTLANGSAMABERSIQERVORWAE",
+    "ciphertext": "SFBWDNJUSEGQOBHKRTAREEZMWKPPRB",
+    "finalPositions": "LTH",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "py-enigma-message-key",
+    "kind": "message",
+    "title": "py-enigma example: message key BLA enciphered at display WXC",
+    "source": "https://py-enigma.readthedocs.io/en/latest/overview.html",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["II", "IV", "V"],
+      "rings": ["B", "U", "L"],
+      "positions": ["W", "X", "C"],
+      "plugboard": ["AV", "BS", "CG", "DL", "FU", "HZ", "IN", "KM", "OW", "RX"]
+    },
+    "plaintext": "BLA",
+    "ciphertext": "KCH",
+    "finalPositions": "WXF",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "py-enigma-body",
+    "kind": "message",
+    "title": "py-enigma example: message body at BLA",
+    "source": "https://py-enigma.readthedocs.io/en/latest/overview.html",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["II", "IV", "V"],
+      "rings": ["B", "U", "L"],
+      "positions": ["B", "L", "A"],
+      "plugboard": ["AV", "BS", "CG", "DL", "FU", "HZ", "IN", "KM", "OW", "RX"]
+    },
+    "plaintext": "THEXRUSSIANSXAREXCOMINGX",
+    "ciphertext": "NIBLFMYMLLUFWCASCSSNVHAZ",
+    "finalPositions": "BLY",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "u264-m4",
+    "kind": "message",
+    "title": "Kriegsmarine M4, U-264 (Looks), 25 Nov 1942 (first 40 letters)",
+    "source": "https://www.ciphermachinesandcryptology.com/en/m4project.htm",
+    "notes": "Beta II IV I, UKW B-thin, rings AAAV, start VJNA.",
+    "config": {
+      "model": "M4",
+      "reflector": "B-thin",
+      "rotors": ["Beta", "II", "IV", "I"],
+      "rings": ["A", "A", "A", "V"],
+      "positions": ["V", "J", "N", "A"],
+      "plugboard": ["AT", "BL", "DF", "GJ", "HM", "NW", "OP", "QY", "RZ", "VX"]
+    },
+    "plaintext": "VONVONJLOOKSJHFFTTTEINSEINSDREIZWOYYQNNS",
+    "ciphertext": "NCZWVUSXPNYMINHZXMQXSFWXWLKJAHSHNMCOCCAK",
+    "finalPositions": "VJOO",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "scharnhorst",
+    "kind": "message",
+    "title": "Scharnhorst's last signal, 26 Dec 1943 (double-notched rotors VI and VIII)",
+    "source": "https://www.cryptocellar.org/bgac/scharnhorst.html",
+    "notes": "Wheel order 368 = III VI VIII, rings AHM, UKW-B, Spruchschluessel UZV.",
+    "config": {
+      "model": "M3",
+      "reflector": "B",
+      "rotors": ["III", "VI", "VIII"],
+      "rings": ["A", "H", "M"],
+      "positions": ["U", "Z", "V"],
+      "plugboard": ["AN", "EZ", "HK", "IJ", "LR", "MQ", "OT", "PV", "SW", "UX"]
+    },
+    "plaintext": "STEUEREJTANAFJORDJANSTANDORTQUAAACCCVIERNEUNNEUNZWOFAHRTZWONULSMXXSCHARNHORSTHCO",
+    "ciphertext": "YKAENZAPMSCHZBFOCUVMRMDPYCOFHADZIZMEFXTHFLOLPZLFGGBOTGOXGRETDWTJIQHLMXVJWKZUASTR",
+    "finalPositions": "VGX",
+    "provenance": {
+      "plaintext": "published",
+      "ciphertext": "published",
+      "finalPositions": "reference"
+    }
+  },
+  {
+    "id": "wikipedia-normal-step",
+    "kind": "stepping",
+    "title": "Normal stepping from AAU: AAV ABW ABX",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["A", "A", "A"],
+      "positions": ["A", "A", "U"],
+      "plugboard": []
+    },
+    "plaintext": "AAA",
+    "ciphertext": "MUQ",
+    "positionsAfterEachKey": ["AAV", "ABW", "ABX"],
+    "provenance": {
+      "expectedPositions": "published",
+      "ciphertext": "reference"
+    }
+  },
+  {
+    "id": "wikipedia-double-step",
+    "kind": "stepping",
+    "title": "Double step from ADU: ADV AEW BFX BFY",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["A", "A", "A"],
+      "positions": ["A", "D", "U"],
+      "plugboard": []
+    },
+    "plaintext": "AAAA",
+    "ciphertext": "EQIB",
+    "positionsAfterEachKey": ["ADV", "AEW", "BFX", "BFY"],
+    "provenance": {
+      "expectedPositions": "published",
+      "ciphertext": "reference"
+    }
+  },
+  {
+    "id": "rijmenants-double-step",
+    "kind": "stepping",
+    "title": "Double step with rotors III II I from KDO: KDP KDQ KER LFS LFT LFU",
+    "source": "https://www.ciphermachinesandcryptology.com/en/enigmatech.htm",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["III", "II", "I"],
+      "rings": ["A", "A", "A"],
+      "positions": ["K", "D", "O"],
+      "plugboard": []
+    },
+    "plaintext": "AAAAAA",
+    "ciphertext": "ULMHJC",
+    "positionsAfterEachKey": ["KDP", "KDQ", "KER", "LFS", "LFT", "LFU"],
+    "provenance": {
+      "expectedPositions": "published",
+      "ciphertext": "reference"
+    }
+  },
+  {
+    "id": "wikipedia-rotor-I-ring-A",
+    "kind": "rotor",
+    "title": "Rotor I at position A, ring A: A -> E (forward, single rotor)",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "rotor": "I",
+    "ring": "A",
+    "position": "A",
+    "direction": "forward",
+    "input": "A",
+    "output": "E"
+  },
+  {
+    "id": "wikipedia-rotor-I-ring-B",
+    "kind": "rotor",
+    "title": "Rotor I at position A, ring B (02): A -> K (forward, single rotor)",
+    "source": "https://en.wikipedia.org/wiki/Enigma_rotor_details",
+    "rotor": "I",
+    "ring": "B",
+    "position": "A",
+    "direction": "forward",
+    "input": "A",
+    "output": "K"
+  },
+  {
+    "id": "m4-beta-bthin-equals-m3-b",
+    "kind": "equivalence",
+    "title": "M4 with Beta at A (ring A) and UKW B-thin equals a 3-rotor machine with UKW-B",
+    "source": "https://www.cryptomuseum.com/crypto/enigma/m4/index.htm",
+    "notes": "Also stated in https://en.wikipedia.org/wiki/Enigma-M4. AAAAA must still give BDZGO.",
+    "configs": [
+      {
+        "model": "M4",
+        "reflector": "B-thin",
+        "rotors": ["Beta", "I", "II", "III"],
+        "rings": ["A", "A", "A", "A"],
+        "positions": ["A", "A", "A", "A"],
+        "plugboard": []
+      },
+      {
+        "model": "M3",
+        "reflector": "B",
+        "rotors": ["I", "II", "III"],
+        "rings": ["A", "A", "A"],
+        "positions": ["A", "A", "A"],
+        "plugboard": []
+      }
+    ],
+    "plaintext": "AAAAAHELLOWORLD",
+    "ciphertext": "BDZGOJKGASCHIYP",
+    "provenance": {
+      "equivalence": "published",
+      "ciphertext": "reference"
+    }
+  },
+  {
+    "id": "m4-gamma-cthin-equals-m3-c",
+    "kind": "equivalence",
+    "title": "M4 with Gamma at A (ring A) and UKW C-thin equals a 3-rotor machine with UKW-C",
+    "source": "https://en.wikipedia.org/wiki/Enigma-M4",
+    "notes": "Exercised with rings, plugs and double-notched rotors so every stage is covered.",
+    "configs": [
+      {
+        "model": "M4",
+        "reflector": "C-thin",
+        "rotors": ["Gamma", "III", "VI", "VIII"],
+        "rings": ["A", "A", "H", "M"],
+        "positions": ["A", "U", "Z", "V"],
+        "plugboard": ["AN", "EZ", "HK", "IJ", "LR", "MQ", "OT", "PV", "SW", "UX"]
+      },
+      {
+        "model": "M3",
+        "reflector": "C",
+        "rotors": ["III", "VI", "VIII"],
+        "rings": ["A", "H", "M"],
+        "positions": ["U", "Z", "V"],
+        "plugboard": ["AN", "EZ", "HK", "IJ", "LR", "MQ", "OT", "PV", "SW", "UX"]
+      }
+    ],
+    "plaintext": "DERFUEHRERISTTOTXDERKAMPFGEHTWEITER",
+    "ciphertext": "SASOJTQMVCEVBBTBJHMLSRUAPSYYRCCQRWN",
+    "provenance": {
+      "equivalence": "published",
+      "ciphertext": "reference"
+    }
+  },
+  {
+    "id": "no-self-encryption-sweep",
+    "kind": "property",
+    "title": "No letter ever enciphers to itself (2000 consecutive positions x 26 letters)",
+    "source": "https://en.wikipedia.org/wiki/Enigma_machine",
+    "property": "no-self-encryption",
+    "description": "Start from the config, press a key 2000 times; at every rotor position reached (after stepping), each of the 26 letters must encipher to a different letter.",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["A", "A", "A"],
+      "positions": ["A", "A", "A"],
+      "plugboard": []
+    },
+    "keypresses": 2000
+  },
+  {
+    "id": "period-16900",
+    "kind": "property",
+    "title": "Rotors I II III have a stepping period of 26 x 25 x 26 = 16,900 (not 17,576)",
+    "source": "https://en.wikipedia.org/wiki/Enigma_machine",
+    "property": "period",
+    "description": "Press keys from AAA until the window shows AAA again; count the key presses.",
+    "config": {
+      "model": "I",
+      "reflector": "B",
+      "rotors": ["I", "II", "III"],
+      "rings": ["A", "A", "A"],
+      "positions": ["A", "A", "A"],
+      "plugboard": []
+    },
+    "expected": 16900
+  }
+]
