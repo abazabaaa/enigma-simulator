@@ -112,54 +112,54 @@ export function EngineDevPage() {
         </div>
       </header>
 
-      <p className="text-stone-500">Type A–Z to press keys. The machine state is also exposed as window.__enigma.</p>
+      <p className="text-stone-400">Type A–Z to press keys. The machine state is also exposed as window.__enigma.</p>
 
       <section aria-label="Configuration" className="rounded border border-stone-800 p-3">
         <dl data-testid="config" className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1">
-          <dt className="text-stone-500">model</dt>
+          <dt className="text-stone-400">model</dt>
           <dd data-testid="config-model">{MODELS[config.model].label}</dd>
-          <dt className="text-stone-500">reflector</dt>
+          <dt className="text-stone-400">reflector</dt>
           <dd data-testid="config-reflector">{config.reflector}</dd>
-          <dt className="text-stone-500">rotors (L→R)</dt>
+          <dt className="text-stone-400">rotors (L→R)</dt>
           <dd data-testid="config-rotors">{config.rotors.join(' ')}</dd>
-          <dt className="text-stone-500">rings</dt>
+          <dt className="text-stone-400">rings</dt>
           <dd data-testid="config-rings">{config.rings.join('')}</dd>
-          <dt className="text-stone-500">start</dt>
+          <dt className="text-stone-400">start</dt>
           <dd data-testid="config-start">{config.positions.join('')}</dd>
-          <dt className="text-stone-500">plugboard</dt>
+          <dt className="text-stone-400">plugboard</dt>
           <dd data-testid="config-plugboard">{config.plugboard.join(' ') || '—'}</dd>
         </dl>
       </section>
 
       <section aria-label="Rotor windows" className="flex items-center gap-4">
-        <span className="text-stone-500">windows</span>
+        <span className="text-stone-400">windows</span>
         <span data-testid="positions" className="rounded bg-stone-100 px-3 py-1 text-2xl tracking-[0.4em] text-stone-900">
           {positionsToString(machine)}
         </span>
-        <span data-testid="stepping" className="text-stone-500">
+        <span data-testid="stepping" className="text-stone-400">
           {stepped && `stepped: ${stepped}`}
         </span>
       </section>
 
       <section aria-label="Lampboard" className="space-y-2">
         <div className="flex items-center gap-3">
-          <span className="text-stone-500">lamp</span>
+          <span className="text-stone-400">lamp</span>
           <span data-testid="lamp" className="text-2xl text-amber-300">
             {lamp ?? ''}
           </span>
         </div>
-        <div className="inline-flex flex-col items-center gap-2 rounded bg-stone-900 p-3">
+        <div className="inline-flex max-w-full flex-col items-center gap-2 rounded bg-stone-900 p-2 sm:p-3">
           {KEYBOARD_ROWS.map((row) => (
-            <div key={row.join('')} className="flex gap-2">
+            <div key={row.join('')} className="flex gap-1 sm:gap-2">
               {row.map((l) => (
                 <span
                   key={l}
                   data-testid={`lamp-${l}`}
                   data-lit={l === lamp}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-full border sm:h-8 sm:w-8 ${
                     l === lamp
                       ? 'border-amber-300 bg-amber-300 text-stone-900 shadow-[0_0_12px_var(--color-amber-300)]'
-                      : 'border-stone-700 text-stone-500'
+                      : 'border-stone-700 text-stone-400'
                   }`}
                 >
                   {l}
@@ -172,13 +172,13 @@ export function EngineDevPage() {
 
       <section aria-label="Tape" className="grid gap-1">
         <div>
-          <span className="inline-block w-16 text-stone-500">in</span>
+          <span className="inline-block w-16 text-stone-400">in</span>
           <span data-testid="input-tape" className="break-all">
             {input}
           </span>
         </div>
         <div>
-          <span className="inline-block w-16 text-stone-500">out</span>
+          <span className="inline-block w-16 text-stone-400">out</span>
           <span data-testid="output-tape" className="break-all text-amber-200">
             {output}
           </span>
@@ -186,8 +186,13 @@ export function EngineDevPage() {
       </section>
 
       <section aria-label="Signal trace">
-        <h2 className="mb-2 text-stone-500">trace of the last key press</h2>
-        <pre data-testid="trace" className="overflow-x-auto rounded border border-stone-800 p-3 leading-relaxed">
+        <h2 className="mb-2 text-stone-400">trace of the last key press</h2>
+        <pre
+          data-testid="trace"
+          tabIndex={0}
+          aria-label="Trace of the last key press"
+          className="overflow-x-auto rounded border border-stone-800 p-3 leading-relaxed focus-visible:outline focus-visible:outline-amber-400"
+        >
           {last ? last.trace.map(describeStep).join('\n') : '(press a key)'}
         </pre>
       </section>
