@@ -11,10 +11,10 @@ import type { Vec3 } from '../layout'
 import type { Route } from './route'
 
 /** Tube resolution: one segment per this many cm of path. */
-const SEGMENT_CM = 0.3
+const SEGMENT_CM = 0.45
 const MAX_SEGMENTS = 3000
 /** Arc-length samples per control point (the u of each anchor is read from this table). */
-const SAMPLES = 16
+const SAMPLES = 10
 
 export interface SignalCurve {
   readonly curve: CatmullRomCurve3
@@ -45,7 +45,7 @@ export interface Tube {
 }
 
 /** A tube over the whole curve. */
-export function buildTube(c: SignalCurve, radius: number, radial = 8): Tube {
+export function buildTube(c: SignalCurve, radius: number, radial = 6): Tube {
   const segments = Math.max(16, Math.min(MAX_SEGMENTS, Math.ceil(c.length / SEGMENT_CM)))
   return { geometry: new TubeGeometry(c.curve, segments, radius, radial, false), segments, radial }
 }

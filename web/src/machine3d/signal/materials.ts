@@ -1,8 +1,9 @@
 /**
- * The signal layer's materials. Only the live wire glows (PLAN §2.6): its tube and head, and the
- * reflector pair and plug cables it lights, use the signal colour with emissive intensity above 1
- * and toneMapped false — the lit lamp's recipe — so Bloom (luminanceThreshold 1) catches them and
- * nothing else. The ghost and the reference are flat colours below 1: they never bloom.
+ * The signal layer's materials. Only the live wire glows (PLAN §2.6): its tube and head use the
+ * signal colour with emissive intensity above 1 and toneMapped false — the lit lamp's recipe — so
+ * Bloom (luminanceThreshold 1) catches them and the lit lamp, and nothing else. Where the tube runs
+ * along a reflector pair or a plug cable, that wire glows with it. The ghost and the reference are
+ * flat colours below 1: they never bloom.
  */
 
 import { MeshBasicMaterial, MeshStandardMaterial } from 'three'

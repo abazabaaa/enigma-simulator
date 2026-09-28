@@ -65,10 +65,10 @@ function toyGeometry(layout: Layout, n: number, withTerminals: boolean) {
   ]
   for (let k = 0; k < n; k++) {
     const face = contactPoint(layout, right, 'in', k, 0)
-    parts.push({ geometry: discX(0.24, x0 - 0.05, x1 + 0.05, 12).translate(0, face.y, face.z), color: PALETTE.brass })
+    parts.push({ geometry: discX(0.24, x0 - 0.05, x1 + 0.05, 8).translate(0, face.y, face.z), color: PALETTE.brass })
     const hole = contactPoint(layout, 'plugboard', 'out', k, 0)
     parts.push({
-      geometry: tubeAlong([hole, ...harnessPath(hole, face), face], WIRE_RADIUS, 110, 5),
+      geometry: tubeAlong([hole, ...harnessPath(hole, face), face], WIRE_RADIUS, 64, 4),
       color: WIRE_COLOR,
     })
   }

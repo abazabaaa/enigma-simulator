@@ -31,6 +31,9 @@ function m3d<K extends keyof M3d>(page: Page, method: K): Promise<ReturnType<M3d
   return page.evaluate((m) => (window.__machine3d![m] as () => unknown)(), method) as Promise<ReturnType<M3d[K]>>
 }
 
+/** e2e switch: mount Bloom whatever the renderer says (true), keep it off (false), or neither (null). */
+const forceBloom = (page: Page, on: boolean | null) => page.evaluate((v) => window.__machine3dSignal!.forceBloom(v), on)
+
 /** Wait until the 3D view reports and its signal hook is installed. */
 async function ready3d(page: Page) {
   await expect
@@ -336,6 +339,10 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     const live = await sig(page, 'live')
     expect(live.segments).toBe(live.totalSegments)
     expect(live.head).toBeNull()
+    // no Bloom under reduced motion, even when forced
+    await forceBloom(page, true)
+    await page.evaluate(() => window.__enigma!.pressKey('V'))
+    await idleFor(page, 500)
     expect((await sig(page, 'effects')).bloom).toBe(false)
   })
 
@@ -355,13 +362,34 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     await page.goto('about:blank')
     await gotoApp(page, '/lab/stage?preset=wire&ghost=demo', { stage: '3d', motion: 'full' })
     await ready3d(page)
-    await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
+    // The effects chunk loads with the 3D view. A software rasterizer (SwiftShader here and in CI)
+    // gets no Bloom by default; a GPU gets it at once.
+    await expect
+      .poll(
+        async () => {
+          const fx = await sig(page, 'effects')
+          return fx.software || fx.bloom
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true)
     expect(chunks).toHaveLength(1)
+    const policy = await sig(page, 'effects')
+    expect(policy.bloom).toBe(!policy.software)
+    // Measure with Bloom on either way.
+    await forceBloom(page, true)
+    await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
     const fx = await sig(page, 'effects')
-    expect(fx).toEqual({ bloom: true, luminanceThreshold: 1, mipmapBlur: true, dropped: false })
+    expect(fx).toEqual({
+      bloom: true,
+      luminanceThreshold: 1,
+      mipmapBlur: true,
+      dropped: false,
+      software: policy.software,
+    })
 
-    // Instant playback: no continuous animation, so SwiftShader's slow frames never make the
-    // PerformanceMonitor drop the effects (index.tsx) while we measure with Bloom on.
+    // Instant playback: no continuous animation, so slow frames never make the PerformanceMonitor
+    // drop the effects (index.tsx) while we measure with Bloom on.
     await setControl(page, 'playback-speed', 'instant')
     await expect.poll(() => page.evaluate(() => window.__stage!.playback().playing)).toBe(false)
     await press(page, 'A')
@@ -399,6 +427,7 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     allowContextLoss()
     await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'full' })
     await ready3d(page)
+    await forceBloom(page, true)
     await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
     await press(page, 'A')
     await expect.poll(async () => (await info(page)).pathPoints).toBe(24)

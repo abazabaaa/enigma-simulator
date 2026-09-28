@@ -7,9 +7,11 @@
  *  - The composer renders in linear HDR with the renderer's tone mapping off, so a final
  *    <ToneMapping> (ACES filmic, the renderer's default) keeps the scene's look.
  *  - Not under reduced motion: the glow is decoration, and the plain renderer draws the same state.
- *  - Not when the renderer cannot afford it: a frame budget (budget.ts) gives Bloom up for the
- *    session after a run of slow animation frames, which a demand frame loop hides from the
- *    PerformanceMonitor on very slow renderers. Software WebGL gets no multisampling.
+ *  - Only where the renderer can afford it. A software rasterizer (SwiftShader, llvmpipe) gets none:
+ *    each Bloom frame costs it about as much as the scene itself. On a GPU, a frame budget
+ *    (budget.ts) gives Bloom up for the session after a run of slow animation frames — which the
+ *    demand frame loop hides from the PerformanceMonitor on very slow renderers.
+ *  - e2e: window.__machine3dSignal.forceBloom(true) mounts it anyway (signal/effectsState.ts).
  * The composer renders only when the demand frame loop asks. Mounting renders a few warm-up frames
  * (the composer builds its passes and compiles its shaders over them) and unmounting one frame
  * without it; each counts as a change, so none of them is an idle frame, however slow.
@@ -21,7 +23,7 @@ import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { usePlaybackStore } from '../../state/playbackStore'
 import { useReducedMotion } from '../../state/uiStore'
 import { markChange } from '../monitor'
-import { effectsState } from '../signal/effectsState'
+import { effectsState, useEffectsSwitch } from '../signal/effectsState'
 import { FrameBudget, isSoftwareRenderer } from './budget'
 
 export const BLOOM = { luminanceThreshold: 1, luminanceSmoothing: 0.03, mipmapBlur: true, intensity: 0.9, radius: 0.7 }
@@ -43,10 +45,8 @@ function rendererName(gl: RootState['gl']): string {
   }
 }
 
-function Bloomed({ onSlow }: { onSlow: () => void }): JSX.Element {
-  const gl = useThree((s) => s.gl)
+function Bloomed({ software, onSlow }: { software: boolean; onSlow: (() => void) | null }): JSX.Element {
   const invalidate = useThree((s) => s.invalidate)
-  const multisampling = useMemo(() => (isSoftwareRenderer(rendererName(gl)) ? 0 : 4), [gl])
   const warm = useRef(0)
   const budget = useRef(new FrameBudget())
 
@@ -67,17 +67,20 @@ function Bloomed({ onSlow }: { onSlow: () => void }): JSX.Element {
 
   useFrame((state) => {
     if (warm.current < WARM_FRAMES) {
+      // Warm-up frames compile shaders: they count as changes, not against the budget.
       warm.current++
       markChange()
       invalidate()
+      return
     }
+    if (!onSlow) return
     // Another frame is already asked for (a camera flight, a highlight pulse) or the playback plays.
     const pending = state.internal.frames > 1 || usePlaybackStore.getState().playing
     if (budget.current.frame(performance.now(), pending)) onSlow()
   }, BEFORE_MONITOR)
 
   return (
-    <EffectComposer multisampling={multisampling}>
+    <EffectComposer multisampling={software ? 0 : 4}>
       <Bloom
         mipmapBlur={BLOOM.mipmapBlur}
         luminanceThreshold={BLOOM.luminanceThreshold}
@@ -92,15 +95,25 @@ function Bloomed({ onSlow }: { onSlow: () => void }): JSX.Element {
 
 export default function Effects(): JSX.Element | null {
   const reduced = useReducedMotion()
+  const gl = useThree((s) => s.gl)
+  const software = useMemo(() => isSoftwareRenderer(rendererName(gl)), [gl])
+  const force = useEffectsSwitch((s) => s.force)
   const [slow, setSlow] = useState(tooSlow)
-  if (reduced || slow) return null
+  effectsState.software = software
+  const on = !reduced && (force ?? (!software && !slow))
+  if (!on) return null
   return (
     <Bloomed
-      onSlow={() => {
-        tooSlow = true
-        effectsState.dropped = true
-        setSlow(true)
-      }}
+      software={software}
+      onSlow={
+        force
+          ? null
+          : () => {
+              tooSlow = true
+              effectsState.dropped = true
+              setSlow(true)
+            }
+      }
     />
   )
 }

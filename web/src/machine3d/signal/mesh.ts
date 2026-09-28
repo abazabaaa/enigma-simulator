@@ -1,8 +1,7 @@
 /**
  * Geometry helpers for the signal layer and the parts it lights (reflector arcs, plug cables, toy
- * wiring): tubes along a list of points, and merges that keep one colour per input and record where
- * each input landed, so that one draw call shows every wire and a second one (a copy of the same
- * geometry with a draw range) shows only the lit wire — no geometry is built or freed per key press.
+ * wiring): tubes along a list of points, and merges that keep one colour per input (vertex colours),
+ * so one draw call shows every wire of a part.
  */
 
 import { BufferAttribute, BufferGeometry, CatmullRomCurve3, Color, TubeGeometry, Vector3 } from 'three'
@@ -51,15 +50,4 @@ export function mergeColored(parts: readonly { geometry: BufferGeometry; color: 
   if (flat.length && !merged) throw new Error('mergeGeometries failed')
   for (const g of new Set([...parts.map((p) => p.geometry), ...flat])) g.dispose()
   return { geometry: merged ?? new BufferGeometry(), ranges }
-}
-
-/** Shows only input `i` of a merged geometry (or nothing for null). Returns whether anything shows. */
-export function showRange(m: Merged, i: number | null): boolean {
-  const r = i === null ? undefined : m.ranges[i]
-  if (!r) {
-    m.geometry.setDrawRange(0, 0)
-    return false
-  }
-  m.geometry.setDrawRange(r[0], r[1])
-  return true
 }

@@ -2,7 +2,7 @@
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { BufferGeometry, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, Scene } from 'three'
-import { STAGE_PRESETS, resolveStage, type StageDirective } from '../../contracts/stage'
+import { STAGE_PRESETS, resolveStage, type PathHop, type StageDirective } from '../../contracts/stage'
 import { LETTERS, createMachine, pressKey, type Letter, type MachineConfigInput } from '../../engine'
 import { createRng } from '../../lib/rng'
 import { randomToy, toySlots } from '../../lib/toy'
@@ -13,13 +13,15 @@ import { useStageStore } from '../../state/stageStore'
 import { useToyStore } from '../../state/toyStore'
 import { useUiStore } from '../../state/uiStore'
 import { BLOOM } from '../effects'
-import { makeLayout, pathPoints } from '../layout'
+import { makeLayout, pathPoints, type Vec3 } from '../layout'
+import { CABLE_SEGMENTS, CABLE_SIDES } from '../parts/Cables'
 import { swatch } from '../palette'
 import { Machine3DScene } from '../Scene'
 import { useSignalReport } from '../signalReport'
 import { useStageView } from '../useStageView'
 import { buildCurve } from './curve'
-import { signalRoute } from './route'
+import { LIVE_RADIUS } from '.'
+import { cablePath, reflectorArc, signalRoute } from './route'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const I: MachineConfigInput = DEMO_CONFIGS.I // plugboard AV BS CG
@@ -191,7 +193,7 @@ describe('the live signal', () => {
     const reflector = named(scene, 'reflector')
     expect(reflector.userData.thin).toBe(true)
     expect(reflector.userData.width).toBe(0.6)
-    expect((named(scene, 'reflector-arcs').userData.pairs as unknown[]).length).toBe(13)
+    expect((reflector.userData.pairs as unknown[]).length).toBe(13)
   })
 
   it('shows the press on show: a toy view is not redrawn by the machine’s playback', async () => {
@@ -211,48 +213,53 @@ describe('the live signal', () => {
   })
 })
 
+/** The drawn tube passes point p (its centre line runs within a segment's length of it). */
+function tubePasses(tube: Mesh<BufferGeometry, Material>, p: Vec3): boolean {
+  const pos = tube.geometry.getAttribute('position')
+  const index = tube.geometry.index!
+  const { start, count } = tube.geometry.drawRange
+  let best = Infinity
+  for (let i = start; i < Math.min(index.count, start + count); i++) {
+    const v = index.getX(i)
+    best = Math.min(best, Math.hypot(pos.getX(v) - p.x, pos.getY(v) - p.y, pos.getZ(v) - p.z))
+  }
+  return best <= LIVE_RADIUS + 0.3
+}
+
+const sortedPair = (h: PathHop) => [Math.min(h.inputIndex, h.outputIndex), Math.max(h.inputIndex, h.outputIndex)]
+
 describe('the reflector', () => {
-  it('has 13 arcs; the used pair lights once the signal reaches the reflector', async () => {
+  it('has 13 arcs; the used pair is lit once the signal reaches it, and the glowing tube runs along it', async () => {
     const scene = await mount(STAGE_PRESETS.reflector)
-    const arcs = named(scene, 'reflector-arcs')
-    expect((arcs.userData.pairs as [number, number][]).length).toBe(13)
-    const lit = meshNamed(scene, 'reflector-lit')
-    expect(lit.visible).toBe(false)
+    const reflector = named(scene, 'reflector')
+    expect((reflector.userData.pairs as [number, number][]).length).toBe(13)
+    expect(reflector.userData.lit).toBeNull()
     await pressAt('A', 1.5)
     const trace = useMachineStore.getState().last!.trace
     const r = trace.findIndex((h) => h.kind === 'reflector')
     await at(1 + r - 0.5)
-    expect(lit.visible).toBe(false)
+    expect(reflector.userData.lit).toBeNull()
     await at(1 + r + 0.1)
-    expect(lit.visible).toBe(true)
-    const hop = trace[r]!
-    expect(lit.userData.lit).toEqual([
-      Math.min(hop.inputIndex, hop.outputIndex),
-      Math.max(hop.inputIndex, hop.outputIndex),
-    ])
-    // exactly one arc is drawn lit: 1/13 of the lit geometry
-    expect(lit.geometry.drawRange.count * 13).toBe(lit.geometry.getAttribute('position').count)
-    const glow = lit.material as MeshStandardMaterial
-    expect(glow.emissiveIntensity).toBeGreaterThan(1)
-    expect(glow.toneMapped).toBe(false)
+    expect(reflector.userData.lit).toEqual(sortedPair(trace[r]!))
     await at(12)
-    expect(lit.visible).toBe(true)
+    expect(reflector.userData.lit).toEqual(sortedPair(trace[r]!))
+    const l = makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })
+    const arc = reflectorArc(l, trace[r]!.inputIndex, trace[r]!.outputIndex)
+    const tube = meshNamed(scene, 'signal-live')
+    for (const p of [arc[3]!, arc[7]!, arc[11]!]) expect(tubePasses(tube, p)).toBe(true)
   })
 })
 
-describe('primed meshes (drawn once at mount, then shown only when lit)', () => {
-  it('show what the first press lights, even when it lands lit at once (reduced motion)', async () => {
+describe('the head (a primed mesh: drawn once at mount, then shown only while needed)', () => {
+  it('shows when the first press lands mid-path, with no hidden render in between', async () => {
     // Regression: priming used to hide the mesh behind React's back, so a `visible` prop that stayed
-    // true from mount to the first lit frame was never applied again.
-    const scene = await mount(STAGE_PRESETS.plugboard)
-    await pressAt('A', 12) // A is plugged to V: the way in crosses a cable
-    expect(meshNamed(scene, 'reflector-lit').visible).toBe(true)
-    expect(meshNamed(scene, 'cables-lit-in').visible).toBe(true)
-    expect(meshNamed(scene, 'reflector-lit').userData.lit).not.toBeNull()
-    expect(named(scene, 'signal-head').visible).toBe(false)
-    await at(3.5)
+    // true from mount to the first frame that needed it was never applied again.
+    const scene = await mount(STAGE_PRESETS.wire)
+    await pressAt('A', 3.5)
     expect(named(scene, 'signal-head').visible).toBe(true)
-    expect(meshNamed(scene, 'reflector-lit').visible).toBe(false)
+    expect(named(scene, 'signal-head-xray').visible).toBe(true)
+    await at(12)
+    expect(named(scene, 'signal-head').visible).toBe(false)
   })
 })
 
@@ -278,37 +285,36 @@ describe('the cables', () => {
       [1, 18],
       [2, 6],
     ])
-    // one tube per pair (40 segments × 8 sides × 6 vertices), and two plugs per pair (2 boxes each)
-    const perCable = 40 * 8 * 6
+    // one tube per pair (segments × sides × 6 vertices), and two plugs per pair (2 boxes each)
+    const perCable = CABLE_SEGMENTS * CABLE_SIDES * 6
     expect(meshNamed(scene, 'cables').geometry.getAttribute('position').count).toBe(3 * perCable + 3 * 2 * 2 * 36)
-    expect(meshNamed(scene, 'cables-lit-in').geometry.getAttribute('position').count).toBe(3 * perCable)
     await renderer!.unmount()
     await act(() => useMachineStore.getState().setConfig(TEN))
     const ten = await mount(STAGE_PRESETS.plugboard)
     expect((named(ten, 'cables').userData.pairs as unknown[]).length).toBe(10)
-    expect(meshNamed(ten, 'cables-lit-out').geometry.getAttribute('position').count).toBe(10 * perCable)
+    expect(meshNamed(ten, 'cables').geometry.getAttribute('position').count).toBe(10 * perCable + 10 * 2 * 2 * 36)
   })
 
-  it('the path lights the cable it crosses on the way in, then the one it crosses on the way out', async () => {
+  it('lights the cable the path crosses on the way in, then the one it crosses on the way out', async () => {
     await act(() => useMachineStore.getState().setConfig(TEN))
     const scene = await mount(STAGE_PRESETS.plugboard)
-    const litIn = meshNamed(scene, 'cables-lit-in')
-    const litOut = meshNamed(scene, 'cables-lit-out')
+    const cables = named(scene, 'cables')
     const key = crossedTwice()
     await pressAt(key, 0.5)
-    expect([litIn.visible, litOut.visible]).toEqual([false, false])
-    await at(1.2)
-    expect([litIn.visible, litOut.visible]).toEqual([true, false])
-    await at(11.5)
-    expect([litIn.visible, litOut.visible]).toEqual([true, true])
+    expect(cables.userData.lit).toEqual([])
     const trace = useMachineStore.getState().last!.trace
-    const pair = (i: number) => {
-      const h = trace[i]!
-      return [Math.min(h.inputIndex, h.outputIndex), Math.max(h.inputIndex, h.outputIndex)]
+    await at(1.2)
+    expect(cables.userData.lit).toEqual([sortedPair(trace[0]!)])
+    await at(11.5)
+    expect(cables.userData.lit).toEqual([sortedPair(trace[0]!), sortedPair(trace[10]!)])
+    // the glowing tube runs along both cables
+    await at(12)
+    const l = makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })
+    const tube = meshNamed(scene, 'signal-live')
+    for (const h of [trace[0]!, trace[10]!]) {
+      const cable = cablePath(l, h.inputIndex, h.outputIndex)
+      for (const p of [cable[4]!, cable[6]!, cable[8]!]) expect(tubePasses(tube, p)).toBe(true)
     }
-    expect(litIn.userData.lit).toEqual(pair(0))
-    expect(litOut.userData.lit).toEqual(pair(10))
-    expect(litIn.geometry.drawRange.count).toBe(40 * 8 * 6)
   })
 
   it('an unplugged key and lamp light no cable; without plugs there is no cable', async () => {
@@ -316,8 +322,7 @@ describe('the cables', () => {
     const scene = await mount(STAGE_PRESETS.plugboard)
     expect(named(scene, 'cables').userData.pairs).toEqual([])
     await pressAt('A', 12)
-    expect(meshNamed(scene, 'cables-lit-in').visible).toBe(false)
-    expect(meshNamed(scene, 'cables-lit-out').visible).toBe(false)
+    expect(named(scene, 'cables').userData.lit).toEqual([])
   })
 })
 
@@ -361,8 +366,8 @@ describe('the toys', () => {
       const scene = await mount(STAGE_PRESETS.toy)
       const toy = named(scene, 'toy-geometry')
       expect(toy.userData).toMatchObject({ n, wires: n, contacts: n, terminals: n })
-      expect((named(scene, 'reflector-arcs').userData.pairs as unknown[]).length).toBe(n / 2)
-      let hops: readonly import('../../contracts/stage').PathHop[] = []
+      expect((named(scene, 'reflector').userData.pairs as unknown[]).length).toBe(n / 2)
+      let hops: readonly PathHop[] = []
       await act(() => {
         hops = useToyStore.getState().press('C').hops
         usePlaybackStore.setState({

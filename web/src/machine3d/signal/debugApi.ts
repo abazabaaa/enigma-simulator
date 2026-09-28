@@ -47,8 +47,19 @@ export interface SignalDebugApi {
   cables(): { pairs: string[]; lit: string[] } | null
   /** The toy's own wiring (6 or 8 letters; terminals while the plugboard is hidden), or null on the machine. */
   toy(): { n: number; wires: number; contacts: number; terminals: number } | null
-  /** The post-processing in the lazy effects chunk (dropped: given up as too slow for the session). */
-  effects(): { bloom: boolean; luminanceThreshold: number | null; mipmapBlur: boolean | null; dropped: boolean }
+  /**
+   * The post-processing in the lazy effects chunk: Bloom mounted or not, its settings, whether the
+   * frame budget gave it up (dropped) and whether the renderer is a software rasterizer (no Bloom).
+   */
+  effects(): {
+    bloom: boolean
+    luminanceThreshold: number | null
+    mipmapBlur: boolean | null
+    dropped: boolean
+    software: boolean
+  }
+  /** Mounts Bloom whatever the renderer and the budget say (true), keeps it off (false), or neither (null). */
+  forceBloom(on: boolean | null): void
 }
 
 declare global {

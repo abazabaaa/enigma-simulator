@@ -11,7 +11,7 @@
 /** Longer than this between two animation frames is slow (under 20 frames a second). */
 export const SLOW_MS = 50
 /** This many slow animation frames in a row give Bloom up. */
-export const RUN = 8
+export const RUN = 4
 
 export class FrameBudget {
   private last: number | null = null

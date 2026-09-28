@@ -30,7 +30,7 @@ import { swatch } from '../palette'
 import { useSignalReport } from '../signalReport'
 import { buildCurve, buildTube, dashTube, drawSegments, pointAt, segmentsFor } from './curve'
 import type { SignalDebugApi, V3 } from './debugApi'
-import { effectsState } from './effectsState'
+import { effectsState, useEffectsSwitch } from './effectsState'
 import { divergeAnchor, ghostHops, referenceHops } from './ghost'
 import { GLOW_INTENSITY, glowMaterial, overlayMaterial } from './materials'
 import { signalRoute } from './route'
@@ -70,7 +70,7 @@ function LiveSignal(): JSX.Element {
   const curve = useMemo(() => buildCurve(signalRoute(hops, layout)), [hops, layout])
   const tube = useMemo(() => (curve ? buildTube(curve, LIVE_RADIUS) : null), [curve])
   useEffect(() => () => tube?.geometry.dispose(), [tube])
-  const sphere = useGeometry(() => new SphereGeometry(HEAD_RADIUS, 20, 14), [])
+  const sphere = useGeometry(() => new SphereGeometry(HEAD_RADIUS, 12, 8), [])
   const m = useMaterials(() => ({
     tube: glowMaterial(),
     xray: overlayMaterial(swatch('signal'), 0.32),
@@ -179,13 +179,13 @@ function GhostPaths({ ghost, layout }: { ghost: Ghost; layout: Layout }): JSX.El
   const ghostTube = useMemo(() => {
     const c = buildCurve(signalRoute(learner, layout), GHOST_OFFSET)
     if (!c) return null
-    const tube = buildTube(c, GHOST_RADIUS, 6)
+    const tube = buildTube(c, GHOST_RADIUS, 5)
     dashTube(tube, DASH_SEGMENTS)
     return tube
   }, [learner, layout])
   const referenceTube = useMemo(() => {
     const c = reference ? buildCurve(signalRoute(reference, layout), REFERENCE_OFFSET) : null
-    return c ? buildTube(c, GHOST_RADIUS, 6) : null
+    return c ? buildTube(c, GHOST_RADIUS, 5) : null
   }, [reference, layout])
   useEffect(() => () => ghostTube?.geometry.dispose(), [ghostTube])
   useEffect(() => () => referenceTube?.geometry.dispose(), [referenceTube])
@@ -294,30 +294,26 @@ function SignalDebugHook(): null {
         }
       },
       reflector() {
-        const arcs = find('reflector-arcs')
-        const lit = find('reflector-lit')
-        const body = find('reflector')
-        const pairs = (arcs?.userData.pairs as [number, number][] | undefined) ?? []
-        const litPair = lit?.visible ? (lit.userData.lit as [number, number] | null | undefined) : null
+        const d = (find('reflector')?.userData ?? {}) as {
+          pairs?: [number, number][]
+          lit?: [number, number] | null
+          width?: number
+          thin?: boolean
+        }
+        const pairs = d.pairs ?? []
         return {
           arcs: pairs.length,
           pairs: pairs.map(([a, b]) => letterPair(a, b)),
-          lit: litPair ? letterPair(...litPair) : null,
-          width: (body?.userData.width as number | undefined) ?? 0,
-          thin: !!body?.userData.thin,
+          lit: d.lit ? letterPair(...d.lit) : null,
+          width: d.width ?? 0,
+          thin: !!d.thin,
         }
       },
       cables() {
         const cables = find('cables')
         if (!cables) return null
-        const pairs = (cables.userData.pairs as [number, number][]).map(([a, b]) => letterPair(a, b))
-        const lit: string[] = []
-        for (const name of ['cables-lit-in', 'cables-lit-out']) {
-          const o = find(name)
-          const p = o?.visible ? (o.userData.lit as [number, number] | null | undefined) : null
-          if (p) lit.push(letterPair(Math.min(...p), Math.max(...p)))
-        }
-        return { pairs, lit: [...new Set(lit)] }
+        const d = cables.userData as { pairs: [number, number][]; lit: [number, number][] }
+        return { pairs: d.pairs.map(([a, b]) => letterPair(a, b)), lit: d.lit.map(([a, b]) => letterPair(a, b)) }
       },
       toy() {
         const toy = find('toy-geometry')
@@ -326,10 +322,12 @@ function SignalDebugHook(): null {
         return { n: d.n, wires: d.wires, contacts: d.contacts, terminals: d.terminals }
       },
       effects: () => ({ ...effectsState }),
+      forceBloom: (force) => useEffectsSwitch.setState({ force }),
     }
     window.__machine3dSignal = api
     return () => {
       if (window.__machine3dSignal === api) delete window.__machine3dSignal
+      useEffectsSwitch.setState({ force: null })
     }
   }, [scene])
   return null
