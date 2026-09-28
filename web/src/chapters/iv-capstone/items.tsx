@@ -417,9 +417,9 @@ const britishKey = {
       <BritishDayFacts orders={instance.orders} />
       <p>
         Break this day and read the intercept: its crib <Mono>{instance.crib}</Mono> stands in the body at an offset from{' '}
-        {instance.window[0]} to {instance.window[1]} (the body&apos;s letters before the crib). Set the rotor order, turn the windows to the message key and plug in the
-        cables, so that the preview reads the body; then submit. The keyboard is locked and the lamps are hidden: the preview deciphers
-        without a key press. A wrong submission brings a fresh day.
+        {instance.window[0]} to {instance.window[1]} (the body&apos;s letters before the crib). Set the rotor order, turn the windows
+        to the message key and plug in the cables, so that the preview reads the body; then submit. The keyboard is locked and the
+        lamps are hidden: the preview deciphers without a key press. A wrong submission brings a fresh day.
       </p>
       <Hint level={hintLevel}>
         Place the crib, build the menu from the whole piece of links that holds the loops (up to {MAX_LINKS} links: a longer menu

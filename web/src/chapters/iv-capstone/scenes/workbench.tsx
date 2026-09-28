@@ -10,7 +10,7 @@ import type { MachineStoreHook } from '../../../contracts/machine'
 import type { CatalogueEntry } from '../../../crypto/catalogue'
 import { checkStop, type Stop } from '../../../crypto'
 import { menuFromEdges } from '../../../crypto/menu'
-import type { RotorName } from '../../../engine'
+import type { Letter, RotorName } from '../../../engine'
 import { Mono, QUIET_BUTTON } from '../../../lesson'
 import { MachinePanel, PlugboardEditor } from '../../../machine-ui'
 import { cribLinks, decryptWith, windowsAfter } from '../gates'
@@ -280,7 +280,14 @@ function GivenStop(p: {
           onClick={() =>
             setSteckers(
               checkStop(
-                { rotors: p.stop.rotors, positions: p.stop.positions, testLetter: p.stop.testLetter as never, stecker: p.stop.stecker as never, live: 1, reflector: 'B' },
+                {
+                  rotors: p.stop.rotors,
+                  positions: p.stop.positions,
+                  testLetter: p.stop.testLetter as Letter,
+                  stecker: p.stop.stecker as Letter,
+                  live: 1,
+                  reflector: 'B',
+                },
                 p.message,
                 p.crib,
                 p.offset,
