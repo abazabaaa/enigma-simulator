@@ -158,6 +158,8 @@ describe('review round 2 regressions', () => {
           ringLayer: resolveStage(id).ringLayer,
         })
         expect(svg.style.minWidth, id).toBe(`${l.minWidth}px`)
+        // R1: the width is also capped so the height fits 70vh on a desktop.
+        expect(svg.getAttribute('style'), id).toContain(`calc(70vh * ${(l.width / l.height).toFixed(4)})`)
         const smallest = Math.min(...Object.values(l.fonts))
         const sizes = [...svg.querySelectorAll('text')].map((t) => Number(t.getAttribute('font-size')))
         expect(Math.min(...sizes), `${model} ${id}`).toBeGreaterThanOrEqual(smallest)

@@ -111,6 +111,22 @@ test.describe('Stage2D', { tag: '@area:machine-ui' }, () => {
     }
   })
 
+  test('at 1280×800 the whole stage fits in the viewport, text still ≥ 9 CSS px', async ({ page, stage }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    for (const hash of ['/machine', '/lab/stage?preset=wire&model=M4', '/lab/stage?preset=toy&toy=8']) {
+      await gotoApp(page, hash, { stage })
+      await expect(page.getByTestId('stage2d')).toBeVisible()
+      const m = await page.evaluate(() => {
+        const box = document.querySelector('[data-testid="stage"]')!.getBoundingClientRect()
+        const svg = document.querySelector<SVGSVGElement>('[data-testid="stage2d"]')!
+        const px = [...svg.querySelectorAll('text')].map((t) => Number(t.getAttribute('font-size')) * (t.getScreenCTM()?.a ?? 0))
+        return { top: box.top + window.scrollY, bottom: box.bottom + window.scrollY, innerHeight: window.innerHeight, smallest: Math.min(...px) }
+      })
+      expect(m.bottom, `${hash} stage bottom`).toBeLessThanOrEqual(m.innerHeight)
+      expect(m.smallest, `${hash} smallest text`).toBeGreaterThanOrEqual(9)
+    }
+  })
+
   test('reduced motion makes t jump to the end; full motion animates', async ({ page, stage }) => {
     await gotoApp(page, '/lab/stage?preset=wire', { stage, motion: 'reduce' })
     await page.getByTestId('playback-speed').selectOption('0.25')
