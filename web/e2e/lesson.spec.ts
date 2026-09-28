@@ -42,6 +42,7 @@ import {
   wrongAnswer,
 } from './helpers/course'
 import { DOUBLE_REFERENCE } from '../src/lesson/fixture/gates'
+import type { HighlightWithResult } from '../src/lesson/gateEngine'
 import { PROGRESS_CORRUPT_KEY, PROGRESS_KEY } from '../src/contracts/progress'
 
 /** Open gate `main` alone (#/lab/gate) with the e2e configuration. */
@@ -205,13 +206,15 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
       const l1 = await current(page)
       expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
+      // Round 3: L1 comes from the ANSWERED instance (c), the wrong answer and its check, not from the fresh
+      // instance (l1) the learner now sees. (The code item's answer is the runner's; its highlight ignores it.)
+      expect(l1.instance).not.toEqual(c.instance)
       const logic = await logicFor(l1.gateKey, id, false)
-      const hint = logic.highlight(l1.instance, wrong).map((h) => h.part)
-      if (hint.length) {
-        await expect
-          .poll(() => page.evaluate(() => window.__stage!.info().highlighted))
-          .toEqual(expect.arrayContaining([hint[0]]))
-      }
+      const result = wrong === null ? undefined : logic.check(c.instance, wrong)
+      const hint = (logic.highlight as HighlightWithResult).call(logic, c.instance, wrong, result).map((h) => h.part)
+      await expect
+        .poll(() => page.evaluate(() => [...window.__stage!.info().highlighted].sort()))
+        .toEqual([...hint].sort())
 
       // b. A correct instance through the real widget.
       await assertNoAnswerLeak(page)
@@ -371,6 +374,18 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     expect(await current(page)).toMatchObject({ fallback: false, kind: 'letter' })
   })
 
+  test('round 3: instant correct answers that pass an item never switch it to a fallback', async ({ page }) => {
+    await openGateLab(page)
+    await configure(page, { minLatencyMs: 2000 })
+    await answerViaApi(page, 'toy-lamp', await solveInNode(page))
+    await answerViaApi(page, 'toy-lamp', await solveInNode(page))
+    expect(await eventsOf(page, 'gaming')).toEqual([])
+    const rec = (await progress(page)).gates['lab-fixture/lab:main']!.items['toy-lamp']!
+    expect(rec).toMatchObject({ passed: true, fallbackNext: false })
+    expect(await current(page)).toMatchObject({ itemId: 'windows', fallback: false })
+    await expect(page.getByTestId('item-toy-lamp')).not.toHaveAttribute('data-fallback', 'true')
+  })
+
   test('ghost-pick: nothing answer-bearing during the question; the ghost appears only in the rollback', async ({
     page,
   }) => {
@@ -448,6 +463,8 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await commitBet(page, 'steps', 'right')
     await expect(page.getByTestId('reveal-steps')).toBeDisabled()
     await expect(page.getByTestId('reveal-steps')).toContainText('after the earlier reveal')
+    // Round 3 (b): its trigger cannot fire yet, so the focus goes on to the bet still open, never to <body>.
+    await expect(page.locator('[data-testid^="bet-option-first-lamp-"]').first()).toBeFocused()
     const [press, step] = await sceneReveals(page)
     await commitBet(page, 'first-lamp', 'B')
     await expect(page.getByTestId('reveal-steps')).toBeDisabled()

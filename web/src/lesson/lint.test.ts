@@ -4,10 +4,20 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { ItemKey } from '../contracts/core'
+import type { GateKey, ItemKey, ModelName } from '../contracts/core'
 import type { GenCtx, ItemLogic } from '../contracts/lesson'
+import { ALL_PARTS } from '../contracts/stage'
 import { createRng, seedFor } from '../lib/rng'
-import { allItemLogics } from './__tests__/sources'
+import { allItemLogics, gateSources } from './__tests__/sources'
+import {
+  currentItem,
+  ensureCurrent,
+  hintHighlights,
+  shownInstance,
+  submitAnswer,
+  wrongAnswerOf,
+  type GateCtx,
+} from './gateEngine'
 import { codeTaskOf } from './kinds'
 
 const MAX_BYTES = 16 * 1024
@@ -89,6 +99,58 @@ describe('L1 generators', () => {
         const i = gen(s)
         const a = l.sampleAnswer(i, createRng(seedFor('sample', l.id, s)))
         expect(() => l.check(i, clone(a))).not.toThrow()
+      }
+    })
+  })
+})
+
+/**
+ * Hint L1 through the runtime path (review round 3): submitAnswer → ensureCurrent draws a fresh instance, and
+ * the hint must still come from highlight(answered instance, wrong answer). For every item of every gate, over
+ * a few salts: the submit keeps the answered instance, hintHighlights uses it, highlight does not throw, and
+ * every highlighted part is a real part id.
+ */
+describe('L1 hints through submitAnswer → ensureCurrent', () => {
+  const PARTS = new Set<string>((['I', 'M3', 'M4'] as ModelName[]).flatMap((m) => ALL_PARTS(m)))
+  const SALTS = 12
+
+  describe.each(gateSources().map((g) => [g.name, g] as const))('%s', (_name, g) => {
+    it(`highlight(answered instance, wrong answer) on every item (${SALTS} salts)`, () => {
+      for (let s = 0; s < SALTS; s++) {
+        const ctx: GateCtx = {
+          key: g.key as GateKey,
+          logic: g.logic,
+          salt: `hints-${s}`,
+          cfg: { minLatencyMs: 0, burstMs: 0 },
+        }
+        let t = 0
+        let rec = ensureCurrent(ctx, undefined, t)
+        const seen = new Set<string>()
+        for (let guard = 0; guard < 3 * g.logic.items.length && !rec.passed; guard++) {
+          const item = currentItem(ctx.logic, rec)
+          if (!item || seen.has(item.id)) break
+          seen.add(item.id)
+          const answered = shownInstance(ctx, item, rec.items[item.id]!)
+          const good = answered.logic.solve(answered.instance)
+          const bad = clone(answered.logic.mutate(answered.instance, good, createRng(seedFor('hint', item.id, s))))
+          const res = submitAnswer(ctx, rec, item.id, bad, (t += 10_000))
+          rec = ensureCurrent(ctx, res.gate, t)
+          const wrong = wrongAnswerOf(res, bad)
+          if (wrong) {
+            const where = `${g.name} salt ${s}: ${item.id}`
+            expect(wrong.shown.instance, `${where}: the submit lost the answered instance`).toEqual(answered.instance)
+            const direct = answered.logic.highlight(answered.instance, bad)
+            const fresh = shownInstance(ctx, item, rec.items[item.id]!)
+            expect(hintHighlights(fresh, wrong), `${where}: L1 is not from the answered instance`).toEqual(direct)
+            for (const h of direct) expect(PARTS.has(h.part), `${where}: unknown part '${h.part}'`).toBe(true)
+          }
+          // Pass the item with correct answers and go on to the next.
+          for (let k = 0; k < 4 && !rec.items[item.id]!.passed; k++) {
+            const cur = shownInstance(ctx, item, rec.items[item.id]!)
+            const ok = submitAnswer(ctx, rec, item.id, clone(cur.logic.solve(cur.instance)), (t += 10_000))
+            rec = ensureCurrent(ctx, ok.gate, t)
+          }
+        }
       }
     })
   })
