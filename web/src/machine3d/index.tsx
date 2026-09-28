@@ -10,6 +10,8 @@
  *    the session. Only while mounted: the context R3F loses on purpose when the view unmounts (a
  *    scene change) is not a failure.
  *  - PerformanceMonitor lowers the pixel ratio and drops the effects chunk (PR 11) on a decline.
+ *  - The effects chunk is fetched only when Bloom can mount (effectsPolicy.ts, PR 17): not under reduced motion,
+ *    not on a software rasterizer (unless the e2e switch forces it), not after a decline.
  */
 
 import { PerformanceMonitor } from '@react-three/drei'
@@ -19,9 +21,12 @@ import type { StageViewProps } from '../contracts/stage'
 import type { Letter } from '../engine'
 import { useMachineApi } from '../state/activeMachine'
 import { useToyStore } from '../state/toyStore'
+import { isSoftwareRenderer } from './effects/budget'
+import { shouldLoadEffects } from './effectsPolicy'
 import { isRenderingContinuously, resetMonitor } from './monitor'
 import { Machine3DScene } from './Scene'
 import { CAMERA_FOV, frameShot } from './shots'
+import { effectsState, useEffectsSwitch } from './signal/effectsState'
 import { buildReport, useStageView } from './useStageView'
 
 const Effects = lazy(() => import('./effects'))
@@ -40,6 +45,16 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
   const [gpu, setGpu] = useState<string | null>(null)
   const [dpr, setDpr] = useState<number | [number, number]>([1, 1.5])
   const [effects, setEffects] = useState(true)
+  const force = useEffectsSwitch((s) => s.force)
+  const software = gpu === null ? null : isSoftwareRenderer(gpu)
+  if (software !== null) effectsState.software = software
+  const loadEffects = shouldLoadEffects({
+    reduced: reducedMotion,
+    software,
+    force,
+    declined: !effects,
+    dropped: effectsState.dropped,
+  })
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
   // Errors count only while this view is mounted: after unmount R3F tears the renderer down with
@@ -132,7 +147,7 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
           onPress={interactive && !state.keyboardLocked ? onPress : undefined}
         />
         <PerformanceMonitor flipflops={3} onDecline={onDecline} onFallback={onFallback} />
-        {effects ? (
+        {loadEffects ? (
           <Suspense fallback={null}>
             <Effects />
           </Suspense>

@@ -345,6 +345,10 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
 
   test('reduced motion draws the whole path at once, without Bloom', async ({ page }) => {
     test.setTimeout(60_000)
+    const chunks: string[] = []
+    page.on('response', (res) => {
+      if (/\/assets\/effects-[\w-]+\.js$/.test(res.url())) chunks.push(res.url())
+    })
     await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'reduce' })
     await ready3d(page)
     const first = await page.evaluate(() => {
@@ -357,11 +361,12 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     const live = await sig(page, 'live')
     expect(live.segments).toBe(live.totalSegments)
     expect(live.head).toBeNull()
-    // no Bloom under reduced motion, even when forced
+    // no Bloom under reduced motion, even when forced — and the effects chunk is never fetched (PR 17)
     await forceBloom(page, true)
     await page.evaluate(() => window.__enigma!.pressKey('V'))
     await idleFor(page, 500)
     expect((await sig(page, 'effects')).bloom).toBe(false)
+    expect(chunks).toEqual([])
   })
 
   test('with the path, the head, the ghost and Bloom: ≤ 120 draw calls, no idle frames, steady memory', async ({
@@ -380,8 +385,8 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     await page.goto('about:blank')
     await gotoApp(page, '/lab/stage?preset=wire&ghost=demo', { stage: '3d', motion: 'full' })
     await ready3d(page)
-    // The effects chunk loads with the 3D view. A software rasterizer (SwiftShader here and in CI)
-    // gets no Bloom by default; a GPU gets it at once.
+    // The effects chunk loads with the 3D view only where Bloom can mount (PR 17): a software rasterizer
+    // (SwiftShader here and in CI) gets no Bloom by default and does not fetch the chunk; a GPU gets it at once.
     await expect
       .poll(
         async () => {
@@ -391,9 +396,9 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
         { timeout: 30_000 },
       )
       .toBe(true)
-    expect(chunks).toHaveLength(1)
     const policy = await sig(page, 'effects')
     expect(policy.bloom).toBe(!policy.software)
+    expect(chunks).toHaveLength(policy.software ? 0 : 1)
 
     // The path drawn to hop 5 with its head, and the ghost: instant playback (no continuous
     // animation), then the scrubber, both set without scrolling the page (see setControl).
@@ -431,6 +436,7 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     // frames although each was asked for, so this checks the frame count over an idle spell.)
     await forceBloom(page, true)
     await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
+    expect(chunks, 'forcing Bloom fetches the effects chunk once').toHaveLength(1)
     expect(await sig(page, 'effects')).toEqual({
       bloom: true,
       luminanceThreshold: 1,
