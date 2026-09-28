@@ -68,7 +68,8 @@ export const test = base.extend<TestFixtures & { guardState: { contextLossAllowe
       })
       await page.addInitScript(() => {
         window.__contextLost = 0
-        window.addEventListener('webglcontextlost', () => (window.__contextLost = (window.__contextLost ?? 0) + 1), true)
+        const count = () => (window.__contextLost = (window.__contextLost ?? 0) + 1)
+        window.addEventListener('webglcontextlost', count, true)
       })
 
       await use()
