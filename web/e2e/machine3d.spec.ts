@@ -241,6 +241,25 @@ test.describe('machine3d', { tag: '@3d' }, () => {
     expect(i.dimmed).toEqual(dimmedParts('wire', 'I'))
   })
 
+  test('remounting the stage (a scene change) keeps the 3D view: no fallback to 2D', async ({ page }) => {
+    test.setTimeout(90_000)
+    const warnings: string[] = []
+    page.on('console', (m) => {
+      if (m.type() === 'warning') warnings.push(m.text())
+    })
+    for (const preset of ['wire', 'rotors', 'pawls', 'rotor-layers'] as const) {
+      await gotoApp(page, `/lab/stage?preset=${preset}`, { stage: '3d', motion: 'reduce' })
+      await reported3d(page, STAGE_PRESETS[preset].focus)
+      await expect(page.getByTestId('stage')).toHaveAttribute('data-renderer', 'webgl2')
+      // another page unmounts the stage, as the course does between scenes
+      await gotoApp(page, '/engine', { stage: '3d', motion: 'reduce' })
+      await expect(page.locator('[data-testid="machine3d"]')).toHaveCount(0)
+    }
+    await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'reduce' })
+    await reported3d(page, 'wire')
+    expect(warnings.filter((w) => /3D stage failed/.test(w))).toEqual([])
+  })
+
   test('reduced motion cuts to a new shot; full motion flies there', async ({ page }) => {
     test.setTimeout(90_000)
     const arrived = (shot: string) => m3d(page, 'camera').then((c) => c.shot === shot && c.settleFrames !== null)
