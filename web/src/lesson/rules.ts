@@ -135,7 +135,8 @@ export function reduceItem(
     fallbackNext: false,
     passed,
   }
-  if (isGaming(next, cfg) === false) return next
+  // A pass ends the item: a fast answer that passes it never switches to a fallback (review round 3).
+  if (passed || isGaming(next, cfg) === false) return next
   // The fallback starts fresh at hint level 0: the counts that triggered gaming do not carry over.
   return { ...next, wrong: 0, fallbackNext: true, seed: fallbackSeed(ctx.salt, ctx.key, attempt) }
 }

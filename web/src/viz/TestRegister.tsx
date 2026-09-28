@@ -16,7 +16,7 @@ export function TestRegister(p: TestRegisterProps): JSX.Element {
   const r = n <= 8 ? 14 : 9
   const W = n * step + 8
   return (
-    <figure className="m-0 flex flex-col gap-1" data-testid={testId} data-live-count={liveWires.length}
+    <figure className="m-0 flex min-w-0 flex-col gap-1" data-testid={testId} data-live-count={liveWires.length}
       data-live-wires={liveWires.join('')} data-test-letter={p.testLetter}>
       <svg viewBox={`0 0 ${W} ${2 * r + 22}`} className="w-full" style={{ maxWidth: `${W * 1.5}px` }} role="img"
         aria-label={`Test register ${p.testLetter}: ${liveWires.length} of ${n} wires live${

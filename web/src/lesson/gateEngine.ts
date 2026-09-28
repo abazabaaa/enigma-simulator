@@ -22,6 +22,7 @@ import type {
   RuleConfig,
 } from '../contracts/lesson'
 import type { LessonEvent } from '../contracts/progress'
+import type { Highlight } from '../contracts/stage'
 import { createRng } from '../lib/rng'
 import {
   DEFAULT_RULES,
@@ -255,6 +256,45 @@ function finish(
     shown,
     itemPassed: after.passed,
     gatePassed: nowPassed,
+  }
+}
+
+/**
+ * A wrong answer as the runtime keeps it for the hint ladder: the instance it answered, with its logic, the
+ * answer and its check. submitAnswer has already moved the item on (G3 draws a fresh instance), so this is
+ * the only place the answered instance survives.
+ */
+export interface WrongAnswer {
+  readonly shown: Shown
+  readonly answer: unknown
+  readonly result: CheckResult
+}
+
+/** The WrongAnswer of a submit, or null when it was correct. */
+export function wrongAnswerOf(res: SubmitResult, answer: unknown): WrongAnswer | null {
+  return res.result.correct ? null : { shown: res.shown, answer, result: res.result }
+}
+
+/**
+ * ItemLogic.highlight as the runtime calls it: the contract's (instance, lastWrong) plus that answer's
+ * CheckResult as a third argument. An item may declare it optional without any contract change:
+ * `highlight(i, lastWrong, result?: CheckResult)` (e.g. to name the rollback's divergence part).
+ */
+export type HighlightWithResult = (i: unknown, lastWrong: unknown, result?: CheckResult) => readonly Highlight[]
+
+/**
+ * Hint L1+ highlights (rule 4). After a wrong answer: highlight(answered instance, wrong answer, its check),
+ * where the learner slipped, never the fresh instance drawn since (review round 3). With no wrong answer on
+ * record (a reload, a puzzle gate's first hint): highlight(current instance, null). A throwing highlight gives
+ * none.
+ */
+export function hintHighlights(current: Shown, wrong: WrongAnswer | null): readonly Highlight[] {
+  try {
+    if (!wrong) return current.logic.highlight(current.instance, null)
+    const { logic, instance } = wrong.shown
+    return (logic.highlight as HighlightWithResult).call(logic, instance, wrong.answer, wrong.result)
+  } catch {
+    return []
   }
 }
 
