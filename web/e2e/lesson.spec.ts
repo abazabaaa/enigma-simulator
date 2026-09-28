@@ -288,13 +288,34 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
   test('an endless loop is killed within 2 s and the page stays responsive', async ({ page }) => {
     await openGateLab(page)
     await advanceTo(page, 'double')
+    await page.getByTestId('code-editor').fill('function double(x) {\n  while (true) {}\n}\n')
+    await page.getByTestId('gate-prediction').fill('42')
     const started = Date.now()
-    await typeCodeAndRun(page, 'function double(x) {\n  while (true) {}\n}\n', '42')
-    expect(Date.now() - started).toBeLessThan(2_000 + 1_000)
-    await expect(page.getByTestId('rollback')).toContainText(/ran too long/)
+    await page.getByTestId('code-run').click()
+    await expect(page.getByTestId('rollback')).toContainText(/ran too long/, { timeout: 2_000 })
+    expect(Date.now() - started).toBeLessThan(2_000)
+    // The page never froze: the worker was terminated, a fresh one runs the next attempt.
     await continueGate(page)
     await typeCodeAndRun(page, DOUBLE_REFERENCE, '42')
     await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'true')
+  })
+
+  test('too-long code is not submitted, and the prediction locks when Run starts', async ({ page }) => {
+    await openGateLab(page)
+    await advanceTo(page, 'double')
+    const submits = (await eventsOf(page, 'item.submit')).length
+    await page.getByTestId('code-editor').fill('function double(x) {\n  const a = x\n  const b = a\n  const c = b\n  return c * 2\n}\n')
+    await page.getByTestId('gate-prediction').fill('42')
+    await page.getByTestId('code-run').click()
+    await expect(page.getByTestId('code-result')).toHaveAttribute('data-status', 'too-long')
+    await expect(page.getByTestId('gate-prediction')).toHaveAttribute('readonly', '')
+    expect((await eventsOf(page, 'item.submit')).length).toBe(submits)
+    // Tab in the editor inserts two spaces.
+    const editor = page.getByTestId('code-editor')
+    await editor.fill('x')
+    await editor.press('End')
+    await editor.press('Tab')
+    await expect(editor).toHaveValue('x  ')
   })
 
   test('gaming: two instant answers switch to an in-page fallback with the keyboard locked', async ({ page }) => {
@@ -360,7 +381,12 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
   test('the whole fixture walks to chapter.complete', async ({ page }) => {
     test.setTimeout(60_000)
     await enter(page, 'lab-fixture')
-    await walkChapter(page)
+    const focus: Record<string, string> = { 'bets-press': 'wire', 'bets-toggle': 'rotor-stack', gate: 'wire', puzzle: 'wire' }
+    await walkChapter(page, {
+      onScene: async (scene) => {
+        if (focus[scene]) await assertFocus(page, focus[scene] as 'wire')
+      },
+    })
     expect((await progress(page)).chapters['lab-fixture']).toMatchObject({ completed: true })
     await expect(page.getByTestId('chapter-complete')).toBeVisible()
     expect((await eventsOf(page, 'scene.complete')).map((e) => e.scene)).toEqual([
