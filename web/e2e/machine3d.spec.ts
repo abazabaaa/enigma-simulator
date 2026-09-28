@@ -1,5 +1,11 @@
 import { STAGE_PRESETS, STAGE_PRESET_IDS, dimmedParts, type StagePresetId } from '../src/contracts/stage'
-import type { ClientRect, Machine3DDebugApi, PointKind } from '../src/machine3d/debugApi'
+import {
+  GLYPH_FONT_RATIO,
+  LABEL_FONT_RATIO,
+  type ClientRect,
+  type Machine3DDebugApi,
+  type PointKind,
+} from '../src/machine3d/debugApi'
 import { makeLayout } from '../src/machine3d/layout'
 import { frameShot } from '../src/machine3d/shots'
 import { expect, test } from './fixtures'
@@ -65,6 +71,21 @@ const overlap = (a: ClientRect, b: ClientRect) =>
 const inside = (c: ClientRect, p: { x: number; y: number }) =>
   p.x >= c.x - 0.5 && p.x <= c.x + c.w + 0.5 && p.y >= c.y - 0.5 && p.y <= c.y + c.h + 0.5
 const boxInside = (c: ClientRect, b: ClientRect) => inside(c, b) && inside(c, { x: b.x + b.w, y: b.y + b.h })
+
+/** Minimum on-screen type (CSS px) for labels and ring glyphs. */
+const MIN_TYPE_PX = 9
+
+/** The exploded ring in focus reads: its window letter is not edge-on and its dial numbers are legible. */
+async function expectLegibleRing(page: Page, where: string) {
+  const g = await m3d(page, 'glyphs', 'right')
+  expect(g.window, where).not.toBeNull()
+  expect(g.window!.w / g.window!.h, `${where}: window letter width/height`).toBeGreaterThanOrEqual(0.6)
+  expect(g.window!.h * GLYPH_FONT_RATIO.letter, `${where}: window letter type px`).toBeGreaterThanOrEqual(MIN_TYPE_PX)
+  expect(g.dialMin, where).not.toBeNull()
+  expect(g.dialMin! * GLYPH_FONT_RATIO.number, `${where}: smallest dial number type px`).toBeGreaterThanOrEqual(
+    MIN_TYPE_PX,
+  )
+}
 
 /** The points a preset's shot must keep on screen. */
 function framedKinds(preset: StagePresetId): { kind: PointKind; only?: string }[] {
@@ -220,6 +241,25 @@ test.describe('machine3d', { tag: '@3d' }, () => {
     expect(i.dimmed).toEqual(dimmedParts('wire', 'I'))
   })
 
+  test('remounting the stage (a scene change) keeps the 3D view: no fallback to 2D', async ({ page }) => {
+    test.setTimeout(90_000)
+    const warnings: string[] = []
+    page.on('console', (m) => {
+      if (m.type() === 'warning') warnings.push(m.text())
+    })
+    for (const preset of ['wire', 'rotors', 'pawls', 'rotor-layers'] as const) {
+      await gotoApp(page, `/lab/stage?preset=${preset}`, { stage: '3d', motion: 'reduce' })
+      await reported3d(page, STAGE_PRESETS[preset].focus)
+      await expect(page.getByTestId('stage')).toHaveAttribute('data-renderer', 'webgl2')
+      // another page unmounts the stage, as the course does between scenes
+      await gotoApp(page, '/engine', { stage: '3d', motion: 'reduce' })
+      await expect(page.locator('[data-testid="machine3d"]')).toHaveCount(0)
+    }
+    await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'reduce' })
+    await reported3d(page, 'wire')
+    expect(warnings.filter((w) => /3D stage failed/.test(w))).toEqual([])
+  })
+
   test('reduced motion cuts to a new shot; full motion flies there', async ({ page }) => {
     test.setTimeout(90_000)
     const arrived = (shot: string) => m3d(page, 'camera').then((c) => c.shot === shot && c.settleFrames !== null)
@@ -283,6 +323,9 @@ test.describe('machine3d', { tag: '@3d' }, () => {
     test.info().annotations.push({ type: 'core index moved', description: `${moved.toFixed(0)} px` })
     expect(moved, 'the core index moves visibly between rings 01 and 05').toBeGreaterThan(40)
     expect((await m3d(page, 'rotors'))[2]!.coreAngle).toBeCloseTo(core0 - (4 * 2 * Math.PI) / 26, 6)
+    await expectLegibleRing(page, 'rotor-layers at 1280 px')
+    const setting = (await m3d(page, 'labels')).labels.find((l) => l.text === 'ring 05')!
+    expect(setting.leader, 'a leader from "ring 05" to its number').not.toBeNull()
   })
 
   test('pawls: pawl and notch labels stay clear of each other and of the pawl–notch contacts at ADV, AEW and BFX', async ({
@@ -304,7 +347,7 @@ test.describe('machine3d', { tag: '@3d' }, () => {
         await idleFor(page, 300)
         const where = `${windows} at ${viewport.width} px`
         const canvas = await m3d(page, 'canvas')
-        const { labels, keepOut } = await m3d(page, 'labels')
+        const { labels, keepOut, soft } = await m3d(page, 'labels')
         const mechanism = labels.filter((l) => /^(pawl|notch)-/.test(l.key))
         expect(mechanism.map((l) => l.key).sort(), where).toEqual([
           'notch-left',
@@ -315,8 +358,11 @@ test.describe('machine3d', { tag: '@3d' }, () => {
           'pawl-right',
         ])
         expect(keepOut, where).toHaveLength(6)
+        expect(soft, `${where}: the rings as soft keep-outs`).toHaveLength(3)
         mechanism.forEach((a, i) => {
           expect(boxInside(canvas, a), `${where}: ${a.key} inside the canvas`).toBe(true)
+          expect(a.leader, `${where}: a leader from ${a.key} to its part`).not.toBeNull()
+          soft.forEach((ring) => expect(overlap(a, ring), `${where}: ${a.key} on a ring`).toBe(false))
           mechanism.slice(i + 1).forEach((b) => expect(overlap(a, b), `${where}: ${a.key} on ${b.key}`).toBe(false))
           keepOut.forEach((k) => expect(overlap(a, k), `${where}: ${a.key} on a pawl–notch contact`).toBe(false))
         })
@@ -355,7 +401,10 @@ test.describe('machine3d on a phone (390 × 844)', { tag: '@3d' }, () => {
       }
       for (const label of (await m3d(page, 'labels')).labels) {
         expect(boxInside(canvas, label), `${where}: label ${label.text} inside the canvas`).toBe(true)
+        const type = label.h * (label.symbol ? LABEL_FONT_RATIO.symbol : LABEL_FONT_RATIO.name)
+        expect(type, `${where}: label ${label.text} type px`).toBeGreaterThanOrEqual(MIN_TYPE_PX)
       }
+      if (STAGE_PRESETS[preset].ringLayer) await expectLegibleRing(page, `${where} at 390 px`)
     }
   })
 })

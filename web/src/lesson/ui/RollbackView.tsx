@@ -4,7 +4,7 @@ import type { CheckResult, ItemLogic, ItemUi, Rollback } from '../../contracts/l
 import type { MachineStoreHook } from '../../contracts/machine'
 import { createMachine, positionsToString, step, type MachineConfig, type MachineConfigInput } from '../../engine'
 import { partForStage } from '../kinds/helpers'
-import { partName } from '../kinds/widgets'
+import { partList, partName } from '../partNames'
 import { useMachineApi } from '../../state/activeMachine'
 import { BUTTON, QUIET_BUTTON } from './controls'
 
@@ -242,7 +242,7 @@ export function RollbackView(p: {
       {!result.correct && rb.kind === 'windows' ? <WindowsView rb={rb} /> : null}
       {!result.correct && rb.kind === 'machine' ? (
         <p>
-          {rb.message} <span className="text-stone-400">(highlighted: {rb.highlight.map(partName).join(', ')})</span>
+          {rb.message} <span className="text-stone-400">(highlighted: {partList(rb.highlight)})</span>
         </p>
       ) : null}
       {!result.correct && rb.kind === 'order' ? (

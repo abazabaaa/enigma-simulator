@@ -37,7 +37,7 @@ export function LetterAnswer({ logic, disabled, submit }: WidgetProps<unknown, s
           }
         />
       </label>
-      <SubmitButton disabled={disabled || !valid} onClick={() => valid && submit(v)} />
+      <SubmitButton form disabled={disabled || !valid} />
     </form>
   )
 }

@@ -39,7 +39,7 @@ export function ChoiceAnswer({
         ))}
       </fieldset>
       <div>
-        <SubmitButton disabled={disabled || !v} onClick={() => v && submit(v)} />
+        <SubmitButton form disabled={disabled || !v} />
       </div>
     </form>
   )

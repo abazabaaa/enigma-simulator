@@ -19,7 +19,7 @@ import { RECALL_UI } from '../recall/items'
 import { returnCheckItems, type RecallId } from '../recall/pool'
 import { registerPlayer } from '../runtime'
 import { seedFor } from '../../lib/rng'
-import { commitBet, SceneFrame } from './SceneFrame'
+import { commitBet, requestSceneFocus, SceneFrame } from './SceneFrame'
 import { ProgressNotices } from './ProgressNotices'
 import { ReturnCheck, type ReturnCheckState } from './ReturnCheck'
 
@@ -218,8 +218,14 @@ export function ChapterPlayer(p: {
             canNext={canNext}
             isLast={index === scenes.length - 1}
             recallUi={RECALL_UI}
-            onNext={() => void next()}
-            onBack={() => actor.send({ type: 'BACK' })}
+            onNext={() => {
+              requestSceneFocus()
+              void next()
+            }}
+            onBack={() => {
+              requestSceneFocus()
+              actor.send({ type: 'BACK' })
+            }}
           />
         ) : (
           <p className="text-sm text-stone-400">Loading the chapter…</p>

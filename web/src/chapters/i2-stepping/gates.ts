@@ -1,10 +1,11 @@
 /**
  * Chapter i2-stepping · gate `stepping` (PLAN §4.4). PURE (L4): engine, lib/rng, contracts and lesson/kinds only.
- *  - windows      letters(9) · 2/3 · the windows after each of three presses; even attempts include a double step
+ *  - windows      letters(9) · 2/3 · the windows after each of three presses; every instance holds a double step
  *  - middle-steps set-machine · 2/3 · set the windows so that the middle rotor steps on the next press
- *  - ring-probe   choice(4) · once · constant answer · the ring moves the wiring, not the window letter
+ *  - first-letter choice(4) · once · the first letter is enciphered after the step (review m5)
+ *  - ring-probe   choice(4) · once · a ring change or a turn by hand: the window and the turnover letter after it
  *  - windows-m3   letters(9) · once · transfer · an M3 with a double-notched rotor (VI–VIII)
- *  - left-steps   the fallback: set-machine, the left rotor steps on the next press
+ *  - left-steps   the fallback: set-machine, the left rotor steps next with the right rotor left alone (double step)
  * The scene Views import the machines and the step helpers below, so the scenes and the gate agree.
  */
 
@@ -114,26 +115,24 @@ const NAVAL: readonly RotorName[] = ['VI', 'VII', 'VIII']
 const I_TO_VIII: readonly RotorName[] = [...I_TO_V, ...NAVAL]
 
 /**
- * Three distinct rotors from I–V, random rings, the right rotor 0–2 places before its turnover (so it carries
- * within three presses). On even attempts the three presses include a double step: the middle rotor sits on its
- * turnover (the right rotor one or two places before its own), or one place before it with the right rotor about
- * to carry it there. (The engine flags a double step when the middle rotor steps on its own notch alone.)
+ * Three distinct rotors from I–V, random rings, and a double step within the three presses, so an "odometer"
+ * answer (the middle rotor moves only when the right one carries it) is always wrong (review B1). Where the double
+ * step falls varies: on press 1 (the middle rotor already on its turnover letter, the right rotor one or two places
+ * before its own), or on press 2 or 3 (the middle rotor one place before its turnover, the right rotor about to
+ * carry it there). The right rotor always carries within the three presses. (The engine flags a double step when
+ * the middle rotor steps on its own notch while the right rotor is not at its turnover.)
  */
-export function windowsConfig(r: Rng, attempt: number): MachineConfig {
+export function windowsConfig(r: Rng): MachineConfig {
   const base = randomConfig(r, { plugs: 0, rings: 'random' })
   const [left, middle, right] = base.rotors as [RotorName, RotorName, RotorName]
   const tr = turnoversOf(right)[0]!
   const tm = turnoversOf(middle)[0]!
   const leftWindow = base.positions[0]!
-  let positions: Letter[]
-  if (attempt % 2 === 0) {
-    positions =
-      int(r, 3) === 0
-        ? [leftWindow, tm as Letter, lettersBefore(tr, 1 + int(r, 2))]
-        : [leftWindow, lettersBefore(tm, 1), lettersBefore(tr, int(r, 2))]
-  } else {
-    positions = [leftWindow, randLetter(r), lettersBefore(tr, int(r, 3))]
-  }
+  const press = int(r, 3)
+  const positions: Letter[] =
+    press === 0
+      ? [leftWindow, tm as Letter, lettersBefore(tr, 1 + int(r, 2))]
+      : [leftWindow, lettersBefore(tm, 1), lettersBefore(tr, press - 1)]
   return normalizeConfig({ ...base, rotors: [left, middle, right], positions })
 }
 
@@ -152,7 +151,7 @@ const WINDOWS_HINT: readonly Highlight[] = [
 export const windows = lettersItem<WindowsInstance>({
   id: 'windows',
   rule: WINDOW,
-  generate: (r, ctx) => ({ length: 9, config: windowsConfig(r, ctx.attempt) }),
+  generate: (r) => ({ length: 9, config: windowsConfig(r) }),
   same: (a, b) => sameJson(a.config, b.config),
   solve: (i) => windowsAfterPresses(i.config, 3).join(''),
   check: windowsCheck,
@@ -165,24 +164,20 @@ export const windows = lettersItem<WindowsInstance>({
 // ---------------------------------------------------------------------------
 
 /**
- * Model M3 with one of VI–VIII (turnovers Z and M) in the right or middle slot, starting within two presses of a
- * Z or M turnover: the right rotor 0–1 places before Z or M, or the middle rotor on Z/M or one place before it
- * with the right rotor about to carry it there.
+ * Model M3 with one of VI–VIII (turnovers Z and M) in the right or middle slot, and always a double step within
+ * two presses (review B1): the middle rotor on its turnover letter with the right rotor one place before its own
+ * (double step on press 1), or the middle rotor one place before its turnover with the right rotor on its own
+ * (double step on press 2). Either way a double-notched rotor sits on Z or M within two presses.
  */
 export function m3Config(r: Rng): MachineConfig {
   const naval = pick(r, NAVAL)
   const [a, b] = sample(r, I_TO_VIII.filter((x) => x !== naval), 2) as [RotorName, RotorName]
-  const inMiddle = int(r, 3) === 0
-  const rotors: RotorName[] = inMiddle ? [a, naval, b] : [a, b, naval]
+  const rotors: RotorName[] = int(r, 3) === 0 ? [a, naval, b] : [a, b, naval]
   const rings = rotors.map(() => randLetter(r))
-  const turnover = pick(r, ['Z', 'M'] as const)
-  let positions: Letter[]
-  if (inMiddle) {
-    const tr = pick(r, turnoversOf(b).split(''))
-    positions = int(r, 2) === 0 ? [randLetter(r), turnover, randLetter(r)] : [randLetter(r), lettersBefore(turnover, 1), lettersBefore(tr, int(r, 2))]
-  } else {
-    positions = [randLetter(r), randLetter(r), lettersBefore(turnover, int(r, 2))]
-  }
+  const tm = pick(r, turnoversOf(rotors[1]!).split(''))
+  const tr = pick(r, turnoversOf(rotors[2]!).split(''))
+  const positions: Letter[] =
+    int(r, 2) === 0 ? [randLetter(r), tm as Letter, lettersBefore(tr, 1)] : [randLetter(r), lettersBefore(tm, 1), tr as Letter]
   return normalizeConfig({ model: 'M3', reflector: pick(r, ['B', 'C'] as const), rotors, rings, positions, plugboard: [] })
 }
 
@@ -237,6 +232,11 @@ export function stepsStart(r: Rng): MachineConfig {
 const describeMoved = (moved: readonly RotorSlot[]): string =>
   moved.length === 1 ? `only the ${moved[0]} rotor` : `the ${moved.join(' and ')} rotors`
 
+/**
+ * middle-steps: the middle rotor steps on the next press (the right rotor on its turnover letter, or the middle
+ * rotor on its own). left-steps, the fallback, keeps the right rotor where it is, so the only way is the middle
+ * rotor on its own turnover letter: the double step, the same idea the windows items test (review B1).
+ */
 export function stepsItem(id: string, target: 'middle' | 'left'): ItemLogic<StepsInstance, MachineConfig> {
   // The rotor whose turnover letter carries the target: the right rotor carries the middle, the middle the left.
   const carrier = target === 'middle' ? 2 : 1
@@ -245,19 +245,26 @@ export function stepsItem(id: string, target: 'middle' | 'left'): ItemLogic<Step
     rule: WINDOW,
     generate: (r) => ({ setup: { machine: stepsStart(r), stage: 'pawls' }, unlocked: ['positions'], trial: 'locked', target }),
     same: (a, b) => sameJson(a.setup.machine, b.setup.machine) && a.target === b.target,
-    predicate(_i, cfg) {
+    predicate(i, cfg) {
+      const at = positionsToString(createMachine(cfg))
+      const right = i.setup.machine.positions[2]!
+      if (target === 'left' && at[2] !== right) {
+        return {
+          field: 'positions',
+          message: `Leave the right rotor at ${right}: turn only the left and middle rotors.`,
+          highlight: ['rotor-right'],
+        }
+      }
       const s = step(createMachine(cfg))
       if (s.stepped[target]) return true
       const moved = SLOTS.filter((slot) => s.stepped[slot])
       const rotor = cfg.rotors[carrier]!
-      const at = positionsToString(createMachine(cfg))
-      const window = at[carrier]!
       const who = carrier === 2 ? 'right' : 'middle'
       return {
         field: 'positions',
         message:
           `At ${at} the next press moves ${describeMoved(moved)}, not the ${target} rotor. ` +
-          `The ${who} rotor (${rotor}) shows ${window}; it carries the ${target} rotor only from its turnover letter ` +
+          `The ${who} rotor (${rotor}) shows ${at[carrier]}; it carries the ${target} rotor only from its turnover letter ` +
           `${turnoversOf(rotor).split('').join(' or ')} in the window, whatever its ring setting.`,
         highlight: STEPS_PARTS[target],
       }
@@ -282,40 +289,127 @@ export const middleSteps = stepsItem('middle-steps', 'middle')
 export const leftSteps = stepsItem('left-steps', 'left')
 
 // ---------------------------------------------------------------------------
-// choice: ring vs position (once, constant answer; the distractor "the ring changes the window letter")
+// first-letter: at which windows is the first letter enciphered? (choice, once; review m5)
 // ---------------------------------------------------------------------------
 
-export const RING_OPTIONS: readonly Choice[] = [
-  {
-    id: 'wiring',
-    label: 'The window still shows the same letter, but the wiring inside has turned four places, so the same key lights a different lamp',
-  },
-  { id: 'window', label: 'The window letter moves on four places', misconception: true },
-  { id: 'turnover', label: 'The middle rotor is now carried at a different window letter', misconception: true },
-  { id: 'nothing', label: 'Nothing that matters: the ring only relabels the letters, so every lamp stays the same', misconception: true },
-]
-
-const RING_FEEDBACK: Readonly<Record<string, string>> = {
-  window:
-    'The window letter is printed on the ring itself, and the rotor did not turn: the window still shows the same letter. ' +
-    'What moved is the wiring core, four places against the letters.',
-  turnover:
-    'The notch is fixed to the alphabet ring, so it moves with the letters: the rotor still carries its neighbour at the same ' +
-    'turnover letter. Only the wiring moved against the ring.',
-  nothing:
-    'The ring setting turns the wiring core against the letters, so at the same window the current takes different wires and ' +
-    'lights a different lamp.',
+export interface FirstLetterInstance {
+  readonly options: readonly Choice[]
+  readonly config: MachineConfig
 }
 
-export const ringProbe = choiceItem<{ options: readonly Choice[] }>({
+const shiftWindows = (w: string, by: readonly number[]): string => [...w].map((c, k) => L(idx(c) + by[k]!)).join('')
+
+/**
+ * A machine at some windows (a third of them one press before a carry, a third before a double step). Options:
+ * the windows after the step (right), the windows before it (the misconception "encipher, then step"), after two
+ * steps, and every rotor one on (or the right rotor one back when that coincides with the answer).
+ */
+export function firstLetterConfig(r: Rng): MachineConfig {
+  const base = randomConfig(r, { plugs: 0, rings: 'random' })
+  const [, middle, right] = base.rotors as [RotorName, RotorName, RotorName]
+  const kind = int(r, 3)
+  const positions = [...base.positions]
+  if (kind === 1) positions[2] = turnoversOf(right)[0]! as Letter
+  if (kind === 2) {
+    positions[1] = turnoversOf(middle)[0]! as Letter
+    positions[2] = lettersBefore(turnoversOf(right)[0]!, 1 + int(r, 20))
+  }
+  return normalizeConfig({ ...base, positions })
+}
+
+export const firstLetter = choiceItem<FirstLetterInstance>({
+  id: 'first-letter',
+  rule: ONCE,
+  generate(r) {
+    const config = firstLetterConfig(r)
+    const now = config.positions.join('')
+    const [one, two] = stepsFrom(config, 2).map((x) => x.after) as [string, string]
+    const all = shiftWindows(now, [1, 1, 1])
+    const fourth = all === one ? shiftWindows(now, [0, 0, -1]) : all
+    const options: Choice[] = [
+      { id: one, label: one },
+      { id: now, label: now, misconception: true },
+      { id: two, label: two },
+      { id: fourth, label: fourth },
+    ]
+    return { options: shuffle(r, options), config }
+  },
+  same: (a, b) => sameJson(a.config, b.config),
+  solve: (i) => stepsFrom(i.config, 1)[0]!.after,
+  check: (i, a) =>
+    verdict(
+      a === stepsFrom(i.config, 1)[0]!.after,
+      { kind: 'none' },
+      a === i.config.positions.join('')
+        ? 'The rotors step before the current flows, even for the first letter of a message: the letter is enciphered after the step.'
+        : 'One key press steps the rotors once, as the pawls allow, and then the current flows.',
+    ),
+  setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: 'pawls' }),
+  highlight: () => [{ part: 'pawl-right', tone: 'hint' }],
+})
+
+// ---------------------------------------------------------------------------
+// ring-probe: ring setting versus position, with numbers (choice, once; review m10)
+// ---------------------------------------------------------------------------
+
+export interface RingProbeInstance {
+  readonly options: readonly Choice[]
+  readonly rotor: RotorName
+  readonly window: Letter
+  readonly ring: Letter
+  /** What the operator changes: the ring setting, or the rotor's position (turned by hand). */
+  readonly change: 'ring' | 'position'
+  /** How many places forward. */
+  readonly by: number
+}
+
+const probeOption = (window: string, carry: string, misconception = false): Choice => ({
+  id: `${window}${carry}`,
+  label: `The window shows ${window}, and the rotor carries the middle rotor from ${carry}`,
+  ...(misconception ? { misconception: true as const } : {}),
+})
+
+/** The correct outcome: a ring change leaves the window; a turn moves it; the turnover letter never moves. */
+export function ringProbeAnswer(i: Pick<RingProbeInstance, 'rotor' | 'window' | 'change' | 'by'>): string {
+  const window = i.change === 'ring' ? i.window : L(idx(i.window) + i.by)
+  return `${window}${turnoversOf(i.rotor)[0]}`
+}
+
+export const ringProbe = choiceItem<RingProbeInstance>({
   id: 'ring-probe',
   rule: ONCE,
-  constantAnswer: true,
-  generate: (r) => ({ options: shuffle(r, RING_OPTIONS) }),
-  same: (a, b) => sameJson(a.options, b.options),
-  solve: () => 'wiring',
-  check: (_i, a) =>
-    verdict(a === 'wiring', { kind: 'none' }, RING_FEEDBACK[String(a)] ?? 'The ring setting turns the wiring against the letters; the window letter stays.'),
+  generate(r) {
+    const rotor = pick(r, I_TO_V)
+    const window = randLetter(r)
+    const ring = randLetter(r)
+    const change = int(r, 3) < 2 ? 'ring' : 'position'
+    const by = 1 + int(r, 12)
+    const t = turnoversOf(rotor)[0]!
+    const moved = L(idx(window) + by)
+    const shifted = L(idx(t) + by)
+    // Ring change: the distractor "the ring changes the window letter" (§4.4), and "the notch moves".
+    // Position change: "the window stays", and "the turnover letter moves with the rotor".
+    const options =
+      change === 'ring'
+        ? [probeOption(window, t), probeOption(moved, t, true), probeOption(window, shifted, true), probeOption(moved, shifted, true)]
+        : [probeOption(moved, t), probeOption(window, t, true), probeOption(moved, shifted, true), probeOption(window, shifted, true)]
+    return { options: shuffle(r, options), rotor, window, ring, change, by }
+  },
+  same: (a, b) => sameJson([a.rotor, a.window, a.ring, a.change, a.by], [b.rotor, b.window, b.ring, b.change, b.by]),
+  solve: ringProbeAnswer,
+  check(i, a) {
+    const right = ringProbeAnswer(i)
+    const got = String(a ?? '')
+    let feedback: string
+    if (got[1] !== right[1]) {
+      feedback = 'The notch is fixed to the alphabet ring: the rotor carries its neighbour from the same window letter, whatever the ring setting or the position.'
+    } else if (i.change === 'ring') {
+      feedback = 'The letters in the window are printed on the ring, and the rotor did not turn: a ring setting turns the wiring core against the letters, not the window.'
+    } else {
+      feedback = 'Turning the rotor by hand moves its letters past the window, one letter per place.'
+    }
+    return verdict(got === right, { kind: 'none' }, feedback)
+  },
   highlight: () => [{ part: 'ring-right', tone: 'hint' }],
 })
 
@@ -323,7 +417,7 @@ export const ringProbe = choiceItem<{ options: readonly Choice[] }>({
 
 export const GATES: ChapterGates = {
   stepping: {
-    items: [windows, middleSteps, ringProbe, windowsM3] as ItemLogic[],
+    items: [windows, middleSteps, firstLetter, ringProbe, windowsM3] as ItemLogic[],
     fallback: leftSteps as ItemLogic,
   },
 }
