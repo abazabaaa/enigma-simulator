@@ -7,7 +7,10 @@ import { BUTTON, INPUT, QUIET_BUTTON } from './controls'
 export interface SceneRuntime {
   readonly fired: ReadonlySet<string>
   isCommitted(bet: string): boolean
-  /** Committed, and every earlier reveal of the scene has fired (reveals fire in order). */
+  /**
+   * Committed, and every earlier reveal of the scene has fired (reveals fire in order). [contracts-v2] A fired
+   * Step is not allowed again while the next reveal's bet is open (G10).
+   */
   isAllowed(bet: string): boolean
   fire(bet: string): void
 }
@@ -28,7 +31,7 @@ const TRIGGER_LABEL: Record<RevealSpec['trigger'], string> = {
 }
 
 /** The trigger of a reveal (reveal-<bet>): disabled until its bet is committed. */
-export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: string }): JSX.Element {
+export function RevealButton({ reveal, label = reveal.label }: { reveal: RevealSpec; label?: string }): JSX.Element {
   const rt = useContext(SceneRuntimeContext)
   const committed = rt?.isCommitted(reveal.bet) ?? false
   const allowed = rt?.isAllowed(reveal.bet) ?? false
@@ -42,7 +45,13 @@ export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: st
       onClick={() => rt?.fire(reveal.bet)}
     >
       {label ?? TRIGGER_LABEL[reveal.trigger]}
-      {!committed ? ' (bet first)' : !allowed ? ' (after the earlier reveal)' : ''}
+      {!committed
+        ? ' (bet first)'
+        : allowed
+          ? ''
+          : rt?.fired.has(reveal.bet)
+            ? ' (bet on the next one first)'
+            : ' (after the earlier reveal)'}
     </button>
   )
 }

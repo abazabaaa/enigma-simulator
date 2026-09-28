@@ -212,10 +212,16 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
 
   // Reveals fire in the scene's order (review m8): a reveal is allowed once its bet is committed and every
   // earlier reveal has fired. Repeats of a fired reveal stay allowed. Views must not assume any other order.
+  // [contracts-v2] Except a repeat of a fired Step while the next reveal's bet is open: the Step presses the key,
+  // and that key stays locked until the bet is committed (G10), so a Step cannot slip a press past the bet.
   const isAllowed = useCallback(
     (bet: string) => {
+      const fired = firedRef.current
       const k = reveals.findIndex((x) => x.bet === bet)
-      return k !== -1 && isCommitted(bet) && reveals.slice(0, k).every((x) => firedRef.current.has(x.bet))
+      if (k === -1 || !isCommitted(bet) || !reveals.slice(0, k).every((x) => fired.has(x.bet))) return false
+      if (reveals[k]!.trigger !== 'step' || !fired.has(bet)) return true
+      const pending = reveals.find((x) => !fired.has(x.bet))
+      return !pending || isCommitted(pending.bet)
     },
     [reveals, isCommitted],
   )
