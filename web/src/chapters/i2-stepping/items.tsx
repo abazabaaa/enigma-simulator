@@ -4,10 +4,17 @@
  */
 
 import type { JSX } from 'react'
-import type { Choice } from '../../contracts/core'
 import type { ItemUiMap } from '../../contracts/lesson'
 import { Mono } from '../../lesson'
-import { ringNumber, stepsFrom, turnoversOf, type StepsInstance, type WindowsInstance } from './gates'
+import {
+  ringNumber,
+  stepsFrom,
+  turnoversOf,
+  type FirstLetterInstance,
+  type RingProbeInstance,
+  type StepsInstance,
+  type WindowsInstance,
+} from './gates'
 
 type Config = WindowsInstance['config']
 
@@ -98,8 +105,13 @@ function StepsPrompt({ instance }: { instance: StepsInstance }): JSX.Element {
       <MachineLine c={c} />
       <Turnovers c={c} />
       <p>
-        Turn the rotors so that the <strong>{instance.target}</strong> rotor steps on the next key press. The keyboard is locked and the
-        lamps are hidden: set the windows, then submit.
+        Turn the rotors so that the <strong>{instance.target}</strong> rotor steps on the next key press
+        {instance.target === 'left' ? (
+          <>
+            , and leave the right rotor at <Mono>{c.positions[2]}</Mono>
+          </>
+        ) : null}
+        . The keyboard is locked and the lamps are hidden: set the windows, then submit.
       </p>
     </div>
   )
@@ -114,24 +126,68 @@ const steps = {
       <p className="text-sm">
         Rotors <Mono>{c.rotors.join(' ')}</Mono>, rings <Mono>{c.rings.map(ringNumber).join(' ')}</Mono>: the {instance.target} rotor
         steps when the {instance.target === 'middle' ? 'right' : 'middle'} rotor ({carrier}) shows its turnover letter{' '}
-        <Mono>{turnoversOf(carrier)[0]}</Mono> in the window. The ring settings do not change that letter. For example windows{' '}
-        <Mono>{solution.positions.join('')}</Mono>.
+        <Mono>{turnoversOf(carrier)[0]}</Mono> in the window
+        {instance.target === 'left'
+          ? ', even when the right rotor does not carry it: the pawl pushes the middle rotor again (the double step)'
+          : ''}
+        . The ring settings do not change that letter. For example windows <Mono>{solution.positions.join('')}</Mono>.
       </p>
     )
   },
 }
 
+function RingProbePrompt({ instance: i }: { instance: RingProbeInstance }): JSX.Element {
+  const t = turnoversOf(i.rotor)[0]
+  const to = ringNumber(String.fromCharCode(((i.ring.charCodeAt(0) - 65 + i.by) % 26) + 65))
+  return (
+    <div className="flex flex-col gap-1">
+      <p>
+        The right rotor ({i.rotor}) shows <Mono>{i.window}</Mono> in its window with ring setting <Mono>{ringNumber(i.ring)}</Mono>. It
+        carries the middle rotor from <Mono>{t}</Mono>.
+      </p>
+      <p>
+        {i.change === 'ring' ? (
+          <>
+            The operator turns its ring setting on by {i.by} to <Mono>{to}</Mono> and does not touch the rotor itself.
+          </>
+        ) : (
+          <>
+            The operator turns the rotor itself forward by {i.by} places, by hand; the ring setting stays{' '}
+            <Mono>{ringNumber(i.ring)}</Mono>.
+          </>
+        )}{' '}
+        Afterwards, what does the window show, and from which window letter does the rotor carry the middle rotor?
+      </p>
+    </div>
+  )
+}
+
 const ringProbe = {
-  Prompt: () => (
-    <p>
-      The right rotor shows <Mono>A</Mono> in its window. An operator turns its ring setting from <Mono>01</Mono> to <Mono>05</Mono>{' '}
-      and does not touch the rotor itself. What changes?
+  Prompt: RingProbePrompt,
+  Worked: ({ instance, solution }: { instance: RingProbeInstance; solution: string }) => (
+    <p className="text-sm">
+      {instance.change === 'ring'
+        ? `Rotor ${instance.rotor} at ${instance.window}, ring on by ${instance.by}: the letters on the ring and the rotor did not move, so the window still shows ${instance.window}; only the wiring core turned against them, so a key can light a different lamp.`
+        : `Rotor ${instance.rotor} turned ${instance.by} places from ${instance.window}: the window moves on ${instance.by} letters.`}{' '}
+      The notch rides on the ring, so it still carries from {turnoversOf(instance.rotor)[0]}. Answer: window{' '}
+      <Mono>{solution[0]}</Mono>, carry from <Mono>{solution[1]}</Mono>.
     </p>
   ),
-  Worked: ({ instance, solution }: { instance: { options: readonly Choice[] }; solution: string }) => (
+}
+
+const firstLetter = {
+  Prompt: ({ instance }: { instance: FirstLetterInstance }) => (
+    <div className="flex flex-col gap-1">
+      <MachineLine c={instance.config} />
+      <Turnovers c={instance.config} />
+      <p>You press one key. At which windows does the current for that letter pass through the rotors?</p>
+    </div>
+  ),
+  Worked: ({ instance, solution }: { instance: FirstLetterInstance; solution: string }) => (
     <p className="text-sm">
-      {instance.options.find((o) => o.id === solution)?.label}. The letters and the notch are on the alphabet ring; the ring setting
-      turns the wiring core against them. The window letter and the turnover letter stay put.
+      Windows <Mono>{instance.config.positions.join('')}</Mono>: the key first steps the rotors (
+      {stepsFrom(instance.config, 1)[0]!.moved.join(' + ')} moved), and only then does the current flow, at{' '}
+      <Mono>{solution}</Mono>. That holds for the very first letter of a message too.
     </p>
   ),
 }
@@ -139,6 +195,7 @@ const ringProbe = {
 export const ITEM_UI: ItemUiMap = {
   windows,
   'middle-steps': steps,
+  'first-letter': firstLetter,
   'ring-probe': ringProbe,
   'windows-m3': windowsM3,
   'left-steps': steps,

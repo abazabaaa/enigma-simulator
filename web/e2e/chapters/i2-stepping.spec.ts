@@ -51,7 +51,13 @@ import { MACHINE_3D_READY } from '../../src/machine3d/ready'
 const CHAPTER = 'i2-stepping'
 
 /** §4.1 G5 table: the rollback kind of each item. */
-const ROLLBACK: Record<string, string> = { windows: 'windows', 'middle-steps': 'machine', 'ring-probe': 'none', 'windows-m3': 'windows' }
+const ROLLBACK: Record<string, string> = {
+  windows: 'windows',
+  'middle-steps': 'machine',
+  'first-letter': 'none',
+  'ring-probe': 'none',
+  'windows-m3': 'windows',
+}
 
 const windowsNow = (page: Page) => page.evaluate(() => window.__enigma!.getState().positions)
 
@@ -82,17 +88,21 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await expect(page.getByTestId('story-card')).toContainText('Marian Rejewski')
     await nextScene(page)
 
-    // step-first: the bet gates the press of A; the right rotor steps before the current flows.
+    // step-first: the bet gates the first key press; any key fires the reveal (review m2).
     expect(await where(page)).toMatchObject({ scene: 'step-first', kind: 'explore' })
     await assertFocus(page, 'pawls')
     await expectNextDisabled(page)
     const [press] = await sceneReveals(page)
-    expect(press).toMatchObject({ trigger: 'press', key: 'A' })
+    expect(press).toEqual({ bet: 'first-press', trigger: 'press' })
     await assertRevealGated(page, press!)
+    expect(await pressThrows(page, 'Q')).toBe(true)
     expect(await windowsNow(page)).toBe('AAA')
     await commitBet(page, 'first-press', 'right')
-    await fireReveal(page, press!)
+    await page.getByTestId('key-Q').click()
+    await expect.poll(async () => (await eventsOf(page, 'reveal')).map((e) => e.bet)).toEqual(['i2-stepping/first-press'])
     expect(await windowsNow(page)).toBe('AAB')
+    await expect(page.getByTestId('step-first-worked')).toContainText('Your key Q')
+    await expect(page.getByTestId('notch-offset')).toContainText('III at D (turnover V)')
     await expect(page.getByTestId('trace-step')).toHaveAttribute('data-before', 'AAA')
     await expect(page.getByTestId('trace-step')).toHaveAttribute('data-after', 'AAB')
     await expect(page.getByTestId('step-first-worked')).toBeVisible()
@@ -131,7 +141,9 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     }
     expect(await betResults(page)).toMatchObject({ 'first-press': true, adu: true, adv: true, aew: true })
     await expect(page.getByTestId('task-reach-bfx')).toHaveAttribute('data-done', 'true')
-    await expect(page.getByTestId('double-step-explained')).toContainText('double step')
+    await expect(page.getByTestId('double-step-explained')).toContainText('the double step')
+    await expect(page.getByTestId('double-step-now')).toHaveAttribute('aria-live', 'polite')
+    await expect(page.getByTestId('double-step-now')).toContainText('(double step)')
     await nextScene(page)
 
     // ring-vs-core: the toggle turns the right ring 01 → 05; the window letter does not move.
@@ -149,6 +161,8 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await expect(page.getByTestId('ring-right')).toHaveAttribute('aria-valuetext', '05')
     await expect(page.getByTestId('rotor-pos-right')).toHaveAttribute('aria-valuetext', 'A')
     expect(await windowsNow(page)).toBe('AAA')
+    // The displayed offset agrees with the prose: four places back (review m3).
+    await expect(page.getByTestId('ring-now')).toContainText('−4 places')
     expect((await betResults(page))['ring-window']).toBe(false)
     await expectNextDisabled(page)
     // The same key at the same windows with ring 05, then a ring changed by hand.

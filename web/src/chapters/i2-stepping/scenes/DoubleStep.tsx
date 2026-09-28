@@ -10,7 +10,7 @@ import { positionsToString, type RotorName } from '../../../engine'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
 import { usePlaybackStore } from '../../../state/playbackStore'
 import { DOUBLE_START, movedChoice, stepsFrom, turnoversOf } from '../gates'
-import { PressLog, usePressLog } from './PressLog'
+import { PressLog, usePressLog, type PressEntry } from './PressLog'
 
 /** The three presses from ADU, from the engine: ADV, AEW, BFX. */
 export const DOUBLE_SEQUENCE = stepsFrom(DOUBLE_START, 3)
@@ -18,37 +18,35 @@ export const DOUBLE_BETS = ['adu', 'adv', 'aew'] as const
 
 const [LEFT, MIDDLE, RIGHT] = DOUBLE_START.rotors as [RotorName, RotorName, RotorName]
 
-function Explain({ k }: { k: number }): JSX.Element {
-  const s = DOUBLE_SEQUENCE[k]!
-  const head = (
-    <Mono>
-      {s.before} → {s.after}
-    </Mono>
-  )
-  if (k === 0) {
+const turnoverOf = (slot: 1 | 2) => turnoversOf(DOUBLE_START.rotors[slot]!)
+
+/** What one press did, told from the press itself (so repeats and restarts are explained truthfully). */
+export function explainPress(e: PressEntry): string {
+  const moved = new Set(e.moved)
+  const head = `${e.before} → ${e.after}: `
+  if (e.doubleStep) {
     return (
-      <p>
-        {head}: only the right rotor moved. It now shows <Mono>{s.after[2]}</Mono>, the turnover letter of rotor {RIGHT}: its notch now
-        sits under the middle pawl.
-      </p>
+      head +
+      `the double step. The middle rotor sat on its own turnover letter ${e.before[1]}, so the left pawl dropped into its ` +
+      `notch and pushed: the left rotor moved (${e.before[0]} → ${e.after[0]}) and the middle rotor moved again ` +
+      `(${e.before[1]} → ${e.after[1]}), though the right rotor did not carry it. The right rotor stepped as always.`
     )
   }
-  if (k === 1) {
+  if (moved.has('middle')) {
+    const carriedLeft = moved.has('left') ? ` The middle rotor left its own turnover letter too, so the left rotor moved as well.` : ''
+    const onTurnover = turnoverOf(1).includes(e.after[1]!)
+      ? ` Now the middle rotor shows ${e.after[1]}, its own turnover letter: its notch sits under the left pawl.`
+      : ''
     return (
-      <p>
-        {head}: the right rotor left its turnover letter and its notch carried the middle rotor, <Mono>{s.before[1]}</Mono> →{' '}
-        <Mono>{s.after[1]}</Mono>. But <Mono>{s.after[1]}</Mono> is the turnover letter of rotor {MIDDLE}: the middle rotor&apos;s own
-        notch now sits under the left pawl.
-      </p>
+      head +
+      `the right rotor left its turnover letter ${e.before[2]}, and its notch carried the middle rotor ` +
+      `(${e.before[1]} → ${e.after[1]}).${carriedLeft}${onTurnover}`
     )
   }
-  return (
-    <p>
-      {head}: <strong>the double step.</strong> The left pawl dropped into the middle rotor&apos;s notch and pushed on it, so the left
-      rotor moved (<Mono>{s.before[0]}</Mono> → <Mono>{s.after[0]}</Mono>) and the middle rotor moved again (<Mono>{s.before[1]}</Mono> →{' '}
-      <Mono>{s.after[1]}</Mono>), on its second press in a row. The right rotor stepped as always.
-    </p>
-  )
+  const onTurnover = turnoverOf(2).includes(e.after[2]!)
+    ? ` It now shows ${e.after[2]}, the turnover letter of rotor ${RIGHT}: its notch sits under the middle pawl.`
+    : ''
+  return `${head}only the right rotor moved.${onTurnover}`
 }
 
 export function DoubleStepView(p: SceneProps): JSX.Element {
@@ -56,6 +54,7 @@ export function DoubleStepView(p: SceneProps): JSX.Element {
   const count = fired.filter(Boolean).length
   const windows = useStore(p.store, (s) => positionsToString(s.machine))
   const log = usePressLog(p.store)
+  const last = log.at(-1)
   const resolved = useRef(new Set<string>())
   const { completeTask, bet, store } = p
 
@@ -93,18 +92,17 @@ export function DoubleStepView(p: SceneProps): JSX.Element {
         {RIGHT} <Mono>{turnoversOf(RIGHT)}</Mono>. Each Step presses <Mono>A</Mono> with the lamps hidden: watch the windows,
         the pawls and the notches.
       </p>
-      <p className="text-stone-200" data-testid="double-step-now">
+      <p className="text-stone-200" data-testid="double-step-now" aria-live="polite">
         The windows show <Mono>{windows}</Mono>.{' '}
+        {last ? `Last step: ${last.moved.join(' + ')} moved${last.doubleStep ? ' (double step)' : ''}. ` : ''}
         {count < 3 ? `Bet on step ${count + 1} of 3, then press it.` : 'All three steps done.'}
       </p>
       <ol className="flex flex-col gap-2" data-testid="double-step-explained">
-        {DOUBLE_BETS.map((id, k) =>
-          fired[k] ? (
-            <li key={id} className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
-              <Explain k={k} />
-            </li>
-          ) : null,
-        )}
+        {log.map((e, k) => (
+          <li key={k} className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
+            {explainPress(e)}
+          </li>
+        ))}
       </ol>
       {count === 3 ? (
         <div className="flex flex-col gap-2">
