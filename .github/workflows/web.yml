@@ -67,6 +67,8 @@ jobs:
       - run: npm ci
       # CI runners are not the dev container: install the Chromium matching @playwright/test here.
       - run: npx playwright install --with-deps chromium
+      # Project 2d runs every spec but @3d and @walk: smoke, platform, areas, chapters, and the release specs
+      # (a11y, 390 px layout, deep links, 404.html, share URL, budgets) against the /enigma-simulator/ build.
       - run: npx playwright test --project=2d --shard=${{ matrix.shard }}/2
       - name: Upload Playwright report
         if: ${{ failure() }}
@@ -102,11 +104,16 @@ jobs:
             web/test-results/
           retention-days: 7
 
+  # The full course walk from empty storage, on the 2D stage and on the 3D stage (PR 17).
   walk:
-    name: course walk
+    name: course walk (${{ matrix.project }})
     if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [walk, walk-3d]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -116,13 +123,12 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # The walk spec arrives with the lesson runtime (PR 05); until then there is nothing to walk.
-      - run: npx playwright test --project=walk --pass-with-no-tests
+      - run: npx playwright test --project=${{ matrix.project }}
       - name: Upload Playwright report
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-walk
+          name: playwright-report-${{ matrix.project }}
           path: |
             web/playwright-report/
             web/test-results/
@@ -147,10 +153,17 @@ jobs:
         env:
           VITE_BASE: /enigma-simulator/
         run: npm run build
+      - name: Check the artifact (base path, 404.html, budgets)
+        run: |
+          grep -q 'src="/enigma-simulator/assets/' dist/index.html
+          cmp dist/index.html dist/404.html
+          node scripts/budget.mjs
       - uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
+  # Deploys only from master (the user merges the integration branch there, and sets
+  # Settings -> Pages -> Source = GitHub Actions once).
   deploy:
     name: deploy to GitHub Pages
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
