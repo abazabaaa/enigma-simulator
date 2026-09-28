@@ -116,8 +116,9 @@ export function WireBench(p: {
           <TestRegister live={register} testLetter={p.test} testId={p.testIds?.register} />
         </div>
       </div>
-      <div {...scroller(wide, 'Wire grid, scrolls sideways')}>
-        <div style={wide ? { minWidth: 416, maxWidth: 520 } : { width: 'min(100%, 300px)' }}>
+      {/* The grid scrolls sideways inside its own focusable region (viz). */}
+      <div className="min-w-0">
+        <div style={wide ? { maxWidth: 520 } : { width: 'min(100%, 300px)' }}>
           <WireGrid
             state={p.state}
             step={p.step}
