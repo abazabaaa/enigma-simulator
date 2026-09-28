@@ -12,11 +12,13 @@ import { ITEM_UI } from './items'
 import { AlignView, HexagonView, SteckerToggleView } from './scenes'
 
 const STORY =
-  'Warsaw, late 1932. Marian Rejewski had AD, BE and CF for a day. But every letter of them had passed through the ' +
-  'plugboard, and its six cables were unknown. Before the three permutations could tell him anything about the ' +
-  'rotors, he had to know what the cables did to them. The answer is a piece of pure mathematics, a theorem about ' +
-  'permutations that the cryptologist Deavours later called "the theorem that won World War II". In this chapter you ' +
-  "work it out for yourself: multiply two sets of swaps, add a cable to a real day's machine, and line up two cycles."
+  "Warsaw, late 1932. Schmidt's tables covered only September and October. For any other day Marian Rejewski could " +
+  "still build AD, BE and CF from the indicators, but every letter had passed through that day's plugboard, and its " +
+  'six cables were unknown. Could the three permutations still say anything about the rotors? The answer is a theorem ' +
+  'about permutations that the cryptologist Deavours later called "the theorem that won World War II". With the ' +
+  "cyclometer of 1934–35 it let the Poles build a catalogue that finds a day's rotor settings without its cables. " +
+  "Here you work it out yourself: multiply two sets of swaps, add a cable to a real day's machine, and line up two " +
+  'cycles.'
 
 const SETUP = { machine: DAY, locks: READ_ONLY } as const
 
@@ -26,7 +28,12 @@ const scenes: readonly SceneDef[] = [
     kind: 'story',
     title: 'The theorem',
     stage: null,
-    story: { text: STORY, people: ['rejewski'], date: 'late-1932', facts: ['theorem', 'nullified', 'pairs', 'adjacent'] },
+    story: {
+      text: STORY,
+      people: ['rejewski'],
+      date: 'late-1932',
+      facts: ['tables', 'theorem', 'nullified', 'pairs', 'adjacent', 'cyclometer'],
+    },
   },
   {
     id: 'hexagon',

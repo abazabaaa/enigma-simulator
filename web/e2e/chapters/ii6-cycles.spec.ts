@@ -112,15 +112,17 @@ async function addCable(page: Page, pair: string): Promise<void> {
   await expect.poll(async () => (await plugsNow(page)).length).toBe(before + 1)
 }
 
-/** The custom align-pair Answer: set the offset and direction with its buttons, then submit. */
-async function alignViaUi(page: Page, a: AlignAnswer): Promise<void> {
-  const strip = page.getByTestId('align-pair-align')
-  if ((await strip.getAttribute('data-reversed')) !== String(a.reversed)) await page.getByTestId('align-pair-align-reverse').click()
-  for (let k = 0; k < 20 && (await strip.getAttribute('data-offset')) !== String(a.offset); k++) {
-    await page.getByTestId('align-pair-align-right').click()
+/** The custom align-pair Answer: set each pair's offset and direction with its buttons, then submit. */
+async function alignViaUi(page: Page, answer: AlignAnswer): Promise<void> {
+  for (const [k, a] of answer.entries()) {
+    const strip = page.getByTestId(`align-pair-${k}`)
+    if ((await strip.getAttribute('data-reversed')) !== String(a.reversed)) await page.getByTestId(`align-pair-${k}-reverse`).click()
+    for (let n = 0; n < 20 && (await strip.getAttribute('data-offset')) !== String(a.offset); n++) {
+      await page.getByTestId(`align-pair-${k}-right`).click()
+    }
+    await expect(strip).toHaveAttribute('data-offset', String(a.offset))
+    await expect(strip).toHaveAttribute('data-reversed', String(a.reversed))
   }
-  await expect(strip).toHaveAttribute('data-offset', String(a.offset))
-  await expect(strip).toHaveAttribute('data-reversed', String(a.reversed))
   await page.getByTestId('gate-submit').click()
 }
 
@@ -148,8 +150,11 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     expect(await where(page)).toMatchObject({ scene: 'hexagon', kind: 'explore' })
     await expect(page.getByTestId('stage')).toHaveCount(0)
     await expectNextDisabled(page)
-    await expect(page.getByTestId('hex-x')).toHaveAttribute('data-cycles', '(ab)(cd)(ef)')
-    await expect(page.getByTestId('hex-y')).toHaveAttribute('data-cycles', '(af)(bc)(de)')
+    // One hexagon a–f, its sides alternating X = (ab)(cd)(ef) and Y = (bc)(de)(fa).
+    await expect(page.getByTestId('hexagon')).toHaveAttribute('data-step', '0')
+    expect(await page.getByTestId('hexagon').locator('[data-side="X"]').count()).toBe(3)
+    expect(await page.getByTestId('hexagon').locator('[data-side="Y"]').count()).toBe(3)
+    await expect(page.getByTestId('hexagon-view')).toContainText('Y = (bc)(de)(fa)')
     const [play] = await sceneReveals(page)
     expect(play).toMatchObject({ bet: 'pairs', trigger: 'play' })
     await assertRevealGated(page, play!)
@@ -157,6 +162,8 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     await commitBet(page, 'pairs', 'twos')
     await fireReveal(page, play!)
     await expect(page.getByTestId('hex-trace')).toHaveAttribute('data-step', '6')
+    // Two corners on each time: clockwise a → c → e, counter-clockwise b → f → d.
+    await expect(page.getByTestId('hexagon')).toHaveAttribute('data-chords', 'ac ce ea bf fd db')
     await expect(page.getByTestId('hex-product')).toHaveAttribute('data-cycles', '(ace)(bfd)')
     await expect(page.getByTestId('hex-product')).toHaveAttribute('data-lengths', '3.3')
     await expect(page.getByTestId('vector-ad')).toHaveAttribute('data-lengths', '10.10.2.2.1.1')
@@ -190,7 +197,12 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     expect(freePairs(withDemo)).toEqual(expect.arrayContaining([p1, p2]))
     await addCable(page, p1!)
     await addCable(page, p2!)
-    await page.getByRole('button', { name: `Remove the cable ${DEMO_CABLE[0]}–${DEMO_CABLE[1]}` }).click()
+    await expect(page.getByTestId('stecker-now')).toContainText('B–C')
+    // The spent reveal gives way to the View's own toggle for the demo cable.
+    await expect(page.getByTestId('reveal-lengths')).toBeHidden()
+    await expect(page.getByTestId('stecker-demo-toggle')).toHaveText(`Take the cable ${DEMO_CABLE[0]}–${DEMO_CABLE[1]} out`)
+    await page.getByTestId('stecker-demo-toggle').click()
+    await expect(page.getByTestId('stecker-demo-toggle')).toHaveText(`Put the cable ${DEMO_CABLE[0]}–${DEMO_CABLE[1]} back`)
     for (let k = 0; k < 3; k++) await expect(page.getByTestId(`stecker-change-${k}`)).toHaveAttribute('data-lengths', '6 6 4 4 3 3')
     const now = normalizeConfig({ ...DAY, plugboard: await plugsNow(page) })
     await expect(diagram).toHaveAttribute('data-cycles', formatCycles(adOf(now)))
@@ -310,7 +322,7 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     const probe = cycleLengthsProbe(c.instance as CycleLengthsInstance).split(' ').map(Number)
     await typeCodeAndRun(page, CYCLE_LENGTHS_REFERENCE, [probe[0]! + 1, ...probe.slice(1)].join(' '))
     await assertRollback(page, ROLLBACK['cycle-lengths']!)
-    await expect(page.getByTestId('cycle-lengths-feedback')).toBeVisible()
+    await expect(page.getByTestId('cycle-lengths-feedback')).toHaveAttribute('data-prediction', 'wrong')
     await continueGate(page)
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'cycle-lengths', hintLevel: 1 })
@@ -324,6 +336,10 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     )
     await assertRollback(page, 'cycles')
     await expect(page.getByTestId('rollback')).toContainText('expected')
+    // The prediction was right: the feedback says so and blames the function, not a miscounted cycle.
+    await expect(page.getByTestId('cycle-lengths-feedback')).toHaveAttribute('data-prediction', 'right')
+    await expect(page.getByTestId('cycle-lengths-feedback')).toContainText('was right')
+    await expect(page.getByTestId('cycle-lengths-diagram').locator('[data-highlight="true"]')).toHaveCount(0)
     await continueGate(page)
     // Right through the editor, the prediction typed as an array: W W C, not passed yet.
     c = await current(page)
@@ -343,9 +359,11 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     expect(await axeSerious(page, '[data-testid="item-align-pair"]')).toEqual([])
     await assertNoAnswerLeak(page)
     const ai = c.instance as AlignInstance
+    expect(ai.pairs.length).toBe(3)
     await alignViaUi(page, naiveAlign(ai))
     await assertRollback(page, ROLLBACK['align-pair']!)
     await expect(page.getByTestId('align-pair-feedback')).toBeVisible()
+    await expect(page.getByTestId('align-pair-feedback-0')).toHaveAttribute('data-right', 'false')
     expect((await gate(page))!.passed).toBe(false)
     await expect(page.getByTestId('gate')).toHaveAttribute('data-passed', 'false')
     await continueGate(page)
@@ -355,11 +373,13 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     await assertNoAnswerLeak(page)
     const sol = (await solveInNode(page)) as AlignAnswer
     const next = c.instance as AlignInstance
-    expect(sol.reversed).toBe(true)
+    expect(sol.every((a) => a.reversed)).toBe(true)
     await alignViaUi(page, sol)
     await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'true')
-    const shown = alignmentPairs(next.a, next.b, sol.offset, true).map(([u, v]) => [L(u), L(v)].sort().join('')).sort()
-    expect(shown).toEqual(alignTruth(next))
+    for (const [k, p] of next.pairs.entries()) {
+      const shown = alignmentPairs(p.a, p.b, sol[k]!.offset, true).map(([u, v]) => [L(u), L(v)].sort().join('')).sort()
+      expect(shown).toEqual(alignTruth(p))
+    }
     await expect(page.getByTestId('item-align-pair')).toHaveAttribute('data-passed', 'false')
     await continueGate(page)
     expect((await answerViaApi(page, 'align-pair', await solveInNode(page), { continue: false })).correct).toBe(true)

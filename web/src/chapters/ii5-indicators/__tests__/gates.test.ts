@@ -47,6 +47,7 @@ import {
   idx,
   indicatorWith,
   misreadFill,
+  pathAtPress,
   rejewskiSteps,
   type BuildAdInstance,
   type FillAdInstance,
@@ -126,6 +127,20 @@ describe('the scene day', () => {
       const key = [0, 1, 2].map(() => LETTERS[Math.floor(r() * 26)]).join('')
       const s = encryptIndicator(DAY, key)
       for (let j = 0; j < 3; j++) expect(s[j]).not.toBe(s[j + 3])
+    }
+  })
+})
+
+describe('the key on the wires', () => {
+  it('pathAtPress starts at the key letter and ends at the lamp of that press', () => {
+    for (const key of ['ABL', 'QQQ', 'ZXY']) {
+      const s = encryptIndicator(DAY, key)
+      for (let k = 0; k < 6; k++) {
+        const path = pathAtPress(DAY, k + 1, key[k % 3]!)
+        expect(path[0]).toBe(key[k % 3])
+        expect(path).toHaveLength(12)
+        expect(path.at(-1)).toBe(s[k])
+      }
     }
   })
 })

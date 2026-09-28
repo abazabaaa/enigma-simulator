@@ -14,7 +14,7 @@ import { AdFrom65View, DoubleKeyView } from './scenes'
 const STORY =
   'On 1 September 1932 three young mathematicians were hired in Warsaw: Marian Rejewski, Henryk Zygalski and Jerzy ' +
   'Różycki. On 9 December 1932 Gustave Bertrand passed on key tables that the French had bought from Hans-Thilo ' +
-  "Schmidt. Rejewski's way into the machine was a habit of its operators. Every message began with its own " +
+  "Schmidt. Rejewski's way into the machine was the operators' own procedure. Every message began with its own " +
   "three-letter key, typed twice from the day's start position, the Grundstellung. A day's traffic brought dozens of " +
   'these six-letter indicators, and a list of 65 from one day survives. This chapter turns such a list into three ' +
   'permutations: AD, BE and CF.'

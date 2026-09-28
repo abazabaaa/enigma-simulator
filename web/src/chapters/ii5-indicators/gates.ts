@@ -24,7 +24,7 @@ import {
   products,
   sixPermutations,
 } from '../../crypto'
-import { LETTERS, fixedPoints, normalizeConfig } from '../../engine'
+import { LETTERS, createMachine, fixedPoints, normalizeConfig, pressKey, step } from '../../engine'
 import { createRng, int, pick, randLetter, sample, shuffle, type Rng } from '../../lib/rng'
 import { choiceItem, codeItem, orderItem, orderRollback, verdict } from '../../lesson/kinds'
 
@@ -110,6 +110,16 @@ export const imagesOf = (p: readonly (number | null)[]): string => p.map((x) => 
 
 /** AD as observed from indicators: the image of each letter, null where no indicator starts with it. */
 export const adOf = (indicators: readonly string[]): (number | null)[] => [...products(indicators).AD]
+
+/**
+ * The letters a key letter passes through at press `press` (1…6) from the day's Grundstellung: the key, then the
+ * output of each stage (plugboard, entry wheel, rotors, reflector, rotors, entry wheel, plugboard). The last is the lamp.
+ */
+export function pathAtPress(day: MachineConfig, press: number, key: string): string[] {
+  let state = createMachine(day)
+  for (let k = 1; k < press; k++) state = step(state).state
+  return [key.toUpperCase(), ...pressKey(state, key).trace.map((t) => t.output)]
+}
 
 /** The first indicator in the list whose letter `pos` (0-based) is `letter`, or null. */
 export function indicatorWith(indicators: readonly string[], pos: number, letter: number): string | null {

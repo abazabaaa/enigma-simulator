@@ -132,6 +132,9 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
     for (let k = 0; k < 6; k++) await expect(page.getByTestId(`double-key-lamp-${k + 1}`)).toHaveText(indicator[k]!)
     for (let k = 0; k < 3; k++) expect(indicator[k]).not.toBe(indicator[k + 3])
     await expect(page.getByTestId('task-type-key-twice')).toHaveAttribute('data-done', 'true')
+    // Presses 1 and 4 on the wires: the same key letter A in, two different paths, the lamps of letters 1 and 4.
+    await expect(page.getByTestId('double-key-path-1')).toHaveAttribute('data-path', new RegExp(`^A.*${indicator[0]}$`))
+    await expect(page.getByTestId('double-key-path-4')).toHaveAttribute('data-path', new RegExp(`^A.*${indicator[3]}$`))
     expect((await betResults(page)).halves).toBe(false)
     await expect(page.getByTestId('trace-step')).toBeVisible()
     await nextScene(page)
@@ -344,17 +347,14 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
 })
 
 test.describe('chapter ii5-indicators in 3D', { tag: ['@3d', '@chapter:ii5-indicators'] }, () => {
-  test('across a scene change, double-key reports focus wire and dimmedParts; its bet gates the keyboard', async ({ page }) => {
+  test('the recall and two scene changes in 3D; double-key reports focus wire and dimmedParts; its bet gates the keyboard', async ({ page }) => {
     test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
     test.setTimeout(60_000)
-    // The recall is passed in 2D (its three items each mount their own stage); the story and the scene change
-    // into double-key run in 3D.
-    await enter(page, CHAPTER)
+    // The whole walk in 3D: the recall's three items each mount their own stage, then two scene changes.
+    await enter(page, CHAPTER, { stage: '3d' })
     await passGate(page)
     await nextScene(page)
-    await gotoApp(page, `/c/${CHAPTER}/warsaw`, { stage: '3d' })
-    await expect.poll(async () => (await where(page)).scene).toBe('warsaw')
-    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+    expect((await where(page)).scene).toBe('warsaw')
     await nextScene(page)
     expect((await where(page)).scene).toBe('double-key')
     await expect

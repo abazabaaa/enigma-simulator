@@ -9,7 +9,16 @@ import type { GateLogic, GateRecord, ItemLogic } from '../../../contracts/lesson
 import { executeRequest, countLines } from '../../../code/runnerCore'
 import { summarizeRun } from '../../../code/summary'
 import { dayKey, factorizationCount, isPairedType, productsFromMachine } from '../../../crypto'
-import { conjugate, cycleSignature, formatCycles, fromPairs, validateConfig } from '../../../engine'
+import {
+  compose,
+  conjugate,
+  cycleSignature,
+  fixedPoints,
+  formatCycles,
+  fromPairs,
+  isInvolution,
+  validateConfig,
+} from '../../../engine'
 import { createRng, seedFor } from '../../../lib/rng'
 import {
   EMPTY_GATE,
@@ -23,8 +32,11 @@ import {
 import { codeTaskOf } from '../../../lesson/kinds'
 import { hintLevel } from '../../../lesson/rules'
 import {
+  AD_TYPE_CAP,
   CF65,
   CF_PAIR,
+  COMMON_AD_TYPES,
+  LENGTH_SIZES,
   CYCLE_LENGTHS_REFERENCE,
   DAY,
   DAY_AD,
@@ -35,23 +47,29 @@ import {
   PAIRS_TRUTH,
   adOf,
   alignPair,
+  alignRight,
   alignTruth,
+  blindAlign,
   canonLengths,
   cycleLengths,
   cycleLengthsProbe,
   cycleOf,
+  flatDay,
   freeLetters,
   freePairs,
   idx,
+  lengthTypes,
   lengths,
   naiveAlign,
   naiveLengths,
   naiveRelabel,
   relabel,
   relabelAnswer,
+  solvePair,
   splitFromAlignment,
   steckerSet,
   steckerSolutions,
+  swapsForType,
   withCable,
   type AlignInstance,
   type CycleLengthsInstance,
@@ -73,7 +91,12 @@ const gen = <I>(l: ItemLogic<I, unknown>, s: number, attempt = 1): I =>
  * A misconception bot through the gate engine: `naive` answers every instance (fallback included) for up to 12
  * attempts per run. (Every naive answer is also checked wrong on each of 300 instances below.)
  */
-function naivePasses(logic: GateLogic, naive: (i: unknown, l: ItemLogic) => unknown, runs = 100): number {
+function naivePasses(
+  logic: GateLogic,
+  naive: (i: unknown, l: ItemLogic) => unknown,
+  runs = 100,
+  attempts = 12,
+): number {
   let passes = 0
   for (let run = 0; run < runs; run++) {
     const ctx: GateCtx = { key: 'ii6-cycles/naive', logic, salt: `naive-${run}` }
@@ -87,7 +110,7 @@ function naivePasses(logic: GateLogic, naive: (i: unknown, l: ItemLogic) => unkn
         break
       }
       const it = rec.items[item.id]!
-      if (it.attempt > 12) break
+      if (it.attempt > attempts) break
       now += 10_000
       if (hintLevel(it, false) === 3) rec = revealCurrent(ctx, rec, item.id, now).gate
       else {
@@ -97,6 +120,29 @@ function naivePasses(logic: GateLogic, naive: (i: unknown, l: ItemLogic) => unkn
     }
   }
   return passes
+}
+
+/**
+ * The same engine for an answer that is right with probability `p` on each instance, independently (a constant answer
+ * against a generator whose modal answer has share p). The fallback is answered wrong.
+ */
+function bernoulliPasses(p: number, runs: number, attempts: number): number {
+  const item: ItemLogic = {
+    id: 'b',
+    kind: 'custom',
+    rule: { kind: 'window' },
+    compute: true,
+    inPage: true,
+    generate: (r) => ({ v: r() }),
+    same: () => false,
+    solve: () => 1,
+    check: (_i, a) => ({ correct: a === 1, rollback: { kind: 'none' } }),
+    sampleAnswer: () => 0,
+    mutate: () => 0,
+    highlight: () => [],
+  }
+  const r = createRng(99)
+  return naivePasses({ items: [item], fallback: { ...item, id: 'fb' } }, (_i, l) => (l.id === 'b' && r() < p ? 1 : 0), runs, attempts)
 }
 
 /** The fallback's naive answer: the X–Y cable (a new cable between the two letters named in the question). */
@@ -145,15 +191,56 @@ describe('the scenes', () => {
 })
 
 describe('lengths', () => {
-  it('are always a paired type, and never the naive "all twos"', () => {
+  it('are always a paired type on 18, 20 or 22 letters, never "all twos" or "all ones"', () => {
     for (let s = 0; s < SEEDS; s++) {
       const i = gen(lengths, s) as LengthsInstance
       const sol = lengths.solve(i)
+      expect(LENGTH_SIZES).toContain(i.n)
       expect(isPairedType(sol), `seed ${s}`).toBe(true)
       expect(sol.reduce((x, y) => x + y, 0)).toBe(i.n)
+      expect(isInvolution(i.x) && isInvolution(i.y)).toBe(true)
+      expect(fixedPoints(i.x).length + fixedPoints(i.y).length).toBe(0)
       expect(lengths.check(i, naiveLengths(i)).correct).toBe(false)
+      expect(sol.every((l) => l === 1)).toBe(false)
     }
-    expect(naivePasses(withFallback(lengths as ItemLogic), (i, l) => (l.id === 'lengths' ? naiveLengths(i as LengthsInstance) : naiveStecker(i as SteckerInstance)))).toBe(0)
+  })
+
+  it('swapsForType builds X and Y whose product has exactly the asked type (Rejewski\'s theorem 2)', () => {
+    for (const n of LENGTH_SIZES) {
+      for (const parts of lengthTypes(n)) {
+        const { x, y } = swapsForType(createRng(seedFor('type', n, parts.join())), n, parts)
+        expect(cycleSignature(compose(x, y))).toEqual(parts.flatMap((l) => [l, l]).sort((a, b) => b - a))
+      }
+    }
+    expect(LENGTH_SIZES.map((n) => lengthTypes(n).length)).toEqual([29, 40, 55])
+  })
+
+  it('CONSTANT BOTS: the commonest answer for n (and the reviewer\'s "n/2 n/2") passes under 1 % of runs', () => {
+    // The modal type per n over 3,000 instances: under uniform types, no type is much above 1 in 29.
+    const counts = new Map<string, number>()
+    for (let s = 0; s < 3000; s++) {
+      const i = gen(lengths, s) as LengthsInstance
+      const key = `${i.n}:${lengths.solve(i).join(' ')}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    const modal = new Map<number, number[]>()
+    for (const n of LENGTH_SIZES) {
+      const best = [...counts].filter(([k]) => k.startsWith(`${n}:`)).sort((a, b) => b[1] - a[1])[0]!
+      modal.set(n, best[0].split(':')[1]!.split(' ').map(Number))
+      expect(best[1] / 3000, `n = ${n}`).toBeLessThan(0.025)
+    }
+    const logic = withFallback(lengths as ItemLogic)
+    const asFallback = (i: unknown) => naiveStecker(i as SteckerInstance)
+    const constant = (i: unknown, l: ItemLogic) => (l.id === 'lengths' ? modal.get((i as LengthsInstance).n)! : asFallback(i))
+    const halves = (i: unknown, l: ItemLogic) => {
+      const n = (i as LengthsInstance).n
+      return l.id === 'lengths' ? [n / 2, n / 2] : asFallback(i)
+    }
+    // The guess bot's budget (6 attempts), and a patient guesser (12).
+    expect(naivePasses(logic, constant, 1000, 6) / 1000).toBeLessThan(0.01)
+    expect(naivePasses(logic, halves, 1000, 6) / 1000).toBeLessThan(0.01)
+    expect(naivePasses(logic, constant, 500, 12) / 500).toBeLessThan(0.02)
+    expect(naivePasses(logic, (i, l) => (l.id === 'lengths' ? naiveLengths(i as LengthsInstance) : asFallback(i)))).toBe(0)
   })
 
   it('the AD of any day is a paired type too', () => {
@@ -163,13 +250,16 @@ describe('lengths', () => {
     }
   })
 
-  it('checks as a multiset and rolls back the missed cycle', () => {
+  it('checks as a multiset and rolls back the missed cycle (or none, when only extra numbers are wrong)', () => {
     const i = gen(lengths, 2) as LengthsInstance
     const sol = lengths.solve(i)
     expect(lengths.check(i, [...sol].reverse()).correct).toBe(true)
     const res = lengths.check(i, [sol[0]! + 1, ...sol.slice(1)])
     expect(res.correct).toBe(false)
-    expect(res.rollback.kind).toBe('cycles')
+    expect(res.rollback).toMatchObject({ kind: 'cycles' })
+    expect((res.rollback as unknown as { cycle: number[] }).cycle.length).toBe(sol[0])
+    const extra = lengths.check(i, [...sol, 1])
+    expect(extra.rollback).toMatchObject({ kind: 'cycles', cycle: [] })
   })
 })
 
@@ -288,22 +378,76 @@ describe('cycle-lengths', () => {
   })
 })
 
+describe('cycle-lengths days', () => {
+  it('CONSTANT BOT: no AD type ("13 13" above all) is the answer on more than 3 % of days; the modal guess passes under 1 %', () => {
+    const counts = new Map<string, number>()
+    const N = 3000
+    for (let s = 0; s < N; s++) {
+      const p = cycleLengthsProbe(gen(cycleLengths, s) as CycleLengthsInstance)
+      counts.set(p, (counts.get(p) ?? 0) + 1)
+    }
+    const [modal, top] = [...counts].sort((a, b) => b[1] - a[1])[0]!
+    expect(top / N, `modal ${modal}`).toBeLessThan(0.03)
+    expect((counts.get('13 13') ?? 0) / N).toBeLessThan(0.03)
+    expect(counts.size).toBeGreaterThan(40)
+    // Through the gate engine, a constant prediction right on that share of days (the code always passing).
+    expect(bernoulliPasses(top / N, 2000, 6) / 2000).toBeLessThan(0.01)
+  })
+
+  it('thins exactly the listed common types; adOf is the engine\'s AD', () => {
+    expect(Object.values(COMMON_AD_TYPES).every((f) => f > AD_TYPE_CAP)).toBe(true)
+    for (let s = 0; s < 50; s++) {
+      const d = dayKey(createRng(seedFor('adof', s)), { era: '1932' })
+      expect(adOf(d)).toEqual(productsFromMachine(d).AD)
+    }
+    const r = createRng(5)
+    const day = flatDay(r)
+    expect(validateConfig(day)).toEqual([])
+  })
+})
+
 describe('align-pair', () => {
-  it('has exactly one right alignment, read backwards; the naive forward alignment never passes', () => {
+  it('lines up every long pair; each pair has exactly one right alignment, read backwards', () => {
     for (let s = 0; s < SEEDS; s++) {
       const i = gen(alignPair, s) as AlignInstance
-      const L = i.a.length
-      expect(L).toBeGreaterThanOrEqual(3)
-      let right = 0
-      for (let o = 0; o < L; o++) for (const r of [true, false]) if (alignPair.check(i, { offset: o, reversed: r }).correct) right++
-      expect(right, `seed ${s}`).toBe(1)
-      expect(alignPair.solve(i).reversed).toBe(true)
-      expect(splitFromAlignment(i.product, i.a, i.b, alignPair.solve(i).offset, true).valid).toBe(true)
+      const product = i.pairs.reduce((t, p) => t * p.a.length, 1)
+      expect(product, `seed ${s}`).toBeGreaterThanOrEqual(48)
+      expect(i.pairs.flatMap((p) => [...p.a, ...p.b]).sort((a, b) => a - b)).toEqual(i.product.map((_, k) => k))
+      for (const p of i.pairs) {
+        let right = 0
+        for (let o = 0; o < p.a.length; o++) for (const r of [true, false]) if (alignRight(p, { offset: o, reversed: r })) right++
+        expect(right).toBe(1)
+        expect(solvePair(p).reversed).toBe(true)
+        expect(splitFromAlignment(i.product, p.a, p.b, solvePair(p).offset, true).valid).toBe(true)
+        expect(alignTruth(p)).toContain([p.clue[0], p.clue[1]].map((c) => String.fromCharCode(65 + c)).sort().join(''))
+      }
+      expect(alignPair.check(i, alignPair.solve(i)).correct).toBe(true)
       expect(alignPair.check(i, naiveAlign(i)).correct).toBe(false)
-      expect(alignTruth(i)).toContain([i.clue[0], i.clue[1]].map((c) => String.fromCharCode(65 + c)).sort().join(''))
     }
-    const naive = (i: unknown, l: ItemLogic) => (l.id === 'align-pair' ? naiveAlign(i as AlignInstance) : naiveStecker(i as SteckerInstance))
-    expect(naivePasses(withFallback(alignPair as ItemLogic), naive)).toBe(0)
+  })
+
+  it('CONSTANT BOTS: "backwards, not slid" and the forward alignment pass under 1 % of runs', () => {
+    const asFallback = (i: unknown) => naiveStecker(i as SteckerInstance)
+    const blind = (i: unknown, l: ItemLogic) => (l.id === 'align-pair' ? blindAlign(i as AlignInstance) : asFallback(i))
+    const forward = (i: unknown, l: ItemLogic) => (l.id === 'align-pair' ? naiveAlign(i as AlignInstance) : asFallback(i))
+    expect(naivePasses(withFallback(alignPair as ItemLogic), blind, 1000, 6) / 1000).toBeLessThan(0.01)
+    expect(naivePasses(withFallback(alignPair as ItemLogic), forward)).toBe(0)
+  })
+})
+
+describe('L1 hints after a wrong answer (submitAnswer → ensureCurrent → the next instance)', () => {
+  it('are the same whichever instance they are given: the plugboard for stecker-set, prompt text elsewhere', () => {
+    for (const item of GATES.cycles!.items) {
+      const ctx: GateCtx = { key: 'ii6-cycles/l1', logic: { items: [item], fallback: steckerSet as ItemLogic }, salt: 'l1' }
+      let rec: GateRecord = ensureCurrent(ctx, EMPTY_GATE, 1)
+      const first = shownInstance(ctx, item, rec.items[item.id]!)
+      const wrong = item.mutate(first.instance, item.solve(first.instance), createRng(3))
+      rec = ensureCurrent(ctx, submitAnswer(ctx, rec, item.id, wrong, 20_000).gate, 20_000)
+      const next = shownInstance(ctx, item, rec.items[item.id]!)
+      expect(hintLevel(rec.items[item.id]!, false)).toBe(1)
+      const parts = next.logic.highlight(next.instance, wrong).map((h) => h.part)
+      expect(parts, item.id).toEqual(item.id === 'stecker-set' ? ['plugboard'] : [])
+    }
   })
 })
 

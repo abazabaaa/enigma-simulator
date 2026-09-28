@@ -9,10 +9,55 @@ import { useStore } from 'zustand'
 import type { SceneProps } from '../../../contracts/lesson'
 import { positionsToString } from '../../../engine'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
-import { DAY, HALVES_TRUTH, spaced } from '../gates'
+import { DAY, HALVES_TRUTH, pathAtPress, spaced } from '../gates'
 import { PAIR_TONE } from './parts'
 
 const PRESS_NAMES = ['A', 'B', 'C', 'D', 'E', 'F'] as const
+
+const STAGES = ['key', 'S', 'H', 'N', 'M', 'L', 'U', 'L⁻¹', 'M⁻¹', 'N⁻¹', 'H⁻¹', 'S⁻¹'] as const
+
+/** The same key letter on the wires at press 1 and at press 4: one start, two different paths, two lamps. */
+function KeyPaths({ keyLetter }: { keyLetter: string }): JSX.Element {
+  const rows = [1, 4].map((press) => ({ press, path: pathAtPress(DAY, press, keyLetter) }))
+  return (
+    <div className="max-w-full overflow-x-auto" data-testid="double-key-paths">
+      <table className="font-mono text-xs">
+        <caption className="text-left font-sans text-xs text-stone-400">
+          Key letter {keyLetter} through the machine at press 1 (A) and at press 4 (D), stage by stage
+        </caption>
+        <thead>
+          <tr className="text-stone-400">
+            <th scope="col" className="pr-2 text-left font-sans font-normal">
+              Press
+            </th>
+            {STAGES.map((st) => (
+              <th key={st} scope="col" className="px-1 font-normal">
+                {st}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ press, path }) => (
+            <tr key={press} data-testid={`double-key-path-${press}`} data-path={path.join('')}>
+              <th scope="row" className="pr-2 text-left font-sans font-normal text-stone-400">
+                {press}
+              </th>
+              {path.map((c, k) => (
+                <td
+                  key={k}
+                  className={`px-1 text-center ${k === 0 ? 'text-amber-200' : k === path.length - 1 ? 'font-semibold text-amber-100' : ''}`}
+                >
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 export function DoubleKeyView(p: SceneProps): JSX.Element {
   const fired = useRevealFired('halves')
@@ -121,6 +166,7 @@ export function DoubleKeyView(p: SceneProps): JSX.Element {
                 </li>
               ))}
             </ol>
+            <KeyPaths keyLetter={key[0]!} />
             <p>
               Rejewski named the machine at the six presses A to F. Each is its own inverse, so A takes{' '}
               <Mono>{indicator[0]}</Mono> back to <Mono>{key[0]}</Mono>, and D takes that on to{' '}

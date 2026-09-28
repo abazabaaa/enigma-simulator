@@ -1,5 +1,6 @@
 /**
- * Chapter ii6-cycles' facts: PLAN §4.3 F5 (Rejewski, late 1932) and F7 (the theorem that won World War II), with
+ * Chapter ii6-cycles' facts: PLAN §4.3 F5 (Rejewski, late 1932; Schmidt's tables), F7 (the theorem that won World War
+ * II) and F8 (the cyclometer and the catalogue), with
  * Rejewski's theorems on products of transpositions and the plugboard's nullification quoted from Christensen (the
  * research notes). Every fact is referenced by the story scene `theorem`.
  */
@@ -7,6 +8,7 @@
 import type { Fact } from '../../contracts/lesson'
 
 const REJEWSKI = 'https://en.wikipedia.org/wiki/Marian_Rejewski'
+const CRYPTANALYSIS = 'https://en.wikipedia.org/wiki/Cryptanalysis_of_the_Enigma'
 const CHRISTENSEN = 'https://www.matematiksider.dk/enigma/MAA%20article%20about%20Enigma%20.pdf'
 
 export const FACTS: readonly Fact[] = [
@@ -17,6 +19,20 @@ export const FACTS: readonly Fact[] = [
     text: 'By the end of 1932 Rejewski had recovered the rotor wirings.',
     value: '1932',
     source: REJEWSKI,
+  },
+  {
+    id: 'tables',
+    kind: 'event',
+    text: "Hans-Thilo Schmidt's key tables, delivered on 9 December 1932, covered September and October 1932.",
+    source: CRYPTANALYSIS,
+  },
+  {
+    id: 'cyclometer',
+    kind: 'event',
+    text:
+      'The cyclometer (1934/35) and the catalogue of cycle lengths built with it, which took "over a year"; the ' +
+      'reflector change of 1/2 November 1937 forced it to be redone.',
+    source: CRYPTANALYSIS,
   },
   {
     id: 'theorem',

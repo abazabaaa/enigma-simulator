@@ -63,7 +63,8 @@ export function IndicatorPair({ indicator, pos }: { indicator: string; pos: 0 | 
 
 /**
  * AD as a two-row table: the letters A–Z on top; below, the outlined target cells are one-letter inputs and every
- * other cell shows `known` (or '·'). Typing a letter moves on to the next target; Backspace clears; arrows move.
+ * other cell shows `known` (or '·'). Below 640 px it wraps into two rows of 13 (A–M, N–Z), so every cell stays on
+ * screen and large enough to tap. Typing a letter moves on to the next target; Backspace clears; arrows move.
  */
 export function FillTable(p: {
   targets: readonly number[]
@@ -92,64 +93,65 @@ export function FillTable(p: {
       focus(k + 1)
     }
   }
-  const cell = 'h-8 w-7 min-w-7 border border-stone-700 p-0 text-center font-mono text-sm'
+  const box = 'h-8 border-r border-b border-stone-700 text-center font-mono text-sm'
   return (
-    <div className="max-w-full overflow-x-auto" role="region" aria-label={p.label}>
-      <table data-testid={p.testId} className="border-collapse">
-        <caption className="sr-only">{p.label}</caption>
-        <tbody>
-          <tr>
-            {LETTERS.map((l) => (
-              <th key={l} scope="col" className={`${cell} bg-stone-900 font-normal text-stone-300`}>
-                {l}
-              </th>
-            ))}
-          </tr>
-          <tr>
-            {LETTERS.map((l, x) => {
-              const k = p.targets.indexOf(x)
-              if (k === -1) {
-                const v = p.known?.[x] ?? null
-                return (
-                  <td key={l} data-testid={`${p.testId}-cell-${x}`} data-value={v ?? ''} className={`${cell} text-stone-400`}>
-                    {v ?? '·'}
-                  </td>
-                )
-              }
-              const v = p.values[k] ?? ''
-              return (
-                <td
-                  key={l}
-                  data-testid={`${p.testId}-cell-${x}`}
-                  data-target="true"
-                  data-value={v}
-                  data-wrong={wrong.has(x) ? 'true' : undefined}
-                  className={`${cell} outline-2 -outline-offset-2 ${wrong.has(x) ? 'outline-red-400' : 'outline-amber-300'} text-stone-100`}
-                >
-                  <input
-                    ref={(el) => {
-                      inputs.current[k] = el
-                    }}
-                    data-testid={`${p.testId}-input-${l}`}
-                    value={v}
-                    disabled={p.disabled}
-                    maxLength={1}
-                    aria-label={`The letter AD sends ${l} to`}
-                    autoComplete="off"
-                    spellCheck={false}
-                    onKeyDown={(e) => onKey(k, e)}
-                    onChange={(e) => {
-                      const typed = e.target.value.toUpperCase().replace(/[^A-Z]/g, '')
-                      p.onChange(k, typed.slice(-1))
-                    }}
-                    className="h-full w-full bg-transparent text-center uppercase caret-amber-300 focus:bg-stone-800 focus:outline-none disabled:opacity-60"
-                  />
-                </td>
-              )
-            })}
-          </tr>
-        </tbody>
-      </table>
+    <div
+      role="group"
+      aria-label={p.label}
+      data-testid={p.testId}
+      className="grid w-full max-w-[46rem] grid-cols-[repeat(13,minmax(1.35rem,1fr))] border-t border-l border-stone-700 sm:grid-cols-[repeat(26,minmax(1.5rem,1fr))]"
+    >
+      {LETTERS.map((l, x) => {
+        const k = p.targets.indexOf(x)
+        const head = (
+          <div aria-hidden="true" className={`${box} bg-stone-900 leading-8 text-stone-300`}>
+            {l}
+          </div>
+        )
+        if (k === -1) {
+          const v = p.known?.[x] ?? null
+          return (
+            <div key={l} className="flex flex-col" aria-hidden="true">
+              {head}
+              <div data-testid={`${p.testId}-cell-${x}`} data-value={v ?? ''} className={`${box} leading-8 text-stone-400`}>
+                {v ?? '·'}
+              </div>
+            </div>
+          )
+        }
+        const v = p.values[k] ?? ''
+        return (
+          <div key={l} className="flex flex-col">
+            {head}
+            <div
+              data-testid={`${p.testId}-cell-${x}`}
+              data-target="true"
+              data-value={v}
+              data-wrong={wrong.has(x) ? 'true' : undefined}
+              className={`${box} outline-2 -outline-offset-2 ${wrong.has(x) ? 'outline-red-400' : 'outline-amber-300'} text-stone-100`}
+            >
+              <input
+                ref={(el) => {
+                  inputs.current[k] = el
+                }}
+                data-testid={`${p.testId}-input-${l}`}
+                value={v}
+                disabled={p.disabled}
+                maxLength={1}
+                aria-label={`The letter AD sends ${l} to`}
+                autoComplete="off"
+                spellCheck={false}
+                onKeyDown={(e) => onKey(k, e)}
+                onChange={(e) => {
+                  const typed = e.target.value.toUpperCase().replace(/[^A-Z]/g, '')
+                  p.onChange(k, typed.slice(-1))
+                }}
+                className="h-full w-full bg-transparent text-center uppercase caret-amber-300 focus:bg-stone-800 focus:outline-none disabled:opacity-60"
+              />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -194,8 +196,17 @@ export function DefiningPair(p: { indicator: string; typed: string; reducedMotio
  */
 export function Wide({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <div className="max-w-full overflow-x-auto">
-      <div className="min-w-[46rem]">{children}</div>
+    <div className="relative flex flex-col gap-1">
+      <div className="max-w-full overflow-x-auto">
+        <div className="min-w-[46rem]">{children}</div>
+      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 right-0 bottom-6 w-10 bg-gradient-to-l from-stone-950 to-transparent sm:hidden"
+      />
+      <p aria-hidden="true" className="text-xs text-stone-400 sm:hidden">
+        Scroll sideways for N–Z →
+      </p>
     </div>
   )
 }

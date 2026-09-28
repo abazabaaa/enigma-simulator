@@ -1,7 +1,7 @@
 /**
  * stecker-toggle: the day's machine at its Grundstellung and a live cycle diagram of its AD (the engine's presses 1
  * and 4). After the `lengths` bet the toggle reveal adds one cable (F–N): two letters trade places and every cycle
- * keeps its length. The plugboard then unlocks and the learner changes the cables three times (task toggle3).
+ * keeps its length. The plugboard is then the learner's, and so is the F–N cable (task toggle3: three changes).
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
@@ -9,9 +9,9 @@ import { useStore } from 'zustand'
 import type { SceneProps } from '../../../contracts/lesson'
 import type { Letter } from '../../../contracts/core'
 import { cycleSignature, formatCycles } from '../../../engine'
-import { Mono, useRevealFired } from '../../../lesson'
-import { CycleDiagram } from '../../../viz'
+import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
 import { DAY, DAY_AD, DEMO_CABLE, adOf, dash, lengthsTruth } from '../gates'
+import { Diagram } from './parts'
 
 interface Change {
   readonly cables: string
@@ -19,15 +19,21 @@ interface Change {
 }
 
 const lengthsOf = (p: readonly number[]) => cycleSignature(p).join(' ')
+const [DX, DY] = [DEMO_CABLE[0] as Letter, DEMO_CABLE[1] as Letter]
+
+/** Once fired, the reveal's own button would do nothing more: the View's toggle below takes its place. */
+const HIDE_FIRED = '[data-scene="stecker-toggle"] [data-testid="reveal-lengths"][data-fired="true"]{display:none}'
 
 export function SteckerToggleView(p: SceneProps): JSX.Element {
   const fired = useRevealFired('lengths')
   const { completeTask, bet, store } = p
   const plugs = useStore(store, (s) => s.machine.config.plugboard.join(' '))
+  const cables = plugs ? plugs.split(' ') : []
   const ad = useMemo(() => adOf(store.getState().snapshot()), [store, plugs])
   const [demo, setDemo] = useState<{ after: number[] } | null>(null)
   const [changes, setChanges] = useState<readonly Change[]>([])
   const baseline = useRef<string | null>(null)
+  const toggle = useRef<HTMLButtonElement>(null)
 
   // The reveal: add the demo cable, resolve the bet from the two ADs, then hand the plugboard to the learner.
   useEffect(() => {
@@ -35,12 +41,13 @@ export function SteckerToggleView(p: SceneProps): JSX.Element {
     const m = store.getState()
     const before = adOf(m.snapshot())
     m.setLocks({ ...m.locks, plugboard: false })
-    const [a, b] = [DEMO_CABLE[0] as Letter, DEMO_CABLE[1] as Letter]
-    if (!m.machine.config.plugboard.some((pair) => pair.includes(a) || pair.includes(b))) store.getState().togglePlug(a, b)
+    if (!m.machine.config.plugboard.some((pair) => pair.includes(DX) || pair.includes(DY))) store.getState().togglePlug(DX, DY)
     const after = adOf(store.getState().snapshot())
     baseline.current = store.getState().machine.config.plugboard.join(' ')
     setDemo({ after })
     bet('lengths').resolve(lengthsTruth(before, after))
+    // The reveal button hides once fired: keep the keyboard user's place on its replacement.
+    queueMicrotask(() => toggle.current?.focus())
   }, [fired, bet, store])
 
   // Each change the learner makes afterwards, with the lengths it leaves.
@@ -53,15 +60,18 @@ export function SteckerToggleView(p: SceneProps): JSX.Element {
     if (changes.length >= 3) completeTask('toggle3')
   }, [changes.length, completeTask])
 
-  const [x, y] = [DEMO_CABLE[0]!, DEMO_CABLE[1]!]
+  const demoIn = cables.some((c) => c === DX + DY || c === DY + DX)
+  const demoFree = !cables.some((c) => c.includes(DX) || c.includes(DY))
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="stecker-view">
-      <p>
-        The day&apos;s machine at its Grundstellung <Mono>{DAY.positions.join('')}</Mono>, with the cables{' '}
-        <Mono>{DAY.plugboard.map(dash).join(', ')}</Mono>. Its AD, from presses 1 and 4, drawn as cycles; the drawing
-        follows the plugboard.
+      <style>{HIDE_FIRED}</style>
+      <p data-testid="stecker-now">
+        The day&apos;s machine at its Grundstellung <Mono>{DAY.positions.join('')}</Mono>
+        {fired ? ', with the cables now on the plugboard: ' : ", with the day's cables: "}
+        <Mono>{cables.length ? cables.map(dash).join(', ') : 'none'}</Mono>. Its AD, from presses 1 and 4, is drawn as
+        cycles; the drawing follows the plugboard.
       </p>
-      <CycleDiagram perm={ad} testId="stecker-ad" />
+      <Diagram perm={ad} testId="stecker-ad" label="AD as cycles" />
       <div aria-live="polite">
         {demo ? (
           <section
@@ -70,20 +80,40 @@ export function SteckerToggleView(p: SceneProps): JSX.Element {
           >
             <h3 className="font-semibold text-stone-100">One more cable: {dash(DEMO_CABLE)}</h3>
             <p>
-              Before: <Mono className="break-all">{formatCycles(DAY_AD)}</Mono>, lengths{' '}
-              <Mono>{lengthsOf(DAY_AD)}</Mono>.
+              Before: <Mono className="break-all">{formatCycles(DAY_AD)}</Mono>, lengths <Mono>{lengthsOf(DAY_AD)}</Mono>.
             </p>
             <p>
               After: <Mono className="break-all">{formatCycles(demo.after)}</Mono>, lengths{' '}
               <Mono>{lengthsOf(demo.after)}</Mono>.
             </p>
             <p>
-              {x.toLowerCase()} and {y.toLowerCase()} traded places, even between cycles of different lengths, and nothing
-              else moved. With the plugboard S, each press is S, then the scrambler, then S again, so AD is the plugboard-free
-              product with every letter renamed through S. A renamed permutation (a conjugate) has exactly the cycle lengths
-              of the original: the plugboard never shows in them.
+              {DX.toLowerCase()} and {DY.toLowerCase()} traded places, even between cycles of different lengths, and nothing
+              else moved. Here is why. Call the plugboard S, and the machine without it A′ at press 1 and D′ at press 4.
+              Each press goes through S, then the scrambler, then S again:
             </p>
-            <p>The plugboard is yours now: add or remove cables and watch the diagram.</p>
+            <p className="font-mono text-stone-100" data-testid="stecker-formula">
+              A = S·A′·S⁻¹ and D = S·D′·S⁻¹, so AD = S·A′·S⁻¹·S·D′·S⁻¹ = S·(A′D′)·S⁻¹
+            </p>
+            <p>
+              AD is the plugboard-free product A′D′ with every letter renamed through S. A renamed permutation (a
+              conjugate) has exactly the cycle lengths of the original: the cables never show in them.
+            </p>
+            <p>The plugboard is yours now: add or remove cables, this one included, and watch the diagram.</p>
+            <div>
+              <button
+                ref={toggle}
+                type="button"
+                className={QUIET_BUTTON}
+                data-testid="stecker-demo-toggle"
+                disabled={!demoIn && !demoFree}
+                onClick={() => {
+                  const m = store.getState()
+                  if (!m.locks.plugboard) m.togglePlug(DX, DY)
+                }}
+              >
+                {demoIn ? `Take the cable ${dash(DEMO_CABLE)} out` : `Put the cable ${dash(DEMO_CABLE)} back`}
+              </button>
+            </div>
           </section>
         ) : null}
       </div>
