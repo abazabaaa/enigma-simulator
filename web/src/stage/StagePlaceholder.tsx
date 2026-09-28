@@ -26,11 +26,11 @@ export function StagePlaceholder({ directive }: { directive: StageDirective }): 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
-            <dt className="text-stone-500">{k}</dt>
+            <dt className="text-stone-400">{k}</dt>
             <dd>{v}</dd>
           </div>
         ))}
-        <dt className="text-stone-500">dimmed</dt>
+        <dt className="text-stone-400">dimmed</dt>
         <dd className="break-words">{dimmed.length ? dimmed.join(', ') : 'nothing'}</dd>
       </dl>
     </div>

@@ -20,7 +20,9 @@ export { partName } from './GhostPickAnswer'
 function CodeWidget(p: WidgetProps<{ seed: number }, never>): JSX.Element {
   const task = codeTaskOf(p.logic)
   if (!task) return <p className="text-sm text-red-300">This code item has no task.</p>
-  return <CodeItem task={task} instance={p.instance} itemKey={p.itemKey} disabled={p.disabled} submit={p.submit as never} />
+  return (
+    <CodeItem task={task} instance={p.instance} itemKey={p.itemKey} disabled={p.disabled} submit={p.submit as never} />
+  )
 }
 
 export const WIDGETS: Readonly<Record<Exclude<ItemKind, 'custom'>, ComponentType<WidgetProps>>> = {

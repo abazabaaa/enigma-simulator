@@ -15,6 +15,7 @@ import type { GateRecord, ItemRecord, OutcomeResult } from '../contracts/lesson'
 import { PROGRESS_CORRUPT_KEY, PROGRESS_KEY, type BetRecord, type ProgressV1 } from '../contracts/progress'
 import { getFlags } from '../lib/flags'
 import { storage as defaultStorage, type SafeStorage } from '../lib/storage'
+import { MAX_REDRAW, OUTCOME_CAP } from './rules'
 
 export type ChapterProgress = NonNullable<ProgressV1['chapters'][AnyChapterId]>
 
@@ -73,21 +74,37 @@ export function freshProgress(now: number, salt: string): ProgressV1 {
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+/** A non-negative number (a time, a duration). */
+const isTime = (x: unknown): x is number => isNum(x) && x >= 0
+/** An integer in [lo, hi]. */
+const isInt = (x: unknown, lo: number, hi = Number.MAX_SAFE_INTEGER): x is number =>
+  isNum(x) && Number.isInteger(x) && x >= lo && x <= hi
+const isSeed = (x: unknown) => isInt(x, 0, 0xffffffff)
 const RESULTS: readonly OutcomeResult[] = ['correct', 'wrong', 'revealed']
 
+/** A well-formed ItemRecord with every value in range (anything else is quarantined, never clamped). */
 function validItem(x: unknown): x is ItemRecord {
   if (!isObj(x)) return false
-  if (!isNum(x.attempt) || x.attempt < 1 || !isNum(x.seed) || !isNum(x.redraw) || !isNum(x.shownAt) || !isNum(x.wrong)) return false
+  if (
+    !isInt(x.attempt, 1) ||
+    !isSeed(x.seed) ||
+    !isInt(x.redraw, 0, MAX_REDRAW) ||
+    !isTime(x.shownAt) ||
+    !isInt(x.wrong, 0)
+  ) {
+    return false
+  }
   if (typeof x.fallbackNext !== 'boolean' || typeof x.passed !== 'boolean' || !Array.isArray(x.outcomes)) return false
+  if (x.outcomes.length > OUTCOME_CAP) return false
   return x.outcomes.every(
     (o) =>
       isObj(o) &&
       RESULTS.includes(o.result as OutcomeResult) &&
-      isNum(o.ms) &&
-      isNum(o.seed) &&
+      isTime(o.ms) &&
+      isSeed(o.seed) &&
       typeof o.fallback === 'boolean' &&
       [0, 1, 2, 3].includes(o.hintLevel as number) &&
-      isNum(o.at),
+      isTime(o.at),
   )
 }
 
@@ -99,16 +116,38 @@ export function parseProgress(raw: string): ProgressV1 | null {
   } catch {
     return null
   }
-  if (!isObj(v) || v.version !== 1 || typeof v.salt !== 'string' || !isNum(v.createdAt) || !isNum(v.lastVisit)) return null
+  if (
+    !isObj(v) ||
+    v.version !== 1 ||
+    typeof v.salt !== 'string' ||
+    v.salt === '' ||
+    !isTime(v.createdAt) ||
+    !isTime(v.lastVisit)
+  ) {
+    return null
+  }
   if (!isObj(v.chapters) || !isObj(v.gates) || !isObj(v.bets) || !isObj(v.recall) || !isObj(v.prefs)) return null
   for (const c of Object.values(v.chapters)) {
-    if (!isObj(c) || !isNum(c.reached) || typeof c.completed !== 'boolean' || !Array.isArray(c.tasks)) return null
+    if (!isObj(c) || !isInt(c.reached, 0) || typeof c.completed !== 'boolean') return null
+    if (!Array.isArray(c.tasks) || !c.tasks.every((t) => typeof t === 'string')) return null
   }
   for (const g of Object.values(v.gates)) {
-    if (!isObj(g) || typeof g.passed !== 'boolean' || !isObj(g.items) || !Object.values(g.items).every(validItem)) return null
+    if (!isObj(g) || typeof g.passed !== 'boolean' || !isObj(g.items) || !Object.values(g.items).every(validItem))
+      return null
   }
-  for (const b of Object.values(v.bets)) if (!isObj(b) || typeof b.value !== 'string' || !isNum(b.at)) return null
-  for (const r of Object.values(v.recall)) if (!isObj(r) || !isNum(r.lastSeen)) return null
+  for (const b of Object.values(v.bets)) {
+    if (
+      !isObj(b) ||
+      typeof b.value !== 'string' ||
+      !isTime(b.at) ||
+      ![true, false, null].includes(b.correct as boolean | null)
+    ) {
+      return null
+    }
+  }
+  for (const r of Object.values(v.recall)) {
+    if (!isObj(r) || !isTime(r.lastSeen) || !isInt(r.correct, 0) || !isInt(r.wrong, 0)) return null
+  }
   return { ...(v as unknown as ProgressV1), prefs: { ...DEFAULT_PREFS, ...(v.prefs as object) } }
 }
 

@@ -8,12 +8,7 @@ import type { MachineLocks } from '../../contracts/machine'
 import { bindGates } from '../../lesson/bind'
 import { FACTS } from './facts'
 import { DOUBLE_START, GATES, READ_ONLY, START } from './gates'
-// The e2e typecheck (tsconfig.node.json, no `jsx`) reaches this file through content/registry.ts: it must not
-// follow the .tsx imports (TS6142). The app and unit-test configs type them normally. Proposed fix: "jsx" in
-// tsconfig.node.json (owned by 02); then these two directives go.
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { ITEM_UI } from './items'
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { DoubleStepView, RingVsCoreView, StepFirstView } from './scenes'
 
 /** The machine is fixed; only the keyboard (and in ring-vs-core, after its reveal, the rings) is the learner's. */

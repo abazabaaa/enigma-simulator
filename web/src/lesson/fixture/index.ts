@@ -37,7 +37,14 @@ const chapter = {
       stage: 'wire',
       worked: true,
       setup: {
-        machine: { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'AAA', plugboard: [] },
+        machine: {
+          model: 'I',
+          reflector: 'B',
+          rotors: ['I', 'II', 'III'],
+          rings: 'AAA',
+          positions: 'AAA',
+          plugboard: [],
+        },
         locks: { model: true, rotors: true, reflector: true, rings: true, plugboard: true },
       },
       panels: { keyboard: true, lamps: true, rotors: true },

@@ -94,6 +94,9 @@ by `404.html` on GitHub Pages) is rewritten to the hash route at startup.
   `npx playwright install --with-deps chromium`.
 - Chromium runs headless with SwiftShader (`--use-gl=angle --use-angle=swiftshader
   --enable-unsafe-swiftshader --ignore-gpu-blocklist`), so WebGL 2 works without a GPU.
+- **Gaming detection** (`src/lesson/rules.ts`): `fast` = the last two answers each under 2 s;
+  `ladder` = three wrong answers within 5 s in total; `reveals` = two reveals among the last six.
+  A gaming fallback (set-the-machine) always starts at hint level 0 with its own attempt window.
 
 ## Ownership
 

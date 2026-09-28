@@ -60,14 +60,13 @@ export const ROTOR = {
   wheelX0: -1.3,
   wheelX1: -0.95,
   wheelR: 5.9,
-  /** Alphabet band: letters, and ring numbers 01–26 beside them. */
+  /** Alphabet band: the letters (positions). */
   bandX0: -0.95,
   bandX1: 0.55,
   bandR: 5.0,
   innerR: 4.3,
-  /** Letter and number columns on the band. */
-  letterX: -0.42,
-  numberX: 0.2,
+  /** The letter column on the band (the ring numbers are a dial on its right face, exploded only). */
+  letterX: -0.2,
   /** Wiring core: body, contact faces (left 'out' plates, right 'in' pins) and contact radius. */
   coreX0: -1.05,
   coreX1: 1.15,

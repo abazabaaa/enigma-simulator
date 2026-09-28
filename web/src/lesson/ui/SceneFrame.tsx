@@ -7,7 +7,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { AnyChapterId } from '../../contracts/core'
-import type { BetHandle, ChapterDef, GateBinding, GateHandle, ItemUiMap, SceneDef, SceneProps } from '../../contracts/lesson'
+import type {
+  BetHandle,
+  ChapterDef,
+  GateBinding,
+  GateHandle,
+  ItemUiMap,
+  SceneDef,
+  SceneProps,
+} from '../../contracts/lesson'
 import type { BetRecord } from '../../contracts/progress'
 import { MachinePanel } from '../../machine-ui'
 import { StageHost } from '../../stage/StageHost'
@@ -72,7 +80,12 @@ function stepPress(key: string): void {
   }
 }
 
-function GateBody(p: { gateKey: `${string}/${string}`; binding: GateBinding; recall: boolean; onHandle(h: GateHandle | null): void }): JSX.Element {
+function GateBody(p: {
+  gateKey: `${string}/${string}`
+  binding: GateBinding
+  recall: boolean
+  onHandle(h: GateHandle | null): void
+}): JSX.Element {
   const controller = useGateController(p.gateKey as never, p.binding, p.recall)
   const { onHandle } = p
   useEffect(() => {
@@ -135,18 +148,21 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     }
   }, [chapter, scene])
 
-  const isCommitted = useCallback((bet: string) => useProgress.getState().bets[betKey(chapter, bet)] !== undefined, [chapter])
+  const isCommitted = useCallback(
+    (bet: string) => useProgress.getState().bets[betKey(chapter, bet)] !== undefined,
+    [chapter],
+  )
 
-  // [contracts-v2] Step reveals press the machine, so each Step's bet is about the machine the earlier Steps left:
-  // they fire in the order listed. A fired Step presses again (a repeat press), but not while the next reveal's
-  // bet is still open: that key stays locked until the bet is committed (G10), so a Step cannot slip past it.
-  const allowed = useCallback(
+  // Reveals fire in the scene's order (review m8): a reveal is allowed once its bet is committed and every
+  // earlier reveal has fired. Repeats of a fired reveal stay allowed. Views must not assume any other order.
+  // [contracts-v2] Except a repeat of a fired Step while the next reveal's bet is open: the Step presses the key,
+  // and that key stays locked until the bet is committed (G10), so a Step cannot slip a press past the bet.
+  const isAllowed = useCallback(
     (bet: string) => {
-      const r = reveals.find((x) => x.bet === bet)
-      if (!r || !isCommitted(bet)) return false
-      if (r.trigger !== 'step') return true
       const fired = firedRef.current
-      if (!fired.has(bet)) return reveals.slice(0, reveals.indexOf(r)).every((x) => x.trigger !== 'step' || fired.has(x.bet))
+      const k = reveals.findIndex((x) => x.bet === bet)
+      if (k === -1 || !isCommitted(bet) || !reveals.slice(0, k).every((x) => fired.has(x.bet))) return false
+      if (reveals[k]!.trigger !== 'step' || !fired.has(bet)) return true
       const pending = reveals.find((x) => !fired.has(x.bet))
       return !pending || isCommitted(pending.bet)
     },
@@ -156,7 +172,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
   const fire = useCallback(
     (bet: string) => {
       const r = reveals.find((x) => x.bet === bet)
-      if (!r || !allowed(bet)) return
+      if (!r || !isAllowed(bet)) return
       if (r.trigger === 'step') stepPress(r.key ?? 'A')
       if (firedRef.current.has(bet)) return
       const next = new Set(firedRef.current).add(bet)
@@ -164,7 +180,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       setFired(next)
       emit({ type: 'reveal', bet: betKey(chapter, bet), trigger: r.trigger })
     },
-    [chapter, reveals, allowed],
+    [chapter, reveals, isAllowed],
   )
 
   // G10 gating for the next reveal that has not fired.
@@ -180,7 +196,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     if (!reveals.some((r) => r.trigger === 'press')) return
     const onPress = (key: string | undefined) => {
       const r = reveals.find(
-        (x) => x.trigger === 'press' && !firedRef.current.has(x.bet) && isCommitted(x.bet) && (!x.key || x.key === key),
+        (x) => x.trigger === 'press' && !firedRef.current.has(x.bet) && isAllowed(x.bet) && (!x.key || x.key === key),
       )
       if (r) fire(r.bet)
     }
@@ -194,10 +210,12 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       a()
       b()
     }
-  }, [reveals, fire, isCommitted])
+  }, [reveals, fire, isAllowed])
 
-  // `bets` re-creates the runtime when a bet is committed, so the reveal buttons re-read allowed().
-  const runtime: SceneRuntime = useMemo(() => ({ fired, isCommitted, allowed, fire }), [fired, isCommitted, allowed, fire, bets])
+  const runtime: SceneRuntime = useMemo(
+    () => ({ fired, isCommitted, isAllowed, fire }),
+    [fired, isCommitted, isAllowed, fire],
+  )
 
   const betHandle = useCallback(
     (id: string): BetHandle => {
@@ -219,7 +237,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     store: useMachineStore,
     completeTask: (id) => useProgress.getState().addTask(chapter, taskKey(scene.id, id)),
     bet: betHandle,
-    reveal: (id) => ({ allowed: allowed(id), fire: () => fire(id) }),
+    reveal: (id) => ({ allowed: isAllowed(id), fire: () => fire(id) }),
     gate: gateHandle,
   }
 
@@ -230,7 +248,9 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
   }, [scene, p.def, chapter, salt, p.recallUi])
 
   const stage = itemStage !== undefined ? itemStage : scene.stage
-  const alphabet = scene.setup?.toy?.n ?? (scene.stage && (typeof scene.stage === 'string' ? scene.stage : scene.stage.preset) === 'toy' ? 6 : 26)
+  const alphabet =
+    scene.setup?.toy?.n ??
+    (scene.stage && (typeof scene.stage === 'string' ? scene.stage : scene.stage.preset) === 'toy' ? 6 : 26)
   const View = scene.View
 
   return (
@@ -245,7 +265,9 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       >
         <h2 className="text-xl font-semibold text-stone-100">{scene.title}</h2>
         {scene.kind === 'story' && scene.story ? <StoryScene story={scene.story} facts={p.def.facts} /> : null}
-        {stage ? <StageHost stage={stage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" /> : null}
+        {stage ? (
+          <StageHost stage={stage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" />
+        ) : null}
         {scene.panels && !ownsMachine ? <MachinePanel show={scene.panels} /> : null}
         {View ? <View {...props} /> : null}
         {scene.bets?.length ? (
@@ -276,7 +298,12 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
             {scene.tasks.map((t) => {
               const done = tasksDone.includes(taskKey(scene.id, t.id))
               return (
-                <li key={t.id} data-testid={`task-${t.id}`} data-done={String(done)} className={done ? 'text-emerald-300' : 'text-stone-300'}>
+                <li
+                  key={t.id}
+                  data-testid={`task-${t.id}`}
+                  data-done={String(done)}
+                  className={done ? 'text-emerald-300' : 'text-stone-300'}
+                >
                   {done ? '✓' : '○'} {t.label}
                 </li>
               )
@@ -295,7 +322,13 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
           <p className="text-sm text-red-300">Gate {scene.gate} is missing.</p>
         ) : null}
         <nav className="flex items-center justify-between gap-2 border-t border-stone-800 pt-3">
-          <button type="button" data-testid="scene-back" className={QUIET_BUTTON} disabled={p.index === 0} onClick={p.onBack}>
+          <button
+            type="button"
+            data-testid="scene-back"
+            className={QUIET_BUTTON}
+            disabled={p.index === 0}
+            onClick={p.onBack}
+          >
             Back
           </button>
           <button

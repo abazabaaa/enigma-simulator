@@ -6,6 +6,15 @@
  * Attempts are 1-based: a fresh item is on attempt 1 (hint L0). Every answer or reveal appends one
  * outcome, increments `attempt` and moves to a fresh instance, whose seed reduceItem stores (redraw 0);
  * the runtime then settles the redraw with drawInstance (it needs the ItemLogic for `same`).
+ *
+ * Gaming (rule 5, as ruled by the coordinator in review round 1):
+ *  - fast:    the last two outcomes are answers, each given in under minLatencyMs (default 2 s);
+ *  - ladder:  the last three outcomes are wrong answers given in under burstMs IN TOTAL (default 5 s): a rush up
+ *             the hint ladder. Honest answers of 2–5 s each (6 s or more for three) never trip it;
+ *  - reveals: two or more reveals among the last six outcomes.
+ * When a signal fires, the next instance comes from the gate's in-page fallback, and the fallback starts
+ * fresh: `wrong` returns to 0, so it is shown at hint level 0 (the counts that triggered gaming do not carry
+ * over). Its outcome is recorded on the triggering item with fallback: true.
  */
 
 import type { ItemKey } from '../contracts/core'
@@ -70,16 +79,21 @@ export function hintLevel(rec: ItemRecord, puzzle: boolean): HintLevel {
 }
 
 /**
- * Rule 5. `fast`: the last two outcomes are both answers given in under minLatencyMs (a reveal is not an
- * answer, so reading a revealed solution never counts as fast). `ladder`: the last three outcomes are
- * wrong answers, each under burstMs, that ran up to L3. `reveals`: two or more reveals among the last six.
+ * Rule 5, from the outcomes alone. `fast`: the last two outcomes are both answers given in under minLatencyMs
+ * (a reveal is not an answer, so reading a revealed solution never counts as fast). `ladder`: the last three
+ * outcomes are wrong answers whose times add up to less than burstMs (a rapid run up the hint ladder).
+ * `reveals`: two or more reveals among the last six.
  */
 export function isGaming(rec: ItemRecord, cfg: RuleConfig = DEFAULT_RULES): false | 'fast' | 'ladder' | 'reveals' {
   const o = rec.outcomes
   const last2 = o.slice(-2)
   if (last2.length === 2 && last2.every((x) => x.result !== 'revealed' && x.ms < cfg.minLatencyMs)) return 'fast'
   const last3 = o.slice(-3)
-  if (last3.length === 3 && rec.wrong >= 3 && last3.every((x) => x.result === 'wrong' && x.ms < cfg.burstMs)) {
+  if (
+    last3.length === 3 &&
+    last3.every((x) => x.result === 'wrong') &&
+    last3.reduce((t, x) => t + x.ms, 0) < cfg.burstMs
+  ) {
     return 'ladder'
   }
   if (o.slice(-6).filter((x) => x.result === 'revealed').length >= 2) return 'reveals'
@@ -122,7 +136,8 @@ export function reduceItem(
     passed,
   }
   if (isGaming(next, cfg) === false) return next
-  return { ...next, fallbackNext: true, seed: fallbackSeed(ctx.salt, ctx.key, attempt) }
+  // The fallback starts fresh at hint level 0: the counts that triggered gaming do not carry over.
+  return { ...next, wrong: 0, fallbackNext: true, seed: fallbackSeed(ctx.salt, ctx.key, attempt) }
 }
 
 /** Rule 3 / G3: the first instance that matches none of `previous` (redraw 0…20; the 20th is kept regardless). */

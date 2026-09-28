@@ -19,7 +19,11 @@ interface SetMachineInstance {
  * and the lamps hidden (the item's setup), so no trial press is possible. With trial 'preview' a live decrypt
  * of the item's message follows the settings; it never presses a key.
  */
-export function SetMachineAnswer({ instance, disabled, submit }: WidgetProps<SetMachineInstance, unknown>): JSX.Element {
+export function SetMachineAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<SetMachineInstance, unknown>): JSX.Element {
   const api = useMachineApi()
   const unlocked = instance.unlocked
   const config = useMachine((s) => s.machine.config)
@@ -37,7 +41,9 @@ export function SetMachineAnswer({ instance, disabled, submit }: WidgetProps<Set
       <p className="text-sm text-stone-400">
         The keyboard is locked and the lamps are hidden: set the machine
         {unlocked.length ? ` (${unlocked.join(', ')})` : ''}, then submit.
-        {instance.maxPlugs !== undefined ? ` At most ${instance.maxPlugs} cable${instance.maxPlugs === 1 ? '' : 's'}.` : ''}
+        {instance.maxPlugs !== undefined
+          ? ` At most ${instance.maxPlugs} cable${instance.maxPlugs === 1 ? '' : 's'}.`
+          : ''}
       </p>
       <MachinePanel
         store={api}
@@ -51,8 +57,8 @@ export function SetMachineAnswer({ instance, disabled, submit }: WidgetProps<Set
         }}
       />
       <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
-        Windows {windows} · rings {config.rings.map((r) => String(r.charCodeAt(0) - 64).padStart(2, '0')).join(' ')} · plugs{' '}
-        {config.plugboard.join(' ') || 'none'}
+        Windows {windows} · rings {config.rings.map((r) => String(r.charCodeAt(0) - 64).padStart(2, '0')).join(' ')} ·
+        plugs {config.plugboard.join(' ') || 'none'}
       </p>
       {preview !== null ? (
         <div className="rounded-md border border-stone-700 p-2" data-testid="trial-preview">

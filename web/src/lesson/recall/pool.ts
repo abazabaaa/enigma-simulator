@@ -21,7 +21,17 @@ import {
   rotorPermutation,
   type RotorName,
 } from '../../engine'
-import { createRng, int, pick, randLetter, randomConfig, randomInvolution, randomPerm, sample, seedFor } from '../../lib/rng'
+import {
+  createRng,
+  int,
+  pick,
+  randLetter,
+  randomConfig,
+  randomInvolution,
+  randomPerm,
+  sample,
+  seedFor,
+} from '../../lib/rng'
 import {
   firstDiff,
   ghostFromOutputs,
@@ -197,19 +207,23 @@ export const rHopTrio = lettersItem<HopTrioInstance>({
   generate(r) {
     const rotors = sample(r, ['I', 'II', 'III', 'IV', 'V'] as const, 3) as RotorName[]
     const positions = [randLetter(r), randLetter(r), randLetter(r)]
-    const strips = [2, 1, 0].map((s) =>
-      rotorPermutation(rotors[s]!, 'A', positions[s]!)
-        .map(L)
-        .join(''),
-    )
+    const strips = [2, 1, 0].map((s) => rotorPermutation(rotors[s]!, 'A', positions[s]!).map(L).join(''))
     return { length: 3, rotors, positions: positions.join(''), input: randLetter(r), strips }
   },
   same: (a, b) => a.input === b.input && a.positions === b.positions && sameJson(a.rotors, b.rotors),
-  solve: (i) => trioHops(i).map((h) => h.output).join(''),
+  solve: (i) =>
+    trioHops(i)
+      .map((h) => h.output)
+      .join(''),
   check(i, a) {
     const ref = trioHops(i)
-    const got = String(a ?? '').toUpperCase().split('')
-    return verdict(got.join('') === ref.map((h) => h.output).join(''), { kind: 'path', ghost: ghostFromOutputs(ref, got) })
+    const got = String(a ?? '')
+      .toUpperCase()
+      .split('')
+    return verdict(got.join('') === ref.map((h) => h.output).join(''), {
+      kind: 'path',
+      ghost: ghostFromOutputs(ref, got),
+    })
   },
   setup: (i) => ({
     machine: { model: 'I', reflector: 'B', rotors: i.rotors, rings: 'AAA', positions: i.positions, plugboard: [] },
@@ -218,7 +232,12 @@ export const rHopTrio = lettersItem<HopTrioInstance>({
   }),
   highlight(i, lastWrong) {
     const ref = trioHops(i)
-    const k = lastWrong ? firstDiff(ref.map((h) => h.output), String(lastWrong).toUpperCase().split('')) : 0
+    const k = lastWrong
+      ? firstDiff(
+          ref.map((h) => h.output),
+          String(lastWrong).toUpperCase().split(''),
+        )
+      : 0
     const slot = (['right', 'middle', 'left'] as const)[Math.max(0, Math.min(2, k))]!
     return [{ part: `rotor-${slot}`, tone: 'hint' }]
   },
@@ -326,7 +345,12 @@ export const rCrashes = numbersItem<CrashesInstance>({
     const cipherLength = cribLength + 6 + int(r, 9)
     const cipher: string[] = Array.from({ length: cipherLength }, () => randLetter(r))
     const offset = int(r, cipherLength - cribLength + 1)
-    for (const k of sample(r, [...crib].map((_, j) => j), 1 + int(r, 3))) cipher[offset + k] = crib[k]!
+    for (const k of sample(
+      r,
+      [...crib].map((_, j) => j),
+      1 + int(r, 3),
+    ))
+      cipher[offset + k] = crib[k]!
     return { count: 'any', cipher: cipher.join(''), crib, offset }
   },
   same: (a, b) => a.cipher === b.cipher && a.crib === b.crib && a.offset === b.offset,
@@ -373,9 +397,15 @@ export const rLoop = lettersItem<LoopInstance>({
   solve: (i) => i.hypotheses.map((h) => loopPath(i, h).at(-1)!).join(''),
   check(i, a) {
     const expected = i.hypotheses.map((h) => loopPath(i, h).at(-1)!)
-    const got = String(a ?? '').toUpperCase().split('')
+    const got = String(a ?? '')
+      .toUpperCase()
+      .split('')
     const k = Math.max(0, firstDiff(expected, got))
-    return verdict(got.join('') === expected.join(''), { kind: 'menu', loop: loopPath(i, i.hypotheses[k]!), breakAt: 3 })
+    return verdict(got.join('') === expected.join(''), {
+      kind: 'menu',
+      loop: loopPath(i, i.hypotheses[k]!),
+      breakAt: 3,
+    })
   },
   setup: () => ({ stage: null }),
   highlight: () => [],
@@ -487,7 +517,12 @@ export function returnCheckItems(
   const from = (act: RecallAct) => RETURN_IDS.filter((id) => RECALL_ACT[id] === act)
   const first = pick(r, from(oldest))
   const others = eligible.filter((a) => a !== oldest)
-  const second = others.length ? pick(r, from(pick(r, others))) : pick(r, from(oldest).filter((id) => id !== first))
+  const second = others.length
+    ? pick(r, from(pick(r, others)))
+    : pick(
+        r,
+        from(oldest).filter((id) => id !== first),
+      )
   return [first, second]
 }
 
