@@ -26,7 +26,13 @@ import { markChange } from '../monitor'
 import { effectsState, useEffectsSwitch } from '../signal/effectsState'
 import { FrameBudget, isSoftwareRenderer } from './budget'
 
-export const BLOOM = { luminanceThreshold: 1, luminanceSmoothing: 0.03, mipmapBlur: true, intensity: 0.9, radius: 0.7 }
+/**
+ * luminanceThreshold 1 with a wide soft knee: the pass keeps a pixel's whole colour, weighted by
+ * smoothstep(1, 1 + smoothing, luminance). The core's lights put the white ring bands near 1.5
+ * (weight ≈ 0.16), the live wire (emissive 5) near 4 and the lit lamp near 2.5: the wire and the lamp
+ * glow, lit metal barely does.
+ */
+export const BLOOM = { luminanceThreshold: 1, luminanceSmoothing: 2, mipmapBlur: true, intensity: 0.75, radius: 0.7 }
 
 const WARM_FRAMES = 3
 /** Before the frame monitor (monitor.ts, priority −1000), so a warm-up frame is never counted idle. */

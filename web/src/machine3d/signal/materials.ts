@@ -9,8 +9,11 @@
 import { MeshBasicMaterial, MeshStandardMaterial } from 'three'
 import { swatch } from '../palette'
 
-/** Emissive intensity of the live wire (the lit lamp uses 3). */
-export const GLOW_INTENSITY = 2.6
+/**
+ * Emissive intensity of the live wire (the lit lamp uses 3): well above Bloom's soft knee (effects).
+ * Without Bloom the colour clamps to the same bright amber as at any intensity above about 2.
+ */
+export const GLOW_INTENSITY = 5
 
 /** The glowing material of the live wire. */
 export function glowMaterial(intensity = GLOW_INTENSITY): MeshStandardMaterial {
