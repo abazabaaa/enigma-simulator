@@ -7,6 +7,8 @@ import { BUTTON, INPUT, QUIET_BUTTON } from './controls'
 export interface SceneRuntime {
   readonly fired: ReadonlySet<string>
   isCommitted(bet: string): boolean
+  /** Committed, and every earlier reveal of the scene has fired (reveals fire in order). */
+  isAllowed(bet: string): boolean
   fire(bet: string): void
 }
 
@@ -28,7 +30,8 @@ const TRIGGER_LABEL: Record<RevealSpec['trigger'], string> = {
 /** The trigger of a reveal (reveal-<bet>): disabled until its bet is committed. */
 export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: string }): JSX.Element {
   const rt = useContext(SceneRuntimeContext)
-  const allowed = rt?.isCommitted(reveal.bet) ?? false
+  const committed = rt?.isCommitted(reveal.bet) ?? false
+  const allowed = rt?.isAllowed(reveal.bet) ?? false
   return (
     <button
       type="button"
@@ -39,7 +42,7 @@ export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: st
       onClick={() => rt?.fire(reveal.bet)}
     >
       {label ?? TRIGGER_LABEL[reveal.trigger]}
-      {!allowed ? ' (bet first)' : ''}
+      {!committed ? ' (bet first)' : !allowed ? ' (after the earlier reveal)' : ''}
     </button>
   )
 }
@@ -63,17 +66,28 @@ export function BetPanel(p: {
     bet.kind === 'choice'
       ? (bet.options ?? []).map((o) => ({ id: o.id, label: o.label }))
       : bet.kind === 'letter'
-        ? Array.from({ length: p.alphabet }, (_, k) => ({ id: String.fromCharCode(65 + k), label: String.fromCharCode(65 + k) }))
+        ? Array.from({ length: p.alphabet }, (_, k) => ({
+            id: String.fromCharCode(65 + k),
+            label: String.fromCharCode(65 + k),
+          }))
         : []
   const label = (id: string) => options.find((o) => o.id === id)?.label ?? id
   return (
-    <fieldset data-testid={`bet-${bet.id}`} data-committed={String(committed)} className="rounded-lg border border-violet-700/60 bg-violet-950/20 p-3">
+    <fieldset
+      data-testid={`bet-${bet.id}`}
+      data-committed={String(committed)}
+      className="rounded-lg border border-violet-700/60 bg-violet-950/20 p-3"
+    >
       <legend className="px-1 text-sm font-semibold text-violet-200">Your bet</legend>
       <p className="mb-2 text-sm text-stone-200">{bet.prompt}</p>
       {committed ? (
         <p className="text-sm text-stone-300" data-testid={`bet-result-${bet.id}`}>
           You bet <strong>{label(record.value)}</strong>.
-          {record.correct === true ? ' You were right.' : record.correct === false ? ' Not this time: see what happened.' : ''}
+          {record.correct === true
+            ? ' You were right.'
+            : record.correct === false
+              ? ' Not this time: see what happened.'
+              : ''}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -87,7 +101,11 @@ export function BetPanel(p: {
               onChange={(e) => choose(e.target.value.replace(/[^\d.-]/g, ''))}
             />
           ) : (
-            <div role="radiogroup" aria-label={bet.prompt} className={bet.kind === 'letter' ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1'}>
+            <div
+              role="radiogroup"
+              aria-label={bet.prompt}
+              className={bet.kind === 'letter' ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1'}
+            >
               {options.map((o) => (
                 <button
                   key={o.id}
@@ -104,7 +122,13 @@ export function BetPanel(p: {
             </div>
           )}
           <div>
-            <button type="button" data-testid={`bet-commit-${bet.id}`} className={BUTTON} disabled={value === ''} onClick={() => value !== '' && p.onCommit(value)}>
+            <button
+              type="button"
+              data-testid={`bet-commit-${bet.id}`}
+              className={BUTTON}
+              disabled={value === ''}
+              onClick={() => value !== '' && p.onCommit(value)}
+            >
               Commit my bet
             </button>
           </div>

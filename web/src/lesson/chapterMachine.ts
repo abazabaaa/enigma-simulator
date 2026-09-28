@@ -40,7 +40,8 @@ export function createChapterMachine(o: ChapterMachineOptions): AnyStateMachine 
     states[`s${i}`] = {
       entry: assign({ index: i, reached: ({ context }: { context: ChapterContext }) => Math.max(context.reached, i) }),
       on: {
-        NEXT: i < o.count - 1 ? { target: `s${i + 1}`, guard: 'canAdvance' } : { guard: 'canAdvance', actions: 'complete' },
+        NEXT:
+          i < o.count - 1 ? { target: `s${i + 1}`, guard: 'canAdvance' } : { guard: 'canAdvance', actions: 'complete' },
         ...(i > 0 ? { BACK: { target: `s${i - 1}` } } : {}),
       },
     }

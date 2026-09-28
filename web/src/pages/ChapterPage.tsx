@@ -49,7 +49,13 @@ export function ChapterPage() {
       {locked ? (
         <LockedPage meta={meta} previous={previousRequired(CHAPTERS, meta.id)} />
       ) : def && def.id === meta.id ? (
-        <ChapterPlayer key={meta.id} def={def.def} chapterId={meta.id} basePath={`/c/${meta.id}`} sceneParam={params.scene} />
+        <ChapterPlayer
+          key={meta.id}
+          def={def.def}
+          chapterId={meta.id}
+          basePath={`/c/${meta.id}`}
+          sceneParam={params.scene}
+        />
       ) : (
         <p className="text-sm text-stone-400">Loading the chapter…</p>
       )}

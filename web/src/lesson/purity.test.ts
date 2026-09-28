@@ -104,7 +104,10 @@ describe('L4 purity', () => {
   })
 
   it('catches violations (self-test)', () => {
-    expect(valueImports("import type { A } from 'react'\nimport { b } from './b'\nexport * from './c'")).toEqual(['./b', './c'])
+    expect(valueImports("import type { A } from 'react'\nimport { b } from './b'\nexport * from './c'")).toEqual([
+      './b',
+      './c',
+    ])
     expect(valueImports("import x from 'react'")).toEqual(['react'])
     expect(purityProblems(join(SRC, 'lesson/bind.ts'))).toEqual(['lesson/bind.ts: outside the allowed closure'])
     const widget = join(SRC, 'lesson/kinds/widgets/LetterAnswer.tsx')
