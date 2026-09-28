@@ -57,7 +57,7 @@ function plugGeometry(layout: Layout, k: number) {
 /** The lit cable of one plugboard hop, or null (an unplugged letter crosses no cable). */
 function litPair(s: ReturnType<typeof useSignal>, index: number): readonly [number, number] | null {
   if (!hopShown(s, index)) return null
-  const h = s.press.hops[index]!
+  const h = s.hops[index]!
   if (h.kind !== 'plugboard' || h.inputIndex === h.outputIndex) return null
   return [Math.min(h.inputIndex, h.outputIndex), Math.max(h.inputIndex, h.outputIndex)]
 }
@@ -122,8 +122,8 @@ export const Cables = memo(function Cables({ layout, plugs }: CablesProps): JSX.
     () => new MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 }),
   )
 
-  const signal = useSignal('discrete')
-  const last = signal.press.hops.length - 1
+  const signal = useSignal()
+  const last = signal.hops.length - 1
   const inPair = litPair(signal, 0)
   const outPair = last > 0 ? litPair(signal, last) : null
 

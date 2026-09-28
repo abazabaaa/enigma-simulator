@@ -91,9 +91,9 @@ export function Reflector({ layout, wiring }: ReflectorProps): JSX.Element {
   const glow = usePartMaterial('reflector', glowMaterial)
 
   // The pair the signal uses, once the signal has reached the reflector.
-  const signal = useSignal('discrete')
-  const hopIndex = signal.press.hops.findIndex((h) => h.kind === 'reflector')
-  const hop = hopShown(signal, hopIndex) ? signal.press.hops[hopIndex]! : null
+  const signal = useSignal()
+  const hopIndex = signal.hops.findIndex((h) => h.kind === 'reflector')
+  const hop = hopShown(signal, hopIndex) ? signal.hops[hopIndex]! : null
   const litPair = hop
     ? ([Math.min(hop.inputIndex, hop.outputIndex), Math.max(hop.inputIndex, hop.outputIndex)] as const)
     : null

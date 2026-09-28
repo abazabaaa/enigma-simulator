@@ -40,7 +40,7 @@ import { useSignal, useStableLayout } from './useSignal'
 
 export const LIVE_RADIUS = 0.15
 const HEAD_RADIUS = 0.42
-const GHOST_RADIUS = 0.1
+const GHOST_RADIUS = 0.13
 /** Ghost and reference run beside each other (and beside the live path), not inside it. */
 const GHOST_OFFSET = { x: 0.17, y: 0.17, z: 0.17 }
 const REFERENCE_OFFSET = { x: -0.17, y: -0.17, z: -0.17 }
@@ -65,9 +65,8 @@ const tuple = (p: { x: number; y: number; z: number }): V3 => [p.x, p.y, p.z]
 // ---------------------------------------------------------------------------
 
 function LiveSignal(): JSX.Element {
-  const { press, clock, drawn, layout } = useSignal('continuous')
+  const { hops, clock, drawn, layout } = useSignal()
   const invalidate = useThree((s) => s.invalidate)
-  const hops = press.hops
   const curve = useMemo(() => buildCurve(signalRoute(hops, layout)), [hops, layout])
   const tube = useMemo(() => (curve ? buildTube(curve, LIVE_RADIUS) : null), [curve])
   useEffect(() => () => tube?.geometry.dispose(), [tube])

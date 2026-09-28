@@ -1,20 +1,23 @@
 /**
  * The press on show and how much of its path is drawn, for every 3D part that shows the signal
- * (the tube, the lit reflector pair, the lit plug cables). It reads the SAME press view as the DOM
- * and the 2D stage (machine-ui/hooks usePressView: the last press against the playback clock, only
- * while the clock plays that very press), so the 3D path, the trace panel and the 2D path cannot
- * drift apart (PLAN §2.5).
+ * (the tube, the lit reflector pair, the lit plug cables). It reads the 3D view's own snapshot —
+ * useStage3D(): view.hops and t, which view.ts playbackFor takes from the playback clock by the
+ * source rule (the clock counts only while it plays this view's source; otherwise the source's own
+ * last press shows finished) — the very snapshot the StageReport comes from, so the reported
+ * pathPoints always match the reported hop. The DOM and the 2D view read the same stores by the
+ * same rules (PLAN §2.5), so the three cannot drift apart.
  */
 
 import { useRef } from 'react'
-import { usePressView, type ClockMode, type PressView } from '../../machine-ui/hooks'
-import { useMachineApi } from '../../state/activeMachine'
+import type { PathHop } from '../../contracts/stage'
+import { useMachine } from '../../state/activeMachine'
 import { useStage3D } from '../context'
 import type { Layout } from '../layout'
 import { hopsDrawn, type TraceClock } from './timing'
 
 export interface SignalState {
-  readonly press: PressView
+  /** Hops of the press on show (empty before the first press). */
+  readonly hops: readonly PathHop[]
   readonly clock: TraceClock
   /** Hops drawn now (a partly drawn live hop counts). */
   readonly drawn: number
@@ -30,22 +33,19 @@ export function useStableLayout(layout: Layout): Layout {
   return ref.current.layout
 }
 
-/**
- * The signal's state. 'continuous' re-renders on every clock tick (the growing tube and its head);
- * 'discrete' only when a hop starts (parts that light up hop by hop).
- */
-export function useSignal(mode: ClockMode): SignalState {
-  const { view, directive } = useStage3D()
-  const api = useMachineApi()
-  const press = usePressView(directive.source, api, mode)
+/** The signal's state at the scene's playback time. */
+export function useSignal(): SignalState {
+  const { view, directive, t } = useStage3D()
+  // lampsHidden conceals the path (it would give the lamp away), as in the 2D view.
+  const conceal = useMachine((s) => !!s.locks.lampsHidden)
   const clock: TraceClock = {
     trace: directive.trace,
-    hasPress: press.hasPress,
-    conceal: press.lampsHidden,
-    t: press.t,
-    hops: press.hops.length,
+    hasPress: view.hops.length > 0,
+    conceal,
+    t,
+    hops: view.hops.length,
   }
-  return { press, clock, drawn: hopsDrawn(clock), layout: useStableLayout(view.layout) }
+  return { hops: view.hops, clock, drawn: hopsDrawn(clock), layout: useStableLayout(view.layout) }
 }
 
 /**
@@ -53,5 +53,5 @@ export function useSignal(mode: ClockMode): SignalState {
  * up (the reflector pair, a plug cable) when the signal reaches it, and stays lit while shown.
  */
 export function hopShown(s: SignalState, index: number): boolean {
-  return index >= 0 && index < s.press.hops.length && s.drawn > index
+  return index >= 0 && index < s.hops.length && s.drawn > index
 }
