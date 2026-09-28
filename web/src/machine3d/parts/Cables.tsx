@@ -11,7 +11,7 @@
 
 import { useThree } from '@react-three/fiber'
 import { memo, useLayoutEffect, useMemo, type JSX } from 'react'
-import { MeshStandardMaterial, type Mesh } from 'three'
+import { MeshStandardMaterial } from 'three'
 import { usePartMaterial } from '../focus'
 import { box } from '../geometry'
 import { DECK, socketPosition, type Layout } from '../layout'
@@ -76,7 +76,7 @@ function LitCable({
   const glow = usePartMaterial('plugboard', glowMaterial)
   const invalidate = useThree((s) => s.invalidate)
   const index = lit ? pairs.findIndex(([a, b]) => a === lit[0] && b === lit[1]) : -1
-  const primed = usePrimed<Mesh>(index >= 0)
+  const primed = usePrimed(index >= 0)
   useLayoutEffect(() => {
     showRange(merged, index >= 0 ? index : null)
     markChange()
@@ -84,7 +84,6 @@ function LitCable({
   }, [merged, index, invalidate])
   return (
     <mesh
-      ref={primed.ref}
       name={name}
       geometry={merged.geometry}
       material={glow}

@@ -11,7 +11,7 @@
 
 import { useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, type JSX } from 'react'
-import { MeshStandardMaterial, SphereGeometry, type BufferGeometry, type Mesh } from 'three'
+import { MeshStandardMaterial, SphereGeometry, type BufferGeometry } from 'three'
 import type { ReflectorName } from '../../engine'
 import { usePartMaterial } from '../focus'
 import { discX } from '../geometry'
@@ -100,7 +100,7 @@ export function Reflector({ layout, wiring }: ReflectorProps): JSX.Element {
   const litIndex = litPair ? pairs.findIndex(([a, b]) => a === litPair[0] && b === litPair[1]) : -1
   const invalidate = useThree((s) => s.invalidate)
   const shows = litIndex >= 0
-  const primed = usePrimed<Mesh>(shows)
+  const primed = usePrimed(shows)
   useLayoutEffect(() => {
     showRange(lit, shows ? litIndex : null)
     markChange()
@@ -123,7 +123,6 @@ export function Reflector({ layout, wiring }: ReflectorProps): JSX.Element {
         userData={{ part: 'reflector', pairs }}
       />
       <mesh
-        ref={primed.ref}
         name="reflector-lit"
         geometry={lit.geometry}
         material={glow}

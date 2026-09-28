@@ -15,7 +15,7 @@
 import { Billboard } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, type JSX } from 'react'
-import { MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, type Material, type Mesh, type Object3D } from 'three'
+import { MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, type Material, type Object3D } from 'three'
 import type { Ghost } from '../../contracts/stage'
 import { LETTERS } from '../../engine'
 import { isE2E } from '../../lib/flags'
@@ -101,8 +101,8 @@ function LiveSignal(): JSX.Element {
     invalidate()
   }, [tube, segments, invalidate])
 
-  const headShown = usePrimed<Mesh>(head !== null)
-  const headXray = usePrimed<Mesh>(head !== null)
+  const headShown = usePrimed(head !== null)
+  const headXray = usePrimed(head !== null)
   const headScale = head === null ? 0 : 1
 
   const anchors = useMemo(() => pathPoints(hops, layout).map(tuple), [hops, layout])
@@ -140,7 +140,6 @@ function LiveSignal(): JSX.Element {
         </>
       ) : null}
       <mesh
-        ref={headShown.ref}
         name="signal-head"
         geometry={sphere}
         material={m.head}
@@ -152,7 +151,6 @@ function LiveSignal(): JSX.Element {
         userData={{ head }}
       />
       <mesh
-        ref={headXray.ref}
         name="signal-head-xray"
         geometry={sphere}
         material={m.headXray}

@@ -240,6 +240,22 @@ describe('the reflector', () => {
   })
 })
 
+describe('primed meshes (drawn once at mount, then shown only when lit)', () => {
+  it('show what the first press lights, even when it lands lit at once (reduced motion)', async () => {
+    // Regression: priming used to hide the mesh behind React's back, so a `visible` prop that stayed
+    // true from mount to the first lit frame was never applied again.
+    const scene = await mount(STAGE_PRESETS.plugboard)
+    await pressAt('A', 12) // A is plugged to V: the way in crosses a cable
+    expect(meshNamed(scene, 'reflector-lit').visible).toBe(true)
+    expect(meshNamed(scene, 'cables-lit-in').visible).toBe(true)
+    expect(meshNamed(scene, 'reflector-lit').userData.lit).not.toBeNull()
+    expect(named(scene, 'signal-head').visible).toBe(false)
+    await at(3.5)
+    expect(named(scene, 'signal-head').visible).toBe(true)
+    expect(meshNamed(scene, 'reflector-lit').visible).toBe(false)
+  })
+})
+
 describe('the cables', () => {
   const TEN: MachineConfigInput = { ...I, plugboard: 'AV BS CG DL FU HZ IN KM OW RX' }
 
