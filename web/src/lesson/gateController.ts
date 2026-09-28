@@ -6,6 +6,7 @@
 
 import type { GateKey, ItemKey } from '../contracts/core'
 import type { CheckResult, GateLogic, GateRecord } from '../contracts/lesson'
+import type { Highlight } from '../contracts/stage'
 import { now } from './clock'
 import { rules } from './config'
 import { emit } from './events'
@@ -13,15 +14,18 @@ import {
   currentItem,
   ensureCurrent,
   gateView,
+  hintHighlights,
   itemKeyOf,
   markShown,
   revealCurrent,
   shownInstance,
   submitAnswer,
   workedFor,
+  wrongAnswerOf,
   type GateCtx,
   type GateView,
   type Shown,
+  type WrongAnswer,
 } from './gateEngine'
 import { useProgress } from './progress'
 import { hintLevel } from './rules'
@@ -40,7 +44,8 @@ export interface LastAnswer {
 export interface ControllerState {
   readonly phase: 'answer' | 'feedback'
   readonly last: LastAnswer | null
-  readonly lastWrong: Readonly<Record<string, unknown>>
+  /** Per item, the last wrong answer with the instance it answered (hint L1 highlights come from it). */
+  readonly lastWrong: Readonly<Record<string, WrongAnswer>>
 }
 
 export interface Worked {
@@ -64,6 +69,11 @@ export interface GateController {
   worked(): Worked | null
   /** Emit item.show once per shown instance. */
   announce(): void
+  /**
+   * The stage highlights of the hint ladder for the current item while answering at L1+: from the instance the
+   * last wrong answer belonged to (hintHighlights), not the fresh instance now shown. [] otherwise.
+   */
+  hints(): readonly Highlight[]
 }
 
 export function createGateController(o: { key: GateKey; logic: GateLogic; recall?: boolean }): GateController {
@@ -122,7 +132,7 @@ export function createGateController(o: { key: GateKey; logic: GateLogic; recall
           shown: res.shown,
           passed: res.itemPassed,
         },
-        lastWrong: res.result.correct ? others : { ...others, [itemId]: answer },
+        lastWrong: res.result.correct ? others : { ...others, [itemId]: wrongAnswerOf(res, answer)! },
       })
       setLastCheck({ itemId, result: res.result })
       return res.result
@@ -184,6 +194,15 @@ export function createGateController(o: { key: GateKey; logic: GateLogic; recall
         fallback: it.fallbackNext,
         ...(level === 2 ? { workedSeed: controller.worked()!.seed } : {}),
       })
+    },
+
+    hints() {
+      if (state.phase !== 'answer') return []
+      const rec = progress().gates[o.key]
+      const cur = rec ? currentItem(o.logic, rec) : null
+      const it = cur && rec ? rec.items[cur.id] : undefined
+      if (!cur || !it || hintLevel(it, !!o.logic.puzzle) < 1) return []
+      return hintHighlights(shownInstance(ctx(), cur, it), state.lastWrong[cur.id] ?? null)
     },
   }
   return controller

@@ -31,6 +31,7 @@ import { recallGate } from '../recall/pool'
 import { BetPanel, RevealButton, SceneRuntimeContext, type SceneRuntime } from './bets'
 import { BUTTON, QUIET_BUTTON } from './controls'
 import { GateRunner, useGateController } from './GateRunner'
+import { ANSWER_CONTROL, firstUsable } from './focus'
 import { applyGating, releaseGating } from './gating'
 import { useItemStage } from './itemStage'
 import { StoryScene } from './StoryScene'
@@ -54,18 +55,12 @@ export function requestSceneFocus(): void {
 }
 
 const BET_CONTROL = '[data-testid^="bet-option-"], [data-testid^="bet-input-"]'
-const ANSWER_CONTROL =
-  '[data-role="answer"] :is(input, textarea, select, button, [tabindex="0"]):not([disabled]):not([tabindex="-1"])'
-
-/** Focusable now: not disabled (itself or by a fieldset), not aria-disabled, not inside an inert region. */
-function usable(el: HTMLElement): boolean {
-  return !el.matches(':disabled') && el.getAttribute('aria-disabled') !== 'true' && !el.closest('[inert]')
-}
 
 /**
- * Focus the first element matching the selectors in priority order. While the scene (or its gate) finishes
- * rendering, a present but not yet usable element (a key the unlock is about to enable) is waited for, for up
- * to 20 frames; then the first usable match of any selector gets the focus, else `fallback`.
+ * Focus the first usable element matching the selectors in priority order. While the scene (or its gate)
+ * finishes rendering, a selector whose matches are present but not yet usable (a key the unlock is about to
+ * enable) is waited for, for up to 20 frames; then the first usable match of any selector gets the focus, else
+ * `fallback`. Locked keys never take the focus (focus.ts).
  */
 function focusFirst(root: HTMLElement | null, selectors: readonly string[], fallback: () => HTMLElement | null): void {
   let frames = 0
@@ -73,9 +68,9 @@ function focusFirst(root: HTMLElement | null, selectors: readonly string[], fall
     if (!root?.isConnected) return
     const patient = frames < 20
     for (const sel of selectors) {
-      const el = root.querySelector<HTMLElement>(sel)
-      if (!el) continue
-      if (usable(el)) {
+      if (!root.querySelector(sel)) continue
+      const el = firstUsable(root, sel)
+      if (el) {
         el.focus()
         if (document.activeElement === el) return
       }

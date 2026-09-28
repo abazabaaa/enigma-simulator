@@ -216,6 +216,17 @@ describe('rule 5: gaming', () => {
     }
   })
 
+  it('a fast answer that passes the item never switches to a fallback (review round 3)', () => {
+    // W then C, both instant: the window is not passed, so the fast signal still switches to a fallback.
+    expect(runMs('W C', [100, 100]).at(-1)).toMatchObject({ passed: false, fallbackNext: true })
+    // C then C, both instant: the second passes the item (2 of the last 3), so there is no fallback.
+    const passed = runMs('C C', [100, 100]).at(-1)!
+    expect(isGaming(passed)).toBe('fast')
+    expect(passed).toMatchObject({ passed: true, fallbackNext: false })
+    // A once item passed by one instant correct answer after an instant wrong one: no fallback either.
+    expect(run('W C', ONCE, { ms: 100 }).at(-1)).toMatchObject({ passed: true, fallbackNext: false })
+  })
+
   it('reveals: two reveals among the last six outcomes', () => {
     expect(isGaming(run('R W W W W R', WINDOW)[5]!)).toBe('reveals')
     expect(isGaming(run('R W W W W W R', WINDOW)[6]!)).toBe(false)
