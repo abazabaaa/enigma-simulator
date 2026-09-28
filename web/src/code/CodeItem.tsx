@@ -159,6 +159,10 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
             disabled={disabled}
             autoComplete="off"
             onChange={(e) => setProbe(e.target.value)}
+            onKeyDown={(e) => {
+              // A single-line input: Enter runs, like the Run button.
+              if (e.key === 'Enter' && !disabled && !running && probe.trim() !== '') void run()
+            }}
           />
         </label>
         <button

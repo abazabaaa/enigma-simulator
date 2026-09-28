@@ -99,6 +99,10 @@ export function BetPanel(p: {
               className={`${INPUT} w-28`}
               value={value}
               onChange={(e) => choose(e.target.value.replace(/[^\d.-]/g, ''))}
+              onKeyDown={(e) => {
+                // A single-line input: Enter commits, like the button below.
+                if (e.key === 'Enter' && value !== '') p.onCommit(value)
+              }}
             />
           ) : (
             <div
