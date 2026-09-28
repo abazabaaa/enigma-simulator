@@ -208,7 +208,7 @@ export function ChapterPlayer(p: {
           onBack={() => actor.send({ type: 'BACK' })}
         />
       ) : (
-        <p className="text-sm text-stone-500">Loading the chapter…</p>
+        <p className="text-sm text-stone-400">Loading the chapter…</p>
       )}
       {done || progress.chapters[chapterId]?.completed ? (
         <section data-testid="chapter-complete" className="rounded-lg border border-emerald-700 bg-emerald-950/30 p-3 text-sm">

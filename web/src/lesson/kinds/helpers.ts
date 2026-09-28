@@ -49,7 +49,9 @@ export function ghostFromOutputs(reference: readonly PathHop[], outputs: readonl
 /**
  * The learner's (wrong) lamp traced BACKWARDS through the inverse of each hop's permutation, as a ghost.
  * `stagePerms[k]` is the forward permutation hop k applies. The ghost replaces the reference from the end
- * back to the hop where its wire first touches a letter on the reference path; `divergeAt` marks that hop.
+ * back to the first component (skipping pass-through stages such as an empty plugboard) where its wire
+ * touches a letter on the reference path; `divergeAt` marks that hop. With no such crossing it marks the
+ * reflector (or the first hop).
  */
 export function backwardGhost(reference: readonly PathHop[], stagePerms: readonly (readonly number[])[], wrong: number): Ghost {
   const onPath = new Set<number>()
@@ -59,7 +61,7 @@ export function backwardGhost(reference: readonly PathHop[], stagePerms: readonl
   }
   const hops = [...reference]
   let x = wrong
-  let divergeAt = 0
+  let divergeAt = Math.max(0, reference.findIndex((h) => h.kind === 'reflector'))
   for (let k = reference.length - 1; k >= 0; k--) {
     const perm = stagePerms[k]!
     const prev = perm.indexOf(x)
@@ -70,7 +72,8 @@ export function backwardGhost(reference: readonly PathHop[], stagePerms: readonl
       inputIndex: prev,
       outputIndex: x,
     }
-    if (onPath.has(prev)) {
+    const passThrough = perm.every((v, i) => v === i)
+    if (!passThrough && onPath.has(prev)) {
       divergeAt = k
       break
     }

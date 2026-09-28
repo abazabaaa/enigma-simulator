@@ -3,7 +3,7 @@
 import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react'
 
 export const BUTTON =
-  'rounded-md border border-amber-400/60 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:border-stone-700 disabled:bg-transparent disabled:text-stone-500 aria-disabled:cursor-not-allowed aria-disabled:border-stone-700 aria-disabled:bg-transparent aria-disabled:text-stone-500'
+  'rounded-md border border-amber-400/60 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-200 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:border-stone-700 disabled:bg-transparent disabled:text-stone-400 aria-disabled:cursor-not-allowed aria-disabled:border-stone-700 aria-disabled:bg-transparent aria-disabled:text-stone-400'
 export const QUIET_BUTTON =
   'rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:bg-stone-800 disabled:cursor-not-allowed disabled:text-stone-600'
 export const INPUT =

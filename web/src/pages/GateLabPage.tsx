@@ -40,7 +40,7 @@ export function GateLabPage() {
         Gate lab: {chapter}/{gate}
       </h1>
       <ProgressNotices />
-      {def === null ? <p className="text-sm text-stone-500">Loading…</p> : null}
+      {def === null ? <p className="text-sm text-stone-400">Loading…</p> : null}
       {def !== null && !binding ? (
         <p data-testid="gate-missing" className="text-stone-400">
           There is no gate “{gate}” in {chapter}.
@@ -48,7 +48,9 @@ export function GateLabPage() {
       ) : null}
       {binding ? (
         <>
-          {itemStage ? <StageHost stage={itemStage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" /> : null}
+          {itemStage !== null ? (
+            <StageHost stage={itemStage ?? 'overview'} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" />
+          ) : null}
           <GateRunner key={`${chapter}/${gate}`} gateKey={`${chapter as AnyChapterId}/lab:${gate}` as GateKey} binding={binding} />
         </>
       ) : null}

@@ -134,7 +134,7 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
           ) : null}
         </div>
       </div>
-      <Suspense fallback={<p className="text-sm text-stone-500">Loading the editor…</p>}>
+      <Suspense fallback={<p className="text-sm text-stone-400">Loading the editor…</p>}>
         <CodeEditor value={source} onChange={setSource} readOnly={disabled} testId="code-editor" />
       </Suspense>
       <div className="flex flex-wrap items-end gap-3">
@@ -156,7 +156,7 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
           {running ? 'Running…' : 'Run'}
         </button>
       </div>
-      {locked ? <p className="text-xs text-stone-500">Your prediction is locked for this instance.</p> : null}
+      {locked ? <p className="text-xs text-stone-400">Your prediction is locked for this instance.</p> : null}
       {result ? (
         <div className="rounded-md border border-stone-700 p-2 text-sm" data-testid="code-result" data-status={result.status}>
           <p>

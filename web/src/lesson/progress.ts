@@ -173,7 +173,7 @@ export function createProgressStore(o: ProgressStoreOptions = {}) {
       (set) => ({
         ...freshProgress(clock(), saltFor()),
         notice: { corrupt: false, storageFailed: false },
-        setGate: (key, rec) => set((s) => ({ gates: { ...s.gates, [key]: rec } })),
+        setGate: (key, rec) => set((s) => (s.gates[key] === rec ? s : { gates: { ...s.gates, [key]: rec } })),
         patchChapter: (id, patch) =>
           set((s) => {
             const prev: ChapterProgress = s.chapters[id] ?? { reached: 0, completed: false, tasks: [] }
@@ -182,7 +182,8 @@ export function createProgressStore(o: ProgressStoreOptions = {}) {
         addTask: (id, task) =>
           set((s) => {
             const prev: ChapterProgress = s.chapters[id] ?? { reached: 0, completed: false, tasks: [] }
-            if (prev.tasks.includes(task)) return {}
+            // Returning the same state object is a true no-op (no listener runs).
+            if (prev.tasks.includes(task)) return s
             return { chapters: { ...s.chapters, [id]: { ...prev, tasks: [...prev.tasks, task] } } }
           }),
         setBet: (key, rec) => set((s) => ({ bets: { ...s.bets, [key]: rec } })),
@@ -196,7 +197,7 @@ export function createProgressStore(o: ProgressStoreOptions = {}) {
             }
             return { recall: { ...s.recall, [itemId]: next } }
           }),
-        visit: (now) => set({ lastVisit: now }),
+        visit: (now) => set((s) => (s.lastVisit === now ? s : { lastVisit: now })),
         setSalt: (salt) => set({ salt }),
         setPrefs: (prefs) => set((s) => ({ prefs: { ...s.prefs, ...prefs } })),
         reset: (now) => set({ ...freshProgress(now, saltFor()) }),

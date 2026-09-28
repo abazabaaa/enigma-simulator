@@ -32,11 +32,11 @@ export function CourseMap({ heading = true }: { heading?: boolean }): JSX.Elemen
                     data-completed={String(done)}
                     aria-disabled={locked || undefined}
                     href={`#/c/${c.id}`}
-                    className={locked ? 'text-stone-500' : 'text-amber-300 underline'}
+                    className={locked ? 'text-stone-400' : 'text-amber-300 underline'}
                   >
                     {c.title}
                   </a>
-                  <span className="font-mono text-xs text-stone-500">{c.dates}</span>
+                  <span className="font-mono text-xs text-stone-400">{c.dates}</span>
                   <span className="text-xs text-stone-400">
                     {done ? '✓ complete' : locked ? '🔒 locked' : chapters[c.id] ? 'in progress' : 'open'}
                     {c.optional ? ' · optional' : ''}

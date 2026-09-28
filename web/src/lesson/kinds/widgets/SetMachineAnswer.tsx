@@ -50,7 +50,7 @@ export function SetMachineAnswer({ instance, disabled, submit }: WidgetProps<Set
           model: unlocked.includes('model'),
         }}
       />
-      <p className="font-mono text-xs text-stone-500" data-testid="set-machine-state">
+      <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
         Windows {windows} · rings {config.rings.map((r) => String(r.charCodeAt(0) - 64).padStart(2, '0')).join(' ')} · plugs{' '}
         {config.plugboard.join(' ') || 'none'}
       </p>

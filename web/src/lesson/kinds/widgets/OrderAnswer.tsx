@@ -70,7 +70,7 @@ export function OrderAnswer({ instance, disabled, submit }: WidgetProps<{ blocks
             }}
             className={`flex items-center gap-2 rounded-md border p-2 text-sm ${k === focus ? 'border-amber-400/70' : 'border-stone-700'}`}
           >
-            <span className="w-5 font-mono text-stone-500">{k + 1}.</span>
+            <span className="w-5 font-mono text-stone-400">{k + 1}.</span>
             <span className="flex-1">{label(id)}</span>
             <button type="button" className={QUIET_BUTTON} aria-label={`Move ${label(id)} up`} disabled={disabled || k === 0} onClick={() => move(k, k - 1)}>
               ↑

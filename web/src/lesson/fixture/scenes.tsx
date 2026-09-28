@@ -35,10 +35,14 @@ export function BetsPressView(p: SceneProps): JSX.Element {
     if (countFired) resolve('count', String(last?.trace.length ?? 11))
   })
   const all = lampFired && stepFired && countFired
+  const pressed = all && base !== null && seq - base >= 2
   useEffect(() => {
     if (all && base === null) setBase(seq)
-    if (all && base !== null && seq - base >= 2) p.completeTask('press2')
-  })
+  }, [all, base, seq])
+  const { completeTask } = p
+  useEffect(() => {
+    if (pressed) completeTask('press2')
+  }, [pressed, completeTask])
   return (
     <div className="flex flex-col gap-2 text-sm text-stone-300" data-testid="bets-press-view">
       <p>Bet before each reveal. Your first key press must be A.</p>
@@ -75,9 +79,11 @@ export function BetsToggleView(p: SceneProps): JSX.Element {
     setLamps(next)
     p.bet('flip').resolve(next.b === next.c ? 'same' : 'changes')
   })
+  const seen = searched && toggled
+  const { completeTask } = p
   useEffect(() => {
-    if (searched && toggled) p.completeTask('seen')
-  })
+    if (seen) completeTask('seen')
+  }, [seen, completeTask])
   return (
     <div className="flex flex-col gap-2 text-sm text-stone-300" data-testid="bets-toggle-view">
       {hits !== null ? <p data-testid="search-result">26 presses of A from AAA: A lit itself {hits} times.</p> : null}

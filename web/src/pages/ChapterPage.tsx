@@ -51,7 +51,7 @@ export function ChapterPage() {
       ) : def && def.id === meta.id ? (
         <ChapterPlayer key={meta.id} def={def.def} chapterId={meta.id} basePath={`/c/${meta.id}`} sceneParam={params.scene} />
       ) : (
-        <p className="text-sm text-stone-500">Loading the chapter…</p>
+        <p className="text-sm text-stone-400">Loading the chapter…</p>
       )}
     </main>
   )
