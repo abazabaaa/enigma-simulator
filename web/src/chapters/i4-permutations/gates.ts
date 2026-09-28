@@ -447,8 +447,9 @@ export const whichWrong = ghostPickItem<WhichWrongInstance>({
   },
   // The machine after the press's step: the rollback draws the buggy path against the engine's.
   setup: (i) => ({ machine: steppedConfig(i.config), locks: READ_ONLY, stage: 'wire' }),
-  // L1: the part of the last hop that is still right (never the fault's part); the Prompt says so (whichWrongHint).
-  highlight: (i) => [{ part: lastRightPart(i), tone: 'hint' }],
+  // L1 is the Prompt's text on the instance on screen (whichWrongHint). The runtime draws stage highlights from the
+  // instance the last wrong answer belonged to, and a part of that path would mislead on the new one: none here.
+  highlight: () => [],
 })
 
 /** The part of the last hop that still matches its table (the fault is in a later hop, never this part's). */
@@ -459,15 +460,15 @@ export const lastRightPart = (i: Pick<WhichWrongInstance, 'ghost' | 'config' | '
 const passOf = (k: number): string => (k < 5 ? ' on the way in' : k === 5 ? '' : ' on the way back')
 
 /**
- * The L1 hint the Prompt shows with the stage highlight: where the path is still right, never where it goes wrong.
- * "Every hop up to and including the entry wheel on the way back matches its table (…); check the hops after it."
+ * The L1 hint the Prompt shows (hint level ≥ 1) for the instance on screen: where the path is still right, never
+ * where it goes wrong. "Every hop up to and including the entry wheel on the way back matches its table; …"
  */
 export function whichWrongHint(i: Pick<WhichWrongInstance, 'ghost' | 'config' | 'key'>): string {
   const k = Math.max(0, faultyHop(i) - 1)
   const name = PART_NAME[partForStage(STAGES[k]!)]!
   return (
-    `Every hop up to and including the ${name}${passOf(k)} matches its table: the ${name} is highlighted on the stage. ` +
-    'The fault comes later along the path, so check the hops after it against their tables, one at a time.'
+    `Every hop up to and including the ${name}${passOf(k)} matches its table. The fault comes later along the path, so ` +
+    'check the hops after it against their tables, one at a time.'
   )
 }
 

@@ -63,6 +63,7 @@ import {
 import { dimmedParts } from '../../src/contracts/stage'
 import { LETTERS, createMachine, machinePermutation, withPositions } from '../../src/engine'
 import { partForStage } from '../../src/lesson/kinds/helpers'
+import { partList } from '../../src/lesson/partNames'
 import { SYM_FOR_PART } from '../../src/lib/symbols'
 import type {} from '../../src/machine3d/debugApi'
 import { MACHINE_3D_READY } from '../../src/machine3d/ready'
@@ -276,9 +277,10 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'which-wrong', hintLevel: 1 })
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
-    const logic = await logicFor(c.gateKey, 'which-wrong', false)
-    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(logic.highlight(c.instance, wrongPart).map((h) => h.part))
-    // The L1 hint says what the highlight means (review F1): the last part still right, the fault after it.
+    // No stage highlight from the answered path (it would mislead on this one); the L1 is the Prompt's text.
+    await expect(page.getByTestId('hint-panel')).toContainText('take it one step at a time')
+    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual([])
+    // The L1 hint (review F1): the last part still right on this path, the fault after it; never the answer.
     await expect(page.getByTestId('which-wrong-hint')).toHaveText(whichWrongHint(c.instance as WhichWrongInstance))
     expect((await stageInfo(page)).ghost).toBe(false)
     await assertNoAnswerLeak(page)
@@ -306,8 +308,11 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'hop-chain-full', hintLevel: 1 })
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
+    // L1 through the real path: the part where the ANSWERED chain (h0) first went wrong, not the fresh instance's.
     const chain = await logicFor(c.gateKey, 'hop-chain-full', false)
-    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(chain.highlight(c.instance, wrong).map((h) => h.part))
+    const slipped = chain.highlight(h0, wrong).map((h) => h.part)
+    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(slipped)
+    await expect(page.getByTestId('hint-panel')).toContainText(`look at the highlighted ${partList(slipped)}`)
     await expect.poll(async () => (await state(page)).positions).toBe((c.instance as ChainFullInstance).config.positions.join(''))
     await assertNoAnswerLeak(page)
     await answerViaUi(page, 'chain', await solveInNode(page))

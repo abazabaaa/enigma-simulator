@@ -260,13 +260,15 @@ describe('which-wrong L1 hint (review F1)', () => {
     'rotor-left': 'left rotor',
     reflector: 'reflector',
   }
-  it('highlights the last part that is still right, says so, and never names the answer (300 seeds)', () => {
+  it('the Prompt names the last part that is still right and never the answer; no stale stage highlight (300 seeds)', () => {
     for (let s = 0; s < SEEDS; s++) {
       const i = gen(whichWrong, s) as WhichWrongInstance
       const k = faultyHop(i)
       const answer = whichWrong.solve(i) as string
-      const lit = whichWrong.highlight(i, null).map((h) => h.part)
-      expect(lit).toEqual([lastRightPart(i)])
+      // The runtime highlights from the ANSWERED instance; a part of that path would mislead on this one.
+      expect(whichWrong.highlight(i, null)).toEqual([])
+      expect(whichWrong.highlight(i, 'etw')).toEqual([])
+      const lit = [lastRightPart(i)]
       expect(k, `seed ${s}`).toBeGreaterThanOrEqual(1)
       // The rule the text states: every hop up to and including the highlighted one matches its table.
       expect(partForStage(STAGES[k - 1]!)).toBe(lit[0])
@@ -274,7 +276,6 @@ describe('which-wrong L1 hint (review F1)', () => {
       expect(lit[0]).not.toBe(answer)
       const text = whichWrongHint(i)
       expect(text).toContain(`up to and including the ${NAME[lit[0]!]}`)
-      expect(text).toContain('highlighted')
       expect(text.includes(NAME[answer]!), `seed ${s}: the hint names the answer, ${answer}`).toBe(false)
       expect(text).toMatch(k - 1 < 5 ? /on the way in/ : k - 1 > 5 ? /on the way back/ : /the reflector matches/)
     }
