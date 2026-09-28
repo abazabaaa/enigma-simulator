@@ -463,6 +463,27 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     ).toBe(0)
   })
 
+  test('round 3: a set-machine item whose locked keyboard comes first focuses its own control', async ({ page }) => {
+    // Gate lab 'plugs': r-plug-to-hit unlocks only the plugboard, so the locked keyboard precedes its controls.
+    await openGateLab(page, 'plugs')
+    const c = await current(page)
+    expect(c).toMatchObject({ itemId: 'r-plug-to-hit', kind: 'set-machine' })
+    await answerViaApi(page, c.itemId, await wrongAnswer(page), { continue: false })
+    await expect(page.getByTestId('gate-continue')).toBeFocused()
+    await page.getByTestId('gate-continue').click()
+    const focused = page.locator('[data-role="answer"] :focus')
+    await expect(focused).toHaveCount(1)
+    expect((await focused.getAttribute('data-testid')) ?? '').not.toMatch(/^key-/)
+    const after = await focused.evaluate((el) => {
+      const key = el.closest('[data-role="answer"]')!.querySelector('[data-testid^="key-"]')
+      return {
+        keyboardFirst: !!key && !!(key.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING),
+        dead: el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true' || el.closest('[inert]') !== null,
+      }
+    })
+    expect(after).toEqual({ keyboardFirst: true, dead: false })
+  })
+
   test('reveals fire in scene order', async ({ page }) => {
     await enter(page, 'lab-fixture')
     await nextScene(page)

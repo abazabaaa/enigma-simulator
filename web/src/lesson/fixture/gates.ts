@@ -24,6 +24,7 @@ import {
 } from '../../engine'
 import { createRng, int, randLetter, randomConfig, randomInvolution, sample, shuffle } from '../../lib/rng'
 import { randomToy, toyPress, toySlots } from '../../lib/toy'
+import { rPlugOne, rPlugToHit, rWindows } from '../recall/pool'
 import {
   backwardGhost,
   chainItem,
@@ -624,6 +625,9 @@ export const GATES: ChapterGates = {
     fallback: leftSteps as ItemLogic,
   },
   puzzle: { items: [puzzleLamps as ItemLogic], fallback: puzzleSet as ItemLogic, puzzle: true },
+  // Gate lab only (no scene): a plugboard-only set-machine item, where the locked keyboard comes before the
+  // item's own controls (focus test, review round 3), then a windows item.
+  plugs: { items: [rPlugToHit, rWindows] as ItemLogic[], fallback: rPlugOne as ItemLogic },
 }
 
 /** Toy slot names, re-exported for the fixture's prompts. */

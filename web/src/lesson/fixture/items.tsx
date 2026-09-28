@@ -26,6 +26,7 @@ import {
   type WindowsInstance,
 } from './gates'
 import type { ToySpec } from '../../contracts/machine'
+import { RECALL_UI } from '../recall/items'
 
 const L = (i: number): Letter => LETTERS[i]!
 const ring = (r: string) => String(r.charCodeAt(0) - 64).padStart(2, '0')
@@ -347,4 +348,8 @@ export const ITEM_UI: ItemUiMap = {
   'toy-set': toySet,
   'puzzle-lamps': puzzleLamps,
   'puzzle-set': toySet,
+  // Gate lab 'plugs': the recall pool's own item UIs.
+  'r-plug-to-hit': RECALL_UI['r-plug-to-hit']!,
+  'r-plug-one': RECALL_UI['r-plug-one']!,
+  'r-windows': RECALL_UI['r-windows']!,
 }
