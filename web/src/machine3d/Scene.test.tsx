@@ -7,7 +7,7 @@ import { LETTERS, isAtTurnover, type MachineConfigInput } from '../engine'
 import { useMachineStore } from '../state/machineStore'
 import { usePlaybackStore } from '../state/playbackStore'
 import { useStageStore } from '../state/stageStore'
-import { DIM_OPACITY } from './focus'
+import { DIM_OPACITY, HALO_OPACITY } from './focus'
 import { stepAngle, makeLayout } from './layout'
 import { pawlAngle } from './parts/Pawls'
 import { Machine3DScene } from './Scene'
@@ -24,15 +24,15 @@ const M4: MachineConfigInput = {
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-function Connected({ directive }: { directive: StageDirective }) {
+function Connected({ directive, reducedMotion = false }: { directive: StageDirective; reducedMotion?: boolean }) {
   const state = useStageView(directive.source)
-  return <Machine3DScene directive={directive} reducedMotion={false} state={state} />
+  return <Machine3DScene directive={directive} reducedMotion={reducedMotion} state={state} />
 }
 
 let renderer: Awaited<ReturnType<typeof ReactThreeTestRenderer.create>> | null = null
 
-async function mount(directive: StageDirective): Promise<Scene> {
-  renderer = await ReactThreeTestRenderer.create(<Connected directive={directive} />)
+async function mount(directive: StageDirective, reducedMotion = false): Promise<Scene> {
+  renderer = await ReactThreeTestRenderer.create(<Connected directive={directive} reducedMotion={reducedMotion} />)
   return renderer.scene.instance as unknown as Scene
 }
 
@@ -191,6 +191,28 @@ describe('Machine3DScene', () => {
     expect((notch.material as Material).userData.tone).toBe('hint')
     await act(() => useStageStore.getState().setHighlight([]))
     expect(scene.getObjectByName('halo-notch-right')).toBeUndefined()
+  })
+
+  it('pulses a highlight, or holds a static outline under reduced motion', async () => {
+    for (const reducedMotion of [false, true]) {
+      const scene = await mount(STAGE_PRESETS.pawls, reducedMotion)
+      await act(() => useStageStore.getState().setHighlight([{ part: 'notch-right', tone: 'error' }]))
+      const tint = (named(scene, 'notch-right') as Mesh).material as Material & { emissiveIntensity: number }
+      const halo = (named(scene, 'halo-notch-right') as Mesh).material as Material
+      const samples: number[][] = []
+      for (let i = 0; i < 3; i++) {
+        await renderer!.advanceFrames(1, 0.2)
+        samples.push([tint.emissiveIntensity, halo.opacity])
+      }
+      if (reducedMotion) expect(samples).toEqual([[0.7, HALO_OPACITY], [0.7, HALO_OPACITY], [0.7, HALO_OPACITY]])
+      else {
+        expect(new Set(samples.map((s) => s[0])).size).toBe(3)
+        expect(new Set(samples.map((s) => s[1])).size).toBe(3)
+      }
+      await act(() => useStageStore.getState().setHighlight([]))
+      await renderer!.unmount()
+      renderer = null
+    }
   })
 
   it('lights the lamp of the last press once the path is played', async () => {

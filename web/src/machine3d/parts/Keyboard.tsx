@@ -6,7 +6,7 @@
 
 import { Instance, Instances } from '@react-three/drei'
 import type { ThreeEvent } from '@react-three/fiber'
-import { memo, useMemo, type JSX } from 'react'
+import { memo, useEffect, useMemo, type JSX } from 'react'
 import { MeshStandardMaterial, Quaternion, Vector3 } from 'three'
 import type { Letter } from '../../engine'
 import { usePartMaterial } from '../focus'
@@ -52,6 +52,13 @@ export const Keyboard = memo(function Keyboard({ layout, letters, pressedKey, on
   const hover = (on: boolean) => () => {
     if (onPress && typeof document !== 'undefined') document.body.style.cursor = on ? 'pointer' : ''
   }
+  // A key hovered when the keys go inert or unmount must not leave the pointer cursor behind.
+  useEffect(
+    () => () => {
+      if (typeof document !== 'undefined') document.body.style.cursor = ''
+    },
+    [onPress],
+  )
   return (
     <group name="keyboard" userData={{ part: 'keyboard' }}>
       <Instances key={`caps-${n}`} name="key-caps" limit={n} range={n} material={caps}>

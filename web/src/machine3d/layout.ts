@@ -59,7 +59,7 @@ export const ROTOR = {
   /** Serrated thumbwheel (part of the rotor body, turns with the core). */
   wheelX0: -1.3,
   wheelX1: -0.95,
-  wheelR: 5.5,
+  wheelR: 5.9,
   /** Alphabet band: letters, and ring numbers 01–26 beside them. */
   bandX0: -0.95,
   bandX1: 0.55,
@@ -108,7 +108,7 @@ export const CASE = {
   yDeck: 0,
   deckZ0: -4.8,
   wellFloorY: -4.4,
-  lidTopY: 7.5,
+  lidTopY: 6.6,
 } as const
 
 // ---------------------------------------------------------------------------

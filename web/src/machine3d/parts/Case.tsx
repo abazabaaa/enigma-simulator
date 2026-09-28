@@ -94,8 +94,31 @@ function lidGeometry(l: Layout) {
     g.rotateY(-Math.PI / 2)
     return g
   }
+  // Top plate with a slot for each thumbwheel, which sticks out through the lid as on the real machine.
+  const top = new Shape()
+  top.moveTo(-half, zBack)
+  top.lineTo(half, zBack)
+  top.lineTo(half, topZ)
+  top.lineTo(-half, topZ)
+  top.closePath()
+  const reach = Math.sqrt(ROTOR.wheelR ** 2 - (lidTopY - t - AXIS_Y) ** 2) + 0.15
+  l.slots.forEach((_, i) => {
+    const x0 = slotX(l, i) + ROTOR.wheelX0 - 0.15
+    const x1 = slotX(l, i) + ROTOR.wheelX1 + 0.15
+    const slot = new Path()
+    slot.moveTo(x0, AXIS_Z - reach)
+    slot.lineTo(x0, AXIS_Z + reach)
+    slot.lineTo(x1, AXIS_Z + reach)
+    slot.lineTo(x1, AXIS_Z - reach)
+    slot.closePath()
+    top.holes.push(slot)
+  })
+  const topPlate = new ExtrudeGeometry(top, { depth: t, bevelEnabled: false })
+  // shape y → world z; extrusion → −y
+  topPlate.rotateX(Math.PI / 2)
+  topPlate.translate(0, lidTopY, 0)
   const g = merge([
-    box(-half, half, lidTopY - t, lidTopY, zBack, topZ),
+    topPlate,
     slope,
     box(-half, half, 0, 1.6, frontZ - t, frontZ),
     side().translate(half + t, 0, 0),

@@ -13,7 +13,7 @@ import { CanvasTexture, DoubleSide, MeshBasicMaterial, SRGBColorSpace, type Text
 import type { Focus, Highlight, PartId, StageDirective } from '../contracts/stage'
 import type { RotorSlot } from '../engine'
 import { SYM_FOR_PART } from '../lib/symbols'
-import { TONE_COLORS, useFocus } from './focus'
+import { HALO_OPACITY, TONE_COLORS, useFocus } from './focus'
 import { FONT_STACK, canvas2d, whiteTexture } from './glyphs'
 import {
   AXIS_Y,
@@ -220,7 +220,7 @@ function Halo({ part, tone, view, explode }: { part: PartId; tone: Highlight['to
     const m = new MeshBasicMaterial({
       color: TONE_COLORS[tone],
       transparent: true,
-      opacity: 0.9,
+      opacity: HALO_OPACITY,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,

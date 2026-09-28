@@ -2,7 +2,8 @@
  * Named camera shots through drei <CameraControls> (PLAN §2.6). A shot change flies the camera there,
  * or cuts to it under reduced motion. The frame step fed to the controls is capped, so the first
  * frame after an idle spell (demand frame loop: a large clock delta) does not skip the flight.
- * The wheel is left to the page (no zoom), and a vertical swipe still scrolls on touch screens.
+ * The wheel is left to the page (no zoom) and one finger scrolls the page on touch screens; two
+ * fingers pinch to zoom and drag to orbit.
  */
 
 import { CameraControls, CameraControlsImpl } from '@react-three/drei'
@@ -84,7 +85,7 @@ export function CameraRig({ shot, layout, reducedMotion }: { shot: CameraShot; l
       mouseButtons-wheel={ACTION.NONE}
       mouseButtons-middle={ACTION.NONE}
       touches-one={ACTION.NONE}
-      touches-two={ACTION.TOUCH_DOLLY_TRUCK}
+      touches-two={ACTION.TOUCH_DOLLY_ROTATE}
       touches-three={ACTION.NONE}
       onUpdate={markChange}
       onControl={markChange}

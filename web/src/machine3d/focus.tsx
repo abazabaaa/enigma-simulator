@@ -10,7 +10,7 @@
  */
 
 import { useFrame, useThree } from '@react-three/fiber'
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, type JSX, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, type JSX, type ReactNode } from 'react'
 import { Color, type Material, type MeshBasicMaterial, type MeshStandardMaterial } from 'three'
 import type { Highlight, PartId } from '../contracts/stage'
 import { markChange } from './monitor'
@@ -101,8 +101,9 @@ function baseOf(m: Material): BaseState {
   return data.base
 }
 
-/** Static highlight strength (reduced motion) and the pulse range. */
+/** Static highlight strength and halo opacity (reduced motion); pulses swing around them. */
 const STATIC_GLOW = 0.7
+export const HALO_OPACITY = 0.9
 
 /** Applies the part's dimming and highlight to a material (idempotent). */
 export function applyPartState(m: Material, dimmed: boolean, tone: Highlight['tone'] | null): void {
@@ -170,11 +171,25 @@ export function HighlightPulse(): null {
   const invalidate = useThree((s) => s.invalidate)
   const active = highlight.size > 0 && !reducedMotion
   useEffect(() => {
-    if (active) invalidate()
-  }, [active, invalidate])
-  useFrame((state) => {
+    if (active) {
+      invalidate()
+      return
+    }
+    // Not pulsing (reduced motion, or no highlight): back to the static tint and outline.
+    for (const [m] of registry.materials) {
+      const tone = m.userData.tone as Highlight['tone'] | null | undefined
+      if (!tone) continue
+      if (hasEmissive(m)) m.emissiveIntensity = STATIC_GLOW
+      else if (m.userData.halo) m.opacity = HALO_OPACITY
+    }
+    invalidate()
+  }, [active, invalidate, registry])
+  const phase = useRef(0)
+  useFrame((_, delta) => {
     if (!active) return
-    const k = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * Math.PI * 2 * 0.8)
+    // The first frame after an idle spell has a long delta: cap it so the pulse does not jump.
+    phase.current += Math.min(delta, 0.1)
+    const k = 0.5 + 0.5 * Math.sin(phase.current * Math.PI * 2 * 0.8)
     for (const [m] of registry.materials) {
       const tone = m.userData.tone as Highlight['tone'] | null | undefined
       if (!tone) continue
