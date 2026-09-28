@@ -25,7 +25,14 @@ import { useToyStore } from '../state/toyStore'
 
 export const DEMO_CONFIGS: Readonly<Record<ModelName, MachineConfigInput>> = {
   I: { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU', plugboard: 'AV BS CG' },
-  M3: { model: 'M3', reflector: 'B', rotors: ['III', 'VI', 'VIII'], rings: 'AHM', positions: 'UZV', plugboard: 'AN EZ HK' },
+  M3: {
+    model: 'M3',
+    reflector: 'B',
+    rotors: ['III', 'VI', 'VIII'],
+    rings: 'AHM',
+    positions: 'UZV',
+    plugboard: 'AN EZ HK',
+  },
   M4: {
     model: 'M4',
     reflector: 'B-thin',
@@ -127,7 +134,9 @@ export function StageLabPage() {
             href={link(id)}
             data-testid={`preset-${id}`}
             aria-current={id === validPreset ? 'page' : undefined}
-            className={`rounded border px-2 py-1 ${id === validPreset ? 'border-amber-400 text-amber-300' : 'border-stone-700 text-stone-400'}`}
+            className={`rounded border px-2 py-1 ${
+              id === validPreset ? 'border-amber-400 text-amber-300' : 'border-stone-700 text-stone-400'
+            }`}
           >
             {id}
           </a>

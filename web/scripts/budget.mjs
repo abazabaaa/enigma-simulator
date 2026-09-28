@@ -23,7 +23,7 @@ if (!existsSync(manifestPath)) {
   console.error(`budget: ${manifestPath} is missing; run npm run build first`)
   process.exit(1)
 }
-/** @type {Record<string, { file: string; src?: string; isEntry?: boolean; imports?: string[]; dynamicImports?: string[] }>} */
+/** @type {Record<string, { file: string; isEntry?: boolean; imports?: string[]; dynamicImports?: string[] }>} */
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
 
 const gzCache = new Map()
@@ -73,7 +73,8 @@ let threeD = new Set()
 if (manifest[THREE_D]) {
   if (entryKeys.has(THREE_D)) {
     failed = true
-    rows.push({ name: '3D in entry', kb: '-', budget: '-', status: 'OVER', note: `${THREE_D} is statically imported by the entry` })
+    const note = `${THREE_D} is statically imported by the entry`
+    rows.push({ name: '3D in entry', kb: '-', budget: '-', status: 'OVER', note })
   }
   threeD = minus(jsFiles(closure(THREE_D)), entry)
   row('3D', threeD, BUDGETS['3d'])
@@ -97,7 +98,8 @@ for (const k of chapters) row(`chapter ${k.split('/')[2]}`, new Set([manifest[k]
 const width = Math.max(...rows.map((r) => r.name.length))
 console.log(`${'chunk'.padEnd(width)}  ${'gzip kB'.padStart(8)}  ${'budget'.padStart(6)}  status`)
 for (const r of rows) {
-  console.log(`${r.name.padEnd(width)}  ${r.kb.padStart(8)}  ${r.budget.padStart(6)}  ${r.status}${r.note ? `  (${r.note})` : ''}`)
+  const note = r.note ? `  (${r.note})` : ''
+  console.log(`${r.name.padEnd(width)}  ${r.kb.padStart(8)}  ${r.budget.padStart(6)}  ${r.status}${note}`)
 }
 if (failed) {
   console.error('budget: over budget')
