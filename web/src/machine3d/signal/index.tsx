@@ -2,9 +2,11 @@
  * The glowing signal (PLAN §2.6, brief 11), mounted inside the Canvas by Scene.tsx:
  *  - the live path: a TubeGeometry over a CatmullRomCurve3 through pathPoints(hops, layout) (plus
  *    routing waypoints, route.ts), drawn up to the playback time with setDrawRange, and an emissive
- *    head at curve.getPointAt(f). Both glow: signal colour, emissive intensity above 1 and
- *    toneMapped false, so Bloom (luminanceThreshold 1) catches the live wire and the lit lamp only.
- *    A faint copy drawn without depth test shows the path where the rotors and the deck hide it;
+ *    head at curve.getPointAt(f) with its tag (Head.tsx: the part, its letter change, the count).
+ *    Tube and head glow: signal colour, emissive intensity above 1 and toneMapped false, so Bloom
+ *    (luminanceThreshold 1) catches the live wire and the lit lamp only. A faint copy drawn without
+ *    depth test shows the path where the rotors and the deck hide it, unless one part is in focus;
+ *  - with the plugboard hidden, the cables the path runs along are drawn faintly (FaintCables);
  *  - the ghost (stage store, after a wrong answer): the learner's path as a dashed red tube against
  *    the reference in gold, drawn over the machine, with a marker where they part (divergeAt);
  *  - the report: StageReport.pathPoints = 2 + 2·(hops drawn), by the 2D view's rule (timing.ts).
@@ -15,7 +17,8 @@
 import { Billboard } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, type JSX } from 'react'
-import { MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, type Material, type Object3D } from 'three'
+import { MeshBasicMaterial, MeshStandardMaterial, type Material, type Object3D } from 'three'
+import { hopAt } from '../../contracts/machine'
 import type { Ghost } from '../../contracts/stage'
 import { LETTERS } from '../../engine'
 import { isE2E } from '../../lib/flags'
@@ -23,7 +26,6 @@ import { useMachine } from '../../state/activeMachine'
 import { useStageStore } from '../../state/stageStore'
 import { useToyStore } from '../../state/toyStore'
 import { useStage3D } from '../context'
-import { useGeometry } from '../hooks'
 import { pathPoints, type Layout } from '../layout'
 import { markChange } from '../monitor'
 import { swatch } from '../palette'
@@ -32,14 +34,15 @@ import { buildCurve, buildTube, dashTube, drawSegments, pointAt, segmentsFor } f
 import type { SignalDebugApi, V3 } from './debugApi'
 import { effectsState, useEffectsSwitch } from './effectsState'
 import { divergeAnchor, ghostHops, referenceHops } from './ghost'
-import { GLOW_INTENSITY, glowMaterial, overlayMaterial } from './materials'
+import { FaintCables } from './FaintCables'
+import { Head, type HeadInfo } from './Head'
+import { glowMaterial, overlayMaterial } from './materials'
 import { signalRoute } from './route'
+import { headTag } from './tag'
 import { drawnFraction, headVisible, pathPointCount } from './timing'
-import { usePrimed } from './usePrimed'
 import { useSignal, useStableLayout } from './useSignal'
 
 export const LIVE_RADIUS = 0.15
-const HEAD_RADIUS = 0.42
 const GHOST_RADIUS = 0.13
 /** Ghost and reference run beside each other (and beside the live path), not inside it. */
 const GHOST_OFFSET = { x: 0.17, y: 0.17, z: 0.17 }
@@ -64,28 +67,22 @@ const tuple = (p: { x: number; y: number; z: number }): V3 => [p.x, p.y, p.z]
 // The live signal
 // ---------------------------------------------------------------------------
 
+/** Focus on a group (or nothing): the see-through copy of the path helps. On one part it clutters. */
+const GROUP_FOCUS: ReadonlySet<string> = new Set(['overview', 'wire', 'rotor-stack', 'pawls'])
+
 function LiveSignal(): JSX.Element {
   const { hops, clock, drawn, layout } = useSignal()
+  const { directive } = useStage3D()
   const invalidate = useThree((s) => s.invalidate)
   const curve = useMemo(() => buildCurve(signalRoute(hops, layout)), [hops, layout])
   const tube = useMemo(() => (curve ? buildTube(curve, LIVE_RADIUS) : null), [curve])
   useEffect(() => () => tube?.geometry.dispose(), [tube])
-  const sphere = useGeometry(() => new SphereGeometry(HEAD_RADIUS, 12, 8), [])
-  const m = useMaterials(() => ({
-    tube: glowMaterial(),
-    xray: overlayMaterial(swatch('signal'), 0.32),
-    head: new MeshStandardMaterial({
-      color: '#fff7d6',
-      emissive: swatch('signal'),
-      emissiveIntensity: GLOW_INTENSITY * 1.5,
-      toneMapped: false,
-    }),
-    headXray: overlayMaterial(swatch('signal'), 0.55),
-  }))
+  const m = useMaterials(() => ({ tube: glowMaterial(), xray: overlayMaterial(swatch('signal'), 0.32) }))
 
   const fraction = curve ? drawnFraction(curve.u, clock) : 0
   const segments = tube ? segmentsFor(tube, fraction) : 0
   const head = curve && headVisible(clock) ? pointAt(curve, fraction) : null
+  const tag = head ? headTag(hops, hopAt(clock.t, hops.length)) : null
 
   // The report (index.tsx): 2 + 2·(hops drawn), the 2D view's rule.
   const points = pathPointCount(drawn)
@@ -100,11 +97,9 @@ function LiveSignal(): JSX.Element {
     invalidate()
   }, [tube, segments, invalidate])
 
-  const headShown = usePrimed(head !== null)
-  const headXray = usePrimed(head !== null)
-  const headScale = head === null ? 0 : 1
-
   const anchors = useMemo(() => pathPoints(hops, layout).map(tuple), [hops, layout])
+  const visible = segments > 0
+  const xray = visible && GROUP_FOCUS.has(directive.focus)
   const info = {
     hops: hops.length,
     drawn,
@@ -114,8 +109,8 @@ function LiveSignal(): JSX.Element {
     anchors,
     segments,
     totalSegments: tube?.segments ?? 0,
+    xray,
   }
-  const visible = segments > 0
   return (
     <group name="signal-live-group">
       {tube ? (
@@ -132,34 +127,13 @@ function LiveSignal(): JSX.Element {
             name="signal-live-xray"
             geometry={tube.geometry}
             material={m.xray}
-            visible={visible}
+            visible={xray}
             frustumCulled={false}
             renderOrder={5}
           />
         </>
       ) : null}
-      <mesh
-        name="signal-head"
-        geometry={sphere}
-        material={m.head}
-        visible={headShown.visible}
-        onAfterRender={headShown.onAfterRender}
-        frustumCulled={false}
-        position={head ?? [0, 0, 0]}
-        scale={headScale}
-        userData={{ head }}
-      />
-      <mesh
-        name="signal-head-xray"
-        geometry={sphere}
-        material={m.headXray}
-        visible={headXray.visible}
-        onAfterRender={headXray.onAfterRender}
-        frustumCulled={false}
-        position={head ?? [0, 0, 0]}
-        scale={headScale}
-        renderOrder={5}
-      />
+      <Head head={head} tag={tag} />
     </group>
   )
 }
@@ -262,6 +236,7 @@ function SignalDebugHook(): null {
       live() {
         const tube = find('signal-live')
         const head = find('signal-head')
+        const headInfo = (find('signal-head-group')?.userData.info as (() => HeadInfo) | undefined)?.()
         const d = (tube?.userData ?? {}) as Partial<ReturnType<SignalDebugApi['live']>>
         const material = (tube as { material?: MeshStandardMaterial } | undefined)?.material
         return {
@@ -276,7 +251,29 @@ function SignalDebugHook(): null {
           head: (head?.userData.head as V3 | null | undefined) ?? null,
           color: material ? `#${material.emissive.getHexString()}` : '',
           glow: !!material && material.emissiveIntensity > 1 && material.toneMapped === false,
+          xray: !!d.xray,
+          headPx: headInfo?.headPx ?? 0,
+          tag: headInfo?.tag
+            ? {
+                title: headInfo.tag.title,
+                detail: headInfo.tag.detail,
+                sym: headInfo.tag.sym,
+                inverse: headInfo.tag.inverse,
+                input: headInfo.tag.input,
+                output: headInfo.tag.output,
+                change: headInfo.tag.change,
+                changes: headInfo.tag.changes,
+                color: headInfo.tag.color,
+                px: headInfo.tag.px,
+              }
+            : null,
         }
+      },
+      faintCables() {
+        const o = find('signal-faint-cables')
+        if (!o) return null
+        const d = o.userData as { pairs: [number, number][]; shown: [number, number][] }
+        return { pairs: d.pairs.map(([a, b]) => letterPair(a, b)), shown: d.shown.map(([a, b]) => letterPair(a, b)) }
       },
       ghost() {
         const ghost = find('signal-ghost')
@@ -338,11 +335,14 @@ function SignalDebugHook(): null {
 // ---------------------------------------------------------------------------
 
 export function SignalLayer(): JSX.Element {
+  const { view, directive } = useStage3D()
+  const layout = useStableLayout(view.layout)
   // A later 3D view must not start from this one's path.
   useEffect(() => () => useSignalReport.getState().setPathPoints(0), [])
   return (
     <group name="signal">
       <LiveSignal />
+      {directive.plugboard ? null : <FaintCables layout={layout} plugs={view.plugs} />}
       <Ghosts />
       <SignalDebugHook />
     </group>
