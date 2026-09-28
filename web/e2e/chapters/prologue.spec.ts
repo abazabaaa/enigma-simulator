@@ -181,35 +181,39 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await expect(page.getByTestId('chapter-link-i1-anatomy')).toHaveAttribute('data-locked', 'false')
   })
 
-  test('the locked keys point to the bet: a pointer stays in view, and a letter typed brings the bet into view', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 800 })
-    await enter(page, CHAPTER)
-    await nextScene(page)
-    expect((await where(page)).scene).toBe('type-a-word')
-    const pointer = page.getByTestId('bet-pointer')
-    const panel = page.getByTestId('bet-own-letter')
-    // The top of the scene, as a learner arriving sees it: the stage and the lampboard, the bet below the fold.
-    await page.evaluate(() => window.scrollTo(0, 0))
-    await expect(pointer).toBeInViewport()
-    await expect(panel).not.toBeInViewport()
-    // A letter on the locked keyboard types nothing: it brings the bet into view and focuses its first option.
-    await page.keyboard.press('h')
-    await expect(panel).toBeInViewport()
-    await expect(page.getByTestId('bet-option-own-letter-own')).toBeFocused()
-    expect(await page.evaluate(() => window.__enigma!.getState().input)).toBe('')
-    // With the bet in view the pointer steps aside; back at the top it returns, and a click on it does the same.
-    await expect(pointer).toHaveCount(0)
-    await page.evaluate(() => window.scrollTo(0, 0))
-    await expect(pointer).toContainText('↓')
-    await pointer.click()
-    await expect(panel).toBeInViewport()
-    await expect(pointer).toHaveCount(0)
-    await commitBet(page, 'own-letter', 'other')
-    await expect(pointer).toHaveCount(0)
-    await expect(page.getByTestId('type-hint')).toContainText('Your bet is in')
-  })
+  for (const vp of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ])
+    test(`the locked keys point to the bet at ${vp.width}×${vp.height}: a pointer stays in view, and a letter typed brings the bet into view`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(vp)
+      await enter(page, CHAPTER)
+      await nextScene(page)
+      expect((await where(page)).scene).toBe('type-a-word')
+      const pointer = page.getByTestId('bet-pointer')
+      const panel = page.getByTestId('bet-own-letter')
+      // The top of the scene, as a learner arriving sees it: the stage and the lampboard, the bet below the fold.
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(pointer).toBeInViewport()
+      await expect(panel).not.toBeInViewport()
+      // A letter on the locked keyboard types nothing: it brings the bet into view and focuses its first option.
+      await page.keyboard.press('h')
+      await expect(panel).toBeInViewport()
+      await expect(page.getByTestId('bet-option-own-letter-own')).toBeFocused()
+      expect(await page.evaluate(() => window.__enigma!.getState().input)).toBe('')
+      // With the bet in view the pointer steps aside; back at the top it returns, and a click on it does the same.
+      await expect(pointer).toHaveCount(0)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(pointer).toContainText('↓')
+      await pointer.click()
+      await expect(panel).toBeInViewport()
+      await expect(pointer).toHaveCount(0)
+      await commitBet(page, 'own-letter', 'other')
+      await expect(pointer).toHaveCount(0)
+      await expect(page.getByTestId('type-hint')).toContainText('Your bet is in')
+    })
 
   test('a revisit: the bets stay committed, and the reveals fire again in any order', async ({ page }) => {
     await enter(page, CHAPTER)
