@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { Box3, Vector3 } from 'three'
 import type { BufferGeometry, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, Scene } from 'three'
 import { STAGE_PRESETS, resolveStage, type PathHop, type StageDirective } from '../../contracts/stage'
-import { LETTERS, createMachine, pressKey, type Letter, type MachineConfigInput } from '../../engine'
+import { LETTERS, createMachine, pressKey, slotNames, type Letter, type MachineConfigInput } from '../../engine'
 import { createRng } from '../../lib/rng'
 import { randomToy, toySlots } from '../../lib/toy'
 import { DEMO_CONFIGS, demoGhost } from '../../pages/StageLabPage'
@@ -13,7 +14,7 @@ import { useStageStore } from '../../state/stageStore'
 import { useToyStore } from '../../state/toyStore'
 import { useUiStore } from '../../state/uiStore'
 import { BLOOM } from '../effects'
-import { makeLayout, pathPoints, type Vec3 } from '../layout'
+import { AXIS_Y, AXIS_Z, makeLayout, pathPoints, reflectorWidth, reflectorX, type Vec3 } from '../layout'
 import { CABLE_SEGMENTS, CABLE_SIDES } from '../parts/Cables'
 import { swatch } from '../palette'
 import { Machine3DScene } from '../Scene'
@@ -247,6 +248,26 @@ describe('the reflector', () => {
     const arc = reflectorArc(l, trace[r]!.inputIndex, trace[r]!.outputIndex)
     const tube = meshNamed(scene, 'signal-live')
     for (const p of [arc[3]!, arc[7]!, arc[11]!]) expect(tubePasses(tube, p)).toBe(true)
+  })
+
+  it('sits at the reflector’s centre: the core frames, labels and projects it by that position', async () => {
+    for (const config of [I, M4]) {
+      await act(() => useMachineStore.getState().setConfig(config))
+      const scene = await mount(STAGE_PRESETS.reflector)
+      const l = makeLayout({ n: 26, slots: slotNames(config.rotors.length), toy: false })
+      const reflector = named(scene, 'reflector')
+      reflector.updateWorldMatrix(true, false)
+      const p = new Vector3().setFromMatrixPosition(reflector.matrixWorld)
+      expect(p.x).toBeCloseTo(reflectorX(l), 9)
+      expect(p.y).toBeCloseTo(AXIS_Y, 9)
+      expect(p.z).toBeCloseTo(AXIS_Z, 9)
+      // the arcs are on the outer face, left of the centre
+      const box = new Box3().setFromObject(reflector)
+      expect(box.min.x).toBeLessThan(reflectorX(l) - reflectorWidth(l) / 2)
+      expect(box.max.x).toBeCloseTo(reflectorX(l) + reflectorWidth(l) / 2, 6)
+      await renderer!.unmount()
+      renderer = null
+    }
   })
 })
 

@@ -7,7 +7,8 @@
  * records the pair (userData.lit) once the signal has reached the reflector. On the M4 the
  * reflector is the thin one (B-thin, C-thin), which shares its space with the Greek rotor
  * (layout.ts reflectorWidth). One draw call: disc, face plate, arcs and their studs, in vertex
- * colours.
+ * colours. The mesh named 'reflector' sits at the reflector's centre (the core's labels, framing and
+ * screen points read its position), its geometry relative to it.
  */
 
 import { memo, useLayoutEffect, useMemo, type JSX } from 'react'
@@ -33,7 +34,10 @@ const ARC_RADIUS = 0.075
 export const ARC_SEGMENTS = 20
 export const ARC_SIDES = 5
 
-/** The disc, the dark plate on its outer face, the arcs and the studs at their ends. */
+/** The reflector's centre (on the rotor axis). */
+const centre = (layout: Layout): [number, number, number] => [reflectorX(layout), AXIS_Y, AXIS_Z]
+
+/** The disc, the dark plate on its outer face, the arcs and the studs at their ends, about the centre. */
 function reflectorGeometry(layout: Layout, pairs: readonly (readonly [number, number])[]) {
   const w = reflectorWidth(layout)
   const x = reflectorX(layout)
@@ -53,7 +57,10 @@ function reflectorGeometry(layout: Layout, pairs: readonly (readonly [number, nu
       parts.push({ geometry: new SphereGeometry(0.15, 6, 4).translate(p.x, p.y, p.z), color: PALETTE.brass })
     }
   }
-  return mergeColored(parts)
+  const merged = mergeColored(parts)
+  const [cx, cy, cz] = centre(layout)
+  merged.geometry.translate(-cx, -cy, -cz)
+  return merged
 }
 
 export const Reflector = memo(function Reflector({ layout, wiring }: ReflectorProps): JSX.Element {
@@ -79,6 +86,7 @@ export const Reflector = memo(function Reflector({ layout, wiring }: ReflectorPr
       name="reflector"
       geometry={merged.geometry}
       material={material}
+      position={centre(layout)}
       userData={{ part: 'reflector', width: w, thin, pairs, lit }}
     />
   )

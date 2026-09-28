@@ -376,20 +376,9 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     expect(chunks).toHaveLength(1)
     const policy = await sig(page, 'effects')
     expect(policy.bloom).toBe(!policy.software)
-    // Measure with Bloom on either way.
-    await forceBloom(page, true)
-    await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
-    const fx = await sig(page, 'effects')
-    expect(fx).toEqual({
-      bloom: true,
-      luminanceThreshold: 1,
-      mipmapBlur: true,
-      dropped: false,
-      software: policy.software,
-    })
 
-    // Instant playback: no continuous animation, so slow frames never make the PerformanceMonitor
-    // drop the effects (index.tsx) while we measure with Bloom on.
+    // The path drawn to hop 5 with its head, and the ghost: instant playback (no continuous
+    // animation), then the scrubber, both set without scrolling the page (see setControl).
     await setControl(page, 'playback-speed', 'instant')
     await expect.poll(() => page.evaluate(() => window.__stage!.playback().playing)).toBe(false)
     await press(page, 'A')
@@ -397,15 +386,14 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     await expect.poll(() => page.evaluate(() => window.__stage!.playback().t)).toBe(6.5)
     await expect.poll(async () => (await sig(page, 'live')).head).not.toBeNull()
     await idleFor(page, 1500)
-    expect((await sig(page, 'effects')).bloom, 'Bloom is still on').toBe(true)
     const s = (await stats(page))!
-    expect(s.calls, 'draw calls with the signal, its head, the ghost and Bloom').toBeLessThanOrEqual(120)
+    expect(s.calls, 'draw calls with the signal, its head and the ghost').toBeLessThanOrEqual(120)
     expect(s.framesWhileIdle).toBe(0)
     const f0 = await m3d(page, 'frames')
     await idleFor(page, 2500)
     expect(await m3d(page, 'frames'), 'no frame while idle').toBe(f0)
 
-    // 40 more presses: geometries and textures stay put
+    // 40 more presses: geometries and textures stay put, and still no idle frame
     await setControl(page, 'playback-scrub', '12')
     await idleFor(page, 1200)
     const base = (await stats(page))!
@@ -414,12 +402,40 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     }
     await expect.poll(async () => (await info(page)).pathPoints).toBe(24)
     await idleFor(page, 1500)
-    expect((await sig(page, 'effects')).bloom, 'Bloom is still on').toBe(true)
     const after = (await stats(page))!
     expect(after.geometries, 'geometries after 40 presses').toBe(base.geometries)
     expect(after.textures, 'textures after 40 presses').toBe(base.textures)
     expect(after.calls).toBeLessThanOrEqual(120)
     expect(after.framesWhileIdle).toBe(0)
+
+    // With Bloom on (forced on a software rasterizer): still ≤ 120 draw calls and no frame while
+    // idle. (Its frames can take over a second here, which the core's monitor would count as idle
+    // frames although each was asked for, so this checks the frame count over an idle spell.)
+    await forceBloom(page, true)
+    await expect.poll(async () => (await sig(page, 'effects')).bloom, { timeout: 30_000 }).toBe(true)
+    expect(await sig(page, 'effects')).toEqual({
+      bloom: true,
+      luminanceThreshold: 1,
+      mipmapBlur: true,
+      dropped: false,
+      software: policy.software,
+    })
+    await setControl(page, 'playback-scrub', '6.5')
+    await expect.poll(async () => (await sig(page, 'live')).head).not.toBeNull()
+    await idleFor(page, 1500)
+    expect((await stats(page))!.calls, 'draw calls with Bloom').toBeLessThanOrEqual(120)
+    const f1 = await m3d(page, 'frames')
+    await idleFor(page, 2500)
+    expect(await m3d(page, 'frames'), 'no frame while idle, with Bloom').toBe(f1)
+    const withBloom = (await stats(page))!
+    for (let i = 0; i < 10; i++) {
+      await page.evaluate((l) => window.__enigma!.pressKey(l), String.fromCharCode(66 + ((i * 7) % 25)))
+    }
+    await expect.poll(async () => (await info(page)).pathPoints).toBe(24)
+    await idleFor(page, 1500)
+    expect((await sig(page, 'effects')).bloom, 'Bloom is still on').toBe(true)
+    expect((await stats(page))!.geometries, 'geometries after 10 presses with Bloom').toBe(withBloom.geometries)
+    expect((await stats(page))!.textures, 'textures after 10 presses with Bloom').toBe(withBloom.textures)
   })
 
   test('a lost WebGL context with the path and Bloom on still falls back to 2D', async ({ page, allowContextLoss }) => {
