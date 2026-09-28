@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "prs": {
+    "01": {
+      "owns": [
+        "web/src/engine/**",
+        "web/src/pages/EngineDevPage.tsx",
+        "web/e2e/engine.spec.ts",
+        "tools/reference_enigma.py",
+        "tools/export_vectors.py",
+        "web/public/**",
+        "web/.nvmrc"
+      ]
+    },
+    "02": {
+      "owns": [
+        "web/package.json",
+        "web/package-lock.json",
+        "web/vite.config.ts",
+        "web/playwright.config.ts",
+        "web/playwright.review.config.ts",
+        "web/tsconfig*.json",
+        "web/index.html",
+        "web/ownership.json",
+        "web/.gitignore",
+        "web/README.md",
+        "web/scripts/{ownership-check,budget,postbuild}.mjs",
+        ".github/workflows/web.yml",
+        "web/src/{contracts,lib,state,stage,content,debug,lint}/**",
+        "web/src/{App.tsx,router.ts,main.tsx,index.css}",
+        "web/src/router.test.ts",
+        "web/src/pages/StageLabPage.tsx",
+        "web/e2e/{fixtures.ts,helpers/app.ts,smoke.spec.ts,platform.spec.ts,deploy.spec.ts}",
+        "docs/**"
+      ],
+      "stubs": [
+        "web/src/machine-ui/index.ts",
+        "web/src/stage2d/index.tsx",
+        "web/src/machine3d/{ready.ts,index.tsx}",
+        "web/src/pages/{SandboxPage,CoursePage,ChapterPage,GateLabPage,FixturePage,VizLabPage,HomePage}.tsx",
+        "web/src/chapters/*/index.ts"
+      ]
+    },
+    "03": {
+      "owns": [
+        "tools/oracles/**",
+        ".github/workflows/oracles.yml",
+        "web/src/engine/__tests__/oracles.test.ts",
+        "web/src/engine/__fixtures__/oracle-vectors.json"
+      ]
+    },
+    "04": {
+      "owns": [
+        "web/src/machine-ui/**",
+        "web/src/stage2d/**",
+        "web/src/pages/SandboxPage.tsx",
+        "web/e2e/{machine-ui,sync,stage2d}.spec.ts",
+        "web/e2e/helpers/machine.ts"
+      ]
+    },
+    "05": {
+      "owns": [
+        "web/src/lesson/**",
+        "web/src/code/**",
+        "web/src/pages/{CoursePage,ChapterPage,GateLabPage,FixturePage}.tsx",
+        "web/e2e/{lesson,course,walk}.spec.ts",
+        "web/e2e/helpers/course.ts",
+        "web/e2e/review/**"
+      ]
+    },
+    "06": {
+      "owns": [
+        "web/src/machine3d/**",
+        "!web/src/machine3d/{signal,effects}/**",
+        "!web/src/machine3d/parts/{Reflector,Cables,ToyGeometry}.tsx",
+        "web/e2e/machine3d.spec.ts"
+      ],
+      "stubs": [
+        "web/src/machine3d/{signal,effects}/**",
+        "web/src/machine3d/parts/{Reflector,Cables,ToyGeometry}.tsx"
+      ]
+    },
+    "07": {
+      "owns": [
+        "web/src/chapters/i2-stepping/**",
+        "web/e2e/chapters/i2-stepping.spec.ts"
+      ],
+      "amend": {
+        "tag": "[contracts-v2]",
+        "paths": [
+          "web/src/contracts/**",
+          "web/src/lesson/**",
+          "web/src/machine-ui/**",
+          "web/src/stage2d/**",
+          "web/src/state/**"
+        ]
+      }
+    },
+    "08": {
+      "owns": [
+        "web/src/crypto/**",
+        "web/src/viz/**",
+        "web/src/pages/VizLabPage.tsx",
+        "web/e2e/viz.spec.ts"
+      ]
+    },
+    "09": {
+      "owns": [
+        "web/src/chapters/prologue/**",
+        "web/src/chapters/i1-anatomy/**",
+        "web/e2e/chapters/prologue.spec.ts",
+        "web/e2e/chapters/i1-anatomy.spec.ts",
+        "web/src/pages/HomePage.tsx",
+        "web/e2e/home.spec.ts"
+      ]
+    },
+    "10": {
+      "owns": [
+        "web/src/chapters/i3-reflector-plugboard/**",
+        "web/src/chapters/i4-permutations/**",
+        "web/e2e/chapters/i3-reflector-plugboard.spec.ts",
+        "web/e2e/chapters/i4-permutations.spec.ts"
+      ]
+    },
+    "11": {
+      "owns": [
+        "web/src/machine3d/{signal,effects}/**",
+        "web/src/machine3d/parts/{Reflector,Cables,ToyGeometry}.tsx",
+        "web/e2e/machine3d-signal.spec.ts"
+      ]
+    },
+    "12": {
+      "owns": [
+        "web/src/chapters/ii5-indicators/**",
+        "web/src/chapters/ii6-cycles/**",
+        "web/e2e/chapters/ii5-indicators.spec.ts",
+        "web/e2e/chapters/ii6-cycles.spec.ts"
+      ]
+    },
+    "13": {
+      "owns": [
+        "web/src/chapters/ii7-catalogue/**",
+        "web/src/chapters/ii8-sheets/**",
+        "web/e2e/chapters/ii7-catalogue.spec.ts",
+        "web/e2e/chapters/ii8-sheets.spec.ts"
+      ]
+    },
+    "14": {
+      "owns": [
+        "web/src/chapters/iii9-cribs/**",
+        "web/src/chapters/iii10-menus/**",
+        "web/e2e/chapters/iii9-cribs.spec.ts",
+        "web/e2e/chapters/iii10-menus.spec.ts"
+      ]
+    },
+    "15": {
+      "owns": [
+        "web/src/chapters/iii11-bombe/**",
+        "web/src/chapters/iii12-checking/**",
+        "web/e2e/chapters/iii11-bombe.spec.ts",
+        "web/e2e/chapters/iii12-checking.spec.ts"
+      ]
+    },
+    "16": {
+      "owns": [
+        "web/src/chapters/iv-capstone/**",
+        "web/e2e/chapters/iv-capstone.spec.ts"
+      ]
+    },
+    "17": {
+      "owns": [
+        "**"
+      ]
+    }
+  },
+  "coordinator": [
+    "CLAUDE.md",
+    "web/ownership.json"
+  ]
+}

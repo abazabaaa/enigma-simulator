@@ -5,8 +5,10 @@
  * Contract (bump ENIGMA_API_VERSION on any breaking change):
  *   version            number, currently 1
  *   getState()         EnigmaSnapshot (plain JSON)
- *   pressKey(letter)   press one key A–Z (case-insensitive); returns the lamp letter
+ *   pressKey(letter)   press one key A–Z (case-insensitive); returns the lamp letter. Throws
+ *                      MachineLockedError (the message names the lock) while locks.keyboard is set
  *   setConfig(cfg)     merge `cfg` into the current config, validate, reset; returns the snapshot
+ *                      (the setup path: it ignores locks)
  *   reset()            back to the configured start positions, clear the tape; returns the snapshot
  */
 

@@ -1,4 +1,4 @@
-/** Placeholder home. The story chapters and the 3D machine arrive in later PRs. */
+/** STUB (02 → 09). 09 builds the guided entry: the stage, "type a word", Begin and the course map. */
 export function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-6 px-6 py-16">
@@ -8,7 +8,14 @@ export function HomePage() {
         Press a key and follow the current through the plugboard, three turning rotors and the reflector. Then
         step into the shoes of Rejewski, Turing and Welchman and break it yourself.
       </p>
-      <p className="font-mono text-sm text-stone-500">Chapters are on their way.</p>
+      <nav className="flex gap-4 font-mono text-sm">
+        <a className="text-amber-300 underline" href="#/course">
+          The course
+        </a>
+        <a className="text-amber-300 underline" href="#/machine">
+          The machine
+        </a>
+      </nav>
     </main>
   )
 }
