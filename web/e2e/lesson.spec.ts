@@ -148,6 +148,8 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await nextScene(page)
     expect(await where(page)).toMatchObject({ scene: 'gate', kind: 'gate', canNext: false })
     await assertFocus(page, 'wire')
+    // Round 2: Next into a gate puts the focus on its first answer control.
+    await expect(page.locator('[data-role="answer"] :focus')).toHaveCount(1)
   })
 
   test('gate main: every item kind through its widget, rollback, L1 hint and the pass rule', async ({ page }) => {
@@ -454,6 +456,83 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await fireReveal(page, step!)
     expect((await eventsOf(page, 'reveal')).map((e) => e.bet)).toEqual(['lab-fixture/first-lamp', 'lab-fixture/steps'])
     expect(await page.evaluate(() => window.__enigma!.getState().positions)).toBe('AAC')
+  })
+
+  test('round 2: focus moves on to the next control after Next and after each bet', async ({ page }) => {
+    await enter(page, 'lab-fixture')
+    await nextScene(page)
+    // Next from the story: the first bet control has the focus, not <body>.
+    await expect(page.locator('[data-testid^="bet-option-"], [data-testid^="bet-input-"]').first()).toBeFocused()
+    // Committing the press bet: its key has the focus, and Enter presses it (the reveal fires).
+    await commitBet(page, 'first-lamp', 'C')
+    await expect(page.getByTestId('key-A')).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect.poll(async () => (await eventsOf(page, 'reveal')).length).toBe(1)
+    // Committing the step bet: its Step button has the focus, and Enter fires it.
+    await commitBet(page, 'steps', 'right')
+    await expect(page.getByTestId('reveal-steps')).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect.poll(async () => (await eventsOf(page, 'reveal')).length).toBe(2)
+    // The last bet is a number: Enter in its input commits it, and its 'play' trigger has the focus next.
+    await page.getByTestId('bet-input-count').fill('11')
+    await page.getByTestId('bet-input-count').press('Enter')
+    await expect.poll(async () => (await eventsOf(page, 'bet.commit')).length).toBe(3)
+    await expect(page.getByTestId('reveal-count')).toBeFocused()
+  })
+
+  test('round 2: Enter submits single-line answers', async ({ page }) => {
+    await openGateLab(page)
+    await page.getByTestId('answer-letter').fill(String(await wrongAnswer(page)))
+    await page.getByTestId('answer-letter').press('Enter')
+    await expect(page.getByTestId('rollback')).toBeVisible()
+    await page.getByTestId('gate-continue').click()
+    await advanceTo(page, 'windows')
+    // Typing moves along the boxes; Enter in the last one submits.
+    await page.getByTestId('answer-letters-0').focus()
+    await page.keyboard.type(String(await wrongAnswer(page)))
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('rollback')).toBeVisible()
+    expect((await eventsOf(page, 'item.submit')).filter((e) => e.item.endsWith('/windows'))).toHaveLength(1)
+  })
+
+  test('round 2: at 390 px the nine window letters wrap only between groups of three', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openGateLab(page)
+    await advanceTo(page, 'windows')
+    const groups = page.getByTestId('answer-letters-group')
+    await expect(groups).toHaveCount(3)
+    for (let g = 0; g < 3; g++) {
+      const tops = await groups
+        .nth(g)
+        .locator('input')
+        .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
+      expect(tops).toHaveLength(3)
+      expect(new Set(tops).size, `group ${g + 1} on one line`).toBe(1)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
+  test('round 2: starting the next bet leaves every window display at the current windows', async ({ page }) => {
+    await enter(page, 'lab-fixture')
+    await nextScene(page)
+    const [press] = await sceneReveals(page)
+    await commitBet(page, 'first-lamp', 'C')
+    await fireReveal(page, press!)
+    expect(await page.evaluate(() => window.__enigma!.getState().positions)).toBe('AAB')
+    await expect(page.getByTestId('lamp-result')).toBeVisible()
+    // Starting the step bet gates the playback at t = 0; the windows still read AAB (not the press's "before").
+    await page.locator('[data-testid^="bet-option-steps-"]').first().click()
+    await expect.poll(() => page.evaluate(() => window.__stage!.playback().gated)).toBe(true)
+    await expect.poll(() => page.evaluate(() => window.__stage!.info().windows)).toBe('AAB')
+    // The press is still on the tape; only the lamp and the stepping of the last press are cleared.
+    expect(await page.evaluate(() => window.__enigma!.getState())).toMatchObject({
+      positions: 'AAB',
+      input: 'A',
+      lamp: null,
+      lastStepping: null,
+    })
+    // The View keeps what the reveal showed.
+    await expect(page.getByTestId('lamp-result')).toBeVisible()
   })
 
   test('a double submit records one outcome', async ({ page }) => {

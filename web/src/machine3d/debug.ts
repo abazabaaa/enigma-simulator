@@ -5,7 +5,7 @@
 
 import { useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
-import { Vector3, type Mesh, type Object3D } from 'three'
+import { Matrix4, Vector3, type InstancedMesh, type Mesh, type Object3D } from 'three'
 import type { PartId } from '../contracts/stage'
 import { LETTERS } from '../engine'
 import { isE2E } from '../lib/flags'
@@ -19,6 +19,7 @@ import { idleMs, monitor, useFrameMonitor } from './monitor'
 import { PAWL_TIP_LOCAL } from './parts/Pawls'
 
 const _v = new Vector3()
+const _m = new Matrix4()
 
 /** World position of an object, or of a point in its local frame. */
 function worldOf(o: Object3D, local: Vector3 | null): Vector3 {
@@ -147,7 +148,35 @@ export function DebugHook({ slots }: { slots: readonly string[] }): null {
       labels() {
         const r = gl.domElement.getBoundingClientRect()
         const shift = <T extends { x: number; y: number }>(b: T): T => ({ ...b, x: b.x + r.left, y: b.y + r.top })
-        return { labels: labelLayout.labels.map(shift), keepOut: labelLayout.keepOut.map(shift) }
+        return {
+          labels: labelLayout.labels.map((l) => ({
+            ...shift(l),
+            leader: l.leader
+              ? { x1: l.leader.x1 + r.left, y1: l.leader.y1 + r.top, x2: l.leader.x2 + r.left, y2: l.leader.y2 + r.top }
+              : null,
+          })),
+          keepOut: labelLayout.keepOut.map(shift),
+          soft: labelLayout.soft.map(shift),
+        }
+      },
+      glyphs(slot) {
+        const mesh = scene.getObjectByName(`ring-glyphs-${slot}`) as InstancedMesh | undefined
+        const ring = scene.getObjectByName(`ring-${slot}`)
+        if (!mesh || !ring) return { window: null, dialMin: null }
+        mesh.updateWorldMatrix(true, false)
+        const glyphs = mesh.userData.glyphs as string[]
+        /** Projected lengths of a glyph cell's own x and y axes. */
+        const cell = (i: number) => {
+          mesh.getMatrixAt(i, _m)
+          _m.premultiply(mesh.matrixWorld)
+          const at = (x: number, y: number) => toClient(new Vector3(x, y, 0).applyMatrix4(_m))
+          const [l, rr, b, t] = [at(-0.5, 0), at(0.5, 0), at(0, -0.5), at(0, 0.5)]
+          return { w: Math.hypot(rr.x - l.x, rr.y - l.y), h: Math.hypot(t.x - b.x, t.y - b.y) }
+        }
+        const letter = LETTERS[ring.userData.window as number]!
+        const w = glyphs.indexOf(letter)
+        const digits = glyphs.map((g, i) => (/^\d+$/.test(g) ? cell(i).h : null)).filter((h) => h !== null)
+        return { window: w >= 0 ? cell(w) : null, dialMin: digits.length ? Math.min(...digits) : null }
       },
     }
     window.__machine3d = api
