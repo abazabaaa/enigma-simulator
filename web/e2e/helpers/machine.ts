@@ -74,7 +74,7 @@ export function readings(page: Page): Promise<Readings> {
       traceStage: last?.dataset.stage ?? null,
       traceRows: rows.length,
       stageLamp: info.litLamp,
-      announcerLamp: /^[A-Z] lights ([A-Z])\./.exec(announcer)?.[1] ?? null,
+      announcerLamp: /; [A-Z] lit ([A-Z])\.$/.exec(announcer)?.[1] ?? null,
       announcer,
       spin,
       stageWindows: info.windows,

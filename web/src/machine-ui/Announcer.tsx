@@ -1,10 +1,11 @@
 /**
  * The live announcer (PLAN §2.5, §3.10): role=status, aria-live=polite, data-testid=announcer.
- * Once the lamp of the last press is lit it reads exactly "Q lights E. Rotors now A E W."; with
- * locks.lampsHidden, "Q pressed. Rotors now A E W.". It is empty while a press is still animating,
- * so each press is spoken once, when its lamp lights. The text sits in a node keyed by the press,
- * so a repeated identical sentence (the same key with the rotors held, locks.hold) is a new node
- * and is spoken again.
+ * The rotors step BEFORE the current flows, so the sentence says so in that order. Once the lamp of
+ * the last press is lit it reads exactly "Rotors stepped to A E W; Q lit E."; with
+ * locks.lampsHidden, "Rotors stepped to A E W; Q pressed."; with the rotors held (locks.hold, no
+ * rotor moved), "Rotors held at A D U; Q lit E.". It is empty while a press is still animating, so
+ * each press is spoken once, when its lamp lights. The text sits in a node keyed by the press, so a
+ * repeated identical sentence is a new node and is spoken again.
  */
 
 import type { JSX } from 'react'
@@ -16,9 +17,11 @@ import { useApi, usePressView, type PressView } from './hooks'
 
 export function announcement(view: PressView): string {
   if (!view.hasPress || !view.lit || !view.key) return ''
-  const rotors = `Rotors now ${view.after.split('').join(' ')}.`
-  if (view.lampsHidden || !view.lamp) return `${view.key} pressed. ${rotors}`
-  return `${view.key} lights ${view.lamp}. ${rotors}`
+  const windows = view.after.split('').join(' ')
+  const moved = view.stepping ? Object.values(view.stepping.stepped).some(Boolean) : true
+  const rotors = moved ? `Rotors stepped to ${windows}` : `Rotors held at ${windows}`
+  if (view.lampsHidden || !view.lamp) return `${rotors}; ${view.key} pressed.`
+  return `${rotors}; ${view.key} lit ${view.lamp}.`
 }
 
 export function AnnouncerFor({ store, className }: { store?: MachineStoreHook; className?: string }): JSX.Element {
