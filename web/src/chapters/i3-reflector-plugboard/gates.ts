@@ -1,17 +1,19 @@
 /**
- * Chapter i3-reflector-plugboard · gate `reflector` (PLAN §4.4). PURE (L4): engine, lib/rng, contracts and
+ * Chapter i3-reflector-plugboard · gate `reflector` (PLAN §4.4). PURE (L4): engine, lib/rng, lib/toy, contracts and
  * lesson/kinds only.
- *  - plug-to-hit      set-machine · 2/3 · at most 2 cables so that key K lights T; the unplugged scrambler E₀ is shown
- *  - why-no-self      choice(4) · once · constant answer · the reflector pairs its contacts
+ *  - plug-to-hit      set-machine · 2/3 · at most 2 cables so that key K lights T, K keeping its socket empty (so the
+ *                     way-out crossing of the plugboard is always needed); the unplugged scrambler E₀ is shown
+ *  - why-no-self      choice(4) · once · constant answer, varied wording · the reflector pairs its contacts
  *  - compose-inverse  code · 2/3 · compose(p, q) and inverse(p), paired with a typed prediction that varies per instance
- *  - plug-one         the fallback: plug-to-hit with one cable
+ *  - hands-on         the in-page fallback, adapted to the item that triggered it: plug-one (one cable), compose(p, q)
+ *                     built cell by cell, or a toy reflector with self-wired contacts
  * The scene Views import the machines and helpers below, so the scenes, the prompts and the gate agree.
  */
 
 import type { Choice, Letter, MachineConfig, MachineConfigInput } from '../../contracts/core'
 import type { CodeCase } from '../../contracts/code'
 import type { ChapterGates, ItemLogic, ItemSetup } from '../../contracts/lesson'
-import type { LockKey, MachineLocks } from '../../contracts/machine'
+import type { LockKey, MachineLocks, ToySpec } from '../../contracts/machine'
 import type { StageRef } from '../../contracts/stage'
 import {
   LETTERS,
@@ -30,6 +32,7 @@ import {
   type ReflectorName,
 } from '../../engine'
 import { createRng, int, pick, randLetter, randomConfig, randomInvolution, randomPerm, sample, shuffle, type Rng } from '../../lib/rng'
+import { toyPress } from '../../lib/toy'
 import { choiceItem, codeItem, setMachineItem, verdict } from '../../lesson/kinds'
 
 const WINDOW = { kind: 'window' } as const
@@ -161,11 +164,12 @@ export function scrambler(machine: MachineConfigInput): number[] {
 export const lampFor = (cfg: MachineConfigInput, key: Letter): Letter => pressKey(createMachine(cfg), key).output
 
 /**
- * One cable always suffices: K joined to E₀(T) enters the scrambler as E₀(T), which the scrambler (an involution)
- * sends to T; T is not plugged, so T lights. (E₀(T) ≠ K because E₀(K) ≠ T, and E₀(T) ≠ T because E₀ has no fixed
- * points.)
+ * K keeps its socket empty (every instance), so K enters E₀ as itself and leaves as E₀(K): only the plugboard's second
+ * crossing, on the way out, can turn that letter into T, with the cable E₀(K)–T. (E₀(K) ≠ T by construction and
+ * E₀(K) ≠ K since E₀ has no fixed points, so it is a real pair that avoids K.) A learner who thinks the current
+ * crosses the plugboard only on the way in, or who joins K to T, can never light T.
  */
-export const oneCable = (i: Pick<PlugInstance, 'setup' | 'k' | 't'>): string => i.k + L(scrambler(i.setup.machine)[idx(i.t)]!)
+export const wayOutCable = (i: Pick<PlugInstance, 'setup' | 'k' | 't'>): string => L(scrambler(i.setup.machine)[idx(i.k)]!) + i.t
 
 function plugItem(id: string, maxPlugs: number): ItemLogic<PlugInstance, MachineConfig> {
   return setMachineItem<PlugInstance>({
@@ -183,6 +187,14 @@ function plugItem(id: string, maxPlugs: number): ItemLogic<PlugInstance, Machine
     },
     same: (a, b) => a.k === b.k && a.t === b.t && sameJson(a.setup.machine, b.setup.machine),
     predicate(i, cfg) {
+      const onKey = cfg.plugboard.find((c) => c.includes(i.k))
+      if (onKey) {
+        return {
+          field: 'plugboard',
+          message: `Key ${i.k} must keep its socket empty, but the cable ${onKey} is plugged into it.`,
+          highlight: ['plugboard'],
+        }
+      }
       const lamp = lampFor(cfg, i.k)
       if (lamp === i.t) return true
       const cables = cfg.plugboard.length ? `With the cables ${cfg.plugboard.join(' ')}` : 'With no cables'
@@ -192,19 +204,19 @@ function plugItem(id: string, maxPlugs: number): ItemLogic<PlugInstance, Machine
         highlight: ['plugboard'],
       }
     },
-    solve: (i) => ({ ...i.setup.machine, plugboard: [oneCable(i)] }),
+    solve: (i) => ({ ...i.setup.machine, plugboard: [wayOutCable(i)] }),
     sampleAnswer(i, r) {
       const n = int(r, i.maxPlugs + 1)
       const letters = sample(r, LETTERS, 2 * n)
       return { ...i.setup.machine, plugboard: Array.from({ length: n }, (_, j) => letters[2 * j]! + letters[2 * j + 1]!) }
     },
-    // The cable from K moved one letter on: never right (only K–E₀(T) or T–E₀(K) work with one cable).
+    // The cable to T moved one letter on (never onto K): then E₀(K) reaches the lamps unchanged, never T.
     mutate(i, a) {
-      const cable = a.plugboard[0] ?? oneCable(i)
-      const other = cable[0] === i.k ? cable[1]! : cable[0]!
+      const cable = a.plugboard.find((c) => c.includes(i.t)) ?? wayOutCable(i)
+      const other = cable[0] === i.t ? cable[1]! : cable[0]!
       let next = (idx(other) + 1) % 26
-      while (L(next) === i.k) next = (next + 1) % 26
-      return { ...a, plugboard: [i.k + L(next)] }
+      while (L(next) === i.k || L(next) === i.t) next = (next + 1) % 26
+      return { ...a, plugboard: [L(next) + i.t] }
     },
     highlight: () => [{ part: 'plugboard', tone: 'hint' }],
   })
@@ -214,48 +226,60 @@ export const plugToHit = plugItem('plug-to-hit', 2)
 export const plugOne = plugItem('plug-one', 1)
 
 // ---------------------------------------------------------------------------
-// why-no-self: choice(4), once, constant answer (rollback: none, with an explanation)
+// why-no-self: choice(4), once, constant answer, varied per instance (rollback: none)
 // ---------------------------------------------------------------------------
 
-export const SELF_OPTIONS: readonly Choice[] = [
-  {
-    id: 'reflector',
-    label: 'The reflector joins its contacts in pairs, so the current always comes back on a different wire from the one it went in on',
-  },
-  { id: 'plugboard', label: 'The plugboard prevents it: every letter is swapped for another one', misconception: true },
-  {
-    id: 'stepping',
-    label: 'The rotors step before every letter, so a letter never meets the same wiring twice',
-    misconception: true,
-  },
-  { id: 'rare', label: 'It does happen, but only about once in 26 letters', misconception: true },
+/** Three wordings of the one right explanation (its id is always 'reflector'). */
+const SELF_RIGHT: readonly string[] = [
+  'The reflector joins its contacts in pairs, so the current always comes back on a different wire from the one it went in on',
+  'Each reflector wire joins two different contacts, so the current can never return on the wire it arrived on',
+  'No reflector contact is wired to itself, so the way back always ends on another letter',
 ]
 
+/** The distractors, three of which each instance shows. */
+export const SELF_DISTRACTORS: readonly Choice[] = [
+  { id: 'plugboard', label: 'The plugboard prevents it: every letter is swapped for another one', misconception: true },
+  { id: 'stepping', label: 'The rotors step before every letter, so a letter never meets the same wiring twice', misconception: true },
+  { id: 'rare', label: 'It does happen, but only about once in 26 letters', misconception: true },
+  { id: 'rings', label: 'The ring settings shift every letter away from itself', misconception: true },
+  { id: 'entry', label: 'The entry wheel sends every letter to a different contact', misconception: true },
+]
+
+/** Why each distractor is wrong, never naming the right option (the next instance asks again). */
 const SELF_FEEDBACK: Readonly<Record<string, string>> = {
   plugboard:
-    'The plugboard cannot be the reason: most letters have no cable at all, and an unplugged letter passes straight through. ' +
-    'The reflector is: it joins every contact to a different one, so the current never returns on its own wire.',
+    'Most letters have no cable at all and pass the plugboard unchanged, and an unplugged letter never lights itself either: ' +
+    'the plugboard is not the reason.',
   stepping:
-    'Stepping changes the wiring from one letter to the next, but at any one position the current still goes in and comes back out. ' +
-    'It comes back on a different wire because the reflector pairs every contact with another one.',
-  rare:
-    'The search found no letter that lit itself in all 17,576 positions. It never happens: the reflector pairs every contact with a ' +
-    'different one, so the way back is always a different wire.',
+    'The search tried key A at each position without stepping in between, and it still never lit A: stepping is not the reason.',
+  rare: 'The search tried key A at all 17,576 positions and it never lit A, not even once: it never happens.',
+  rings: 'With every ring at 01 no letter lights itself either: the ring settings are not the reason.',
+  entry: 'The entry wheel of this machine leaves every letter where it is (A to A, B to B): it is not the reason.',
 }
 
-export const whyNoSelf = choiceItem<{ options: readonly Choice[] }>({
+export interface SelfInstance {
+  readonly options: readonly Choice[]
+  /** A press to anchor the question: at these windows this key lights this lamp. */
+  readonly windows: string
+  readonly key: Letter
+  readonly lamp: Letter
+}
+
+export const whyNoSelf = choiceItem<SelfInstance>({
   id: 'why-no-self',
   rule: ONCE,
   constantAnswer: true,
-  generate: (r) => ({ options: shuffle(r, SELF_OPTIONS) }),
-  same: (a, b) => sameJson(a.options, b.options),
+  generate(r) {
+    const windows = sample(r, LETTERS, 3).join('')
+    const key = randLetter(r)
+    const lamp = lampFor({ ...SEARCH_START, positions: windows }, key)
+    const right: Choice = { id: 'reflector', label: pick(r, SELF_RIGHT) }
+    return { options: shuffle(r, [right, ...sample(r, SELF_DISTRACTORS, 3)]), windows, key, lamp }
+  },
+  same: (a, b) => sameJson(a, b),
   solve: () => 'reflector',
   check: (_i, a) =>
-    verdict(
-      a === 'reflector',
-      { kind: 'none' },
-      SELF_FEEDBACK[String(a)] ?? 'The reflector pairs every contact with a different one, so no letter comes back as itself.',
-    ),
+    verdict(a === 'reflector', { kind: 'none' }, SELF_FEEDBACK[String(a)] ?? 'That is not the reason: look again at what happens on the way back.'),
   // The reflector on the stage (its hint highlights it); nothing to press.
   setup: () => ({ locks: READ_ONLY, stage: 'reflector' }),
   highlight: () => [{ part: 'reflector', tone: 'hint' }],
@@ -384,10 +408,137 @@ export const composeInverse = codeItem<ComposeInstance>(
 )
 
 // ---------------------------------------------------------------------------
+// hands-on: the in-page fallback, testing the skill of the item that triggered it (its outcome counts there)
+//  - after plug-to-hit:      plug-one, the same task with a single cable (set-machine semantics)
+//  - after compose-inverse:  build compose(p, q) on A–F cell by cell (rollback: perm)
+//  - after why-no-self:      a toy whose reflector has two contacts wired to themselves: turn the rotor so that a
+//                            key lights itself (it can only through such a contact; rollback: machine)
+// ---------------------------------------------------------------------------
+
+/** The toy stage with the canvas keys disabled: no trial presses. */
+export const TOY_STAGE: StageRef = { preset: 'toy', with: { interactive: false } }
+
+export interface ComposeBuildInstance {
+  readonly variant: 'compose'
+  readonly p: string
+  readonly q: string
+}
+
+export interface SelfToyInstance {
+  readonly variant: 'self'
+  /** One rotor, held; the reflector has two contacts wired to themselves. */
+  readonly spec: ToySpec
+  readonly key: Letter
+}
+
+export type HandsOnInstance = ({ readonly variant: 'plug' } & PlugInstance) | ComposeBuildInstance | SelfToyInstance
+export type HandsOnAnswer = MachineConfig | string | number
+
+/** The contacts of a toy reflector that are wired to themselves. */
+export const selfWired = (spec: Pick<ToySpec, 'reflector'>): number[] => spec.reflector.flatMap((v, i) => (v === i ? [i] : []))
+
+/** The lamp `key` lights with the toy's rotor at window `p`. */
+export const toyLamp = (i: Pick<SelfToyInstance, 'spec' | 'key'>, p: number): Letter =>
+  toyPress({ ...i.spec, positions: [((p % 6) + 6) % 6] }, i.key).lamp
+
+/** The windows at which the key lights itself: where the rotor carries it onto a self-wired reflector contact. */
+export const selfPositions = (i: Pick<SelfToyInstance, 'spec' | 'key'>): number[] =>
+  [0, 1, 2, 3, 4, 5].filter((p) => toyLamp(i, p) === i.key)
+
+function selfToy(r: Rng): SelfToyInstance {
+  for (;;) {
+    const order = shuffle(r, [0, 1, 2, 3, 4, 5])
+    const reflector = [0, 1, 2, 3, 4, 5]
+    for (const [a, b] of [
+      [order[0]!, order[1]!],
+      [order[2]!, order[3]!],
+    ] as const) {
+      reflector[a] = b
+      reflector[b] = a
+    }
+    const spec: ToySpec = {
+      n: 6,
+      rotors: [randomPerm(r, 6)],
+      notches: [0],
+      reflector,
+      plugs: [0, 1, 2, 3, 4, 5],
+      positions: [0],
+      stepping: false,
+    }
+    const i: SelfToyInstance = { variant: 'self', spec, key: randLetter(r, 6) }
+    // Exactly one window works: a guess is right one time in six.
+    if (selfPositions(i).length === 1) return i
+  }
+}
+
+const composeBuilt = (i: Pick<ComposeBuildInstance, 'p' | 'q'>): string => lettersOf(compose(permOf(i.p), permOf(i.q)))
+
+export const handsOn: ItemLogic<HandsOnInstance, HandsOnAnswer> = {
+  id: 'hands-on',
+  kind: 'custom',
+  rule: WINDOW,
+  compute: true,
+  inPage: true,
+  generate(r, ctx) {
+    const from = ctx.key.split('/').at(-1)
+    const variant = from === 'plug-to-hit' ? 0 : from === 'compose-inverse' ? 1 : from === 'why-no-self' ? 2 : int(r, 3)
+    if (variant === 0) return { variant: 'plug', ...plugOne.generate(r, ctx) }
+    if (variant === 1) return { variant: 'compose', ...probePerms(r) }
+    return selfToy(r)
+  },
+  same: (a, b) => sameJson(a, b),
+  check(i, a) {
+    if (i.variant === 'plug') return plugOne.check(i, a as MachineConfig)
+    if (i.variant === 'compose') {
+      const want = composeBuilt(i)
+      const got = String(a ?? '').toUpperCase()
+      const wrongCells = [...want].flatMap((w, k) => (got[k] === w ? [] : [k]))
+      return verdict(wrongCells.length === 0, { kind: 'perm', wrongCells }, 'Look each letter up in p first, then look the result up in q.')
+    }
+    const p = Number(a)
+    if (!Number.isInteger(p) || p < 0 || p > 5) {
+      return verdict(false, { kind: 'machine', field: 'positions', message: 'Turn the rotor to a window A–F.', highlight: ['rotor-right'] })
+    }
+    const lamp = toyLamp(i, p)
+    return verdict(lamp === i.key, {
+      kind: 'machine',
+      field: 'positions',
+      message: `At window ${L(p)}, key ${i.key} lights ${lamp}, not ${i.key}.`,
+      highlight: ['reflector'],
+    })
+  },
+  solve(i) {
+    if (i.variant === 'plug') return plugOne.solve(i)
+    if (i.variant === 'compose') return composeBuilt(i)
+    return selfPositions(i)[0]!
+  },
+  sampleAnswer(i, r) {
+    if (i.variant === 'plug') return plugOne.sampleAnswer(i, r)
+    if (i.variant === 'compose') return lettersOf(randomPerm(r, 6))
+    return int(r, 6)
+  },
+  mutate(i, a, r) {
+    if (i.variant === 'plug') return plugOne.mutate(i, a as MachineConfig, r)
+    if (i.variant === 'compose') {
+      const s = String(a)
+      return s[1]! + s[0]! + s.slice(2)
+    }
+    return (Number(a) + 1) % 6
+  },
+  setup(i) {
+    if (i.variant === 'plug') return plugOne.setup!(i)
+    if (i.variant === 'compose') return { locks: READ_ONLY, stage: 'reflector' }
+    return { toy: i.spec, locks: READ_ONLY, stage: TOY_STAGE }
+  },
+  highlight: (i) =>
+    i.variant === 'plug' ? [{ part: 'plugboard', tone: 'hint' }] : i.variant === 'self' ? [{ part: 'reflector', tone: 'hint' }] : [],
+}
+
+// ---------------------------------------------------------------------------
 
 export const GATES: ChapterGates = {
   reflector: {
     items: [plugToHit, whyNoSelf, composeInverse] as ItemLogic[],
-    fallback: plugOne as ItemLogic,
+    fallback: handsOn as ItemLogic,
   },
 }

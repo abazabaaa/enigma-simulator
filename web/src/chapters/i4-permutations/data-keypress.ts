@@ -201,10 +201,8 @@ export const BUG_LABEL: Readonly<Record<Bug, string>> = {
  * through unchanged.
  */
 export function keypressHops(config: MachineConfig, key: Letter, bug: Bug | null): PathHop[] {
-  const start = createMachine(config)
-  const positions = bug === 'no-step' ? start.positions : step(start).state.positions
-  const rings = config.rings.map(idx)
-  const plug = fromPairs(config.plugboard)
+  const { start, stepped, rings, plug } = prepared(config)
+  const positions = bug === 'no-step' ? start : stepped
   const offset = (i: number) => mod(positions[i]! + (bug === 'ring-sign' ? rings[i]! : -rings[i]!))
   const rotor = (i: number, x: number, back: boolean): number => {
     const o = offset(i)
@@ -239,6 +237,25 @@ export function keypressHops(config: MachineConfig, key: Letter, bug: Bug | null
     x = out
     return slotIndex[stage] === undefined ? hop : { ...hop, slotIndex: slotIndex[stage] }
   })
+}
+
+interface Prepared {
+  readonly start: readonly number[]
+  readonly stepped: readonly number[]
+  readonly rings: readonly number[]
+  readonly plug: readonly number[]
+}
+
+/** What every press of one configuration shares (generators ask for several bugs of the same machine). */
+const preparedCache = new WeakMap<MachineConfig, Prepared>()
+function prepared(config: MachineConfig): Prepared {
+  let p = preparedCache.get(config)
+  if (!p) {
+    const start = createMachine(config)
+    p = { start: start.positions, stepped: step(start).state.positions, rings: config.rings.map(idx), plug: fromPairs(config.plugboard) }
+    preparedCache.set(config, p)
+  }
+  return p
 }
 
 /** The first hop whose output differs from the reference's (−1 when the whole path agrees). */

@@ -1,14 +1,12 @@
 /**
  * Chapter i3-reflector-plugboard's facts: PLAN §4.3 F12 (Turing and Welchman at Bletchley Park; Turing designs the
- * bombe) and F17 (no letter enciphers to itself, "a severe cryptological flaw"), plus the crib "crash" rule from the
- * research notes (Wikipedia, Bombe).
+ * bombe) and F17 (no letter enciphers to itself, "a severe cryptological flaw").
  */
 
 import type { Fact } from '../../contracts/lesson'
 
 const CRYPTANALYSIS = 'https://en.wikipedia.org/wiki/Cryptanalysis_of_the_Enigma'
 const ENIGMA = 'https://en.wikipedia.org/wiki/Enigma_machine'
-const BOMBE = 'https://en.wikipedia.org/wiki/Bombe'
 
 export const FACTS: readonly Fact[] = [
   { id: 'turing', kind: 'person', text: 'Alan Turing', source: CRYPTANALYSIS },
@@ -31,13 +29,5 @@ export const FACTS: readonly Fact[] = [
     kind: 'quote',
     text: 'No letter ever encrypted to itself. This was "a severe cryptological flaw" that was subsequently exploited by codebreakers.',
     source: ENIGMA,
-  },
-  {
-    id: 'crashes',
-    kind: 'event',
-    text:
-      'Because the reflector prevented a letter from being enciphered as itself, a crib slid along the ciphertext could be ruled ' +
-      'out wherever one of its letters met the same ciphertext letter (a "crash").',
-    source: BOMBE,
   },
 ]

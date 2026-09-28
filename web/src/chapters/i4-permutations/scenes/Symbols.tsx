@@ -97,6 +97,7 @@ export function SymbolsView(p: SceneProps): JSX.Element {
       <p>
         The machine is held: a key press does not turn the rotors here, so E stays the same permutation from press to press.
       </p>
+      <div aria-live="polite">
       {play.phase !== 'idle' ? (
         <section data-testid="symbols-play" className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3">
           <p>
@@ -125,6 +126,7 @@ export function SymbolsView(p: SceneProps): JSX.Element {
           ) : null}
         </section>
       ) : null}
+      </div>
     </div>
   )
 }

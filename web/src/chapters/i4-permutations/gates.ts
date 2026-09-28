@@ -30,7 +30,7 @@ import {
   type MachineState,
   type RotorName,
 } from '../../engine'
-import { createRng, int, randLetter, randomConfig, type Rng } from '../../lib/rng'
+import { createRng, int, pick, randLetter, randomConfig, sample, seedFor, type Rng } from '../../lib/rng'
 import { chainItem, codeItem, ghostFromOutputs, ghostPickItem, normalizeProbe, partForStage, verdict } from '../../lesson/kinds'
 import {
   BUGS,
@@ -43,6 +43,7 @@ import {
   keypressResult,
   referenceHops,
   stateOf,
+  type Bug,
   type KeypressState,
 } from './data-keypress'
 
@@ -152,7 +153,12 @@ export function hopTables(config: MachineConfig): number[][] {
 }
 
 /** The windows after the next press's step, e.g. 'ADV'. */
-export const windowsAfterStep = (config: MachineConfig): string => positionsToString(step(createMachine(config)).state)
+export const windowsAfterStep = (config: MachineConfig): string => {
+  let w = windowsCache.get(config)
+  if (w === undefined) windowsCache.set(config, (w = positionsToString(step(createMachine(config)).state)))
+  return w
+}
+const windowsCache = new WeakMap<MachineConfig, string>()
 
 /** The same machine with its windows moved on by one press's step (the stage's reference path is drawn there). */
 export const steppedConfig = (config: MachineConfig): MachineConfig =>
@@ -201,37 +207,67 @@ export const KEYPRESS_REFERENCE = [
   '',
 ].join('\n')
 
+/**
+ * The misconceptions a prediction of M⁻¹ can catch: every seeded bug that acts before the middle rotor's way back
+ * (plug-once acts after it, so the chain item catches that one).
+ */
+export const PROBE_BUGS: readonly Bug[] = ['no-step', 'swap-middle-left', 'backward-forward', 'ring-sign', 'no-reflector']
+
+/** Every misconception in PROBE_BUGS predicts a different letter at M⁻¹ than the engine. */
+export function probeSeparates(config: MachineConfig, key: Letter): boolean {
+  const truth = keypressHops(config, key, null)[PROBE_HOP]!.output
+  return PROBE_BUGS.every((b) => keypressHops(config, key, b)[PROBE_HOP]!.output !== truth)
+}
+
 /** The prediction: the letter leaving the middle rotor on the way back. */
 export const keypressProbe = (i: Pick<KeypressInstance, 'state' | 'key'>): Letter => referenceHops(i.state, i.key)[PROBE_HOP]!.output
 
-/**
- * 36 cases: the BDZGO sequence (rotors I II III, rings 01 01 01, AAA, A pressed five times lights B D Z G O);
- * 30 random machines from the seed (random rings, 0–10 cables, windows near a turnover in three of every four,
- * double steps included), each comparing {output, positions}; and the prediction's own press, hop by hop against
- * the engine's trace (compare 'hops': the parts must be called in the order the current flows).
- */
-export function keypressCases(i: KeypressInstance): CodeCase[] {
-  const cases: CodeCase[] = []
+/** The random machines the hidden tests draw from: 240 machines and keys, pressed once by the engine (built on first use). */
+let bank: CodeCase[] | null = null
+function machineBank(): CodeCase[] {
+  if (bank) return bank
+  const r = createRng(seedFor('i4-permutations', 'keypress-bank'))
+  bank = Array.from({ length: 240 }, (_, k) => {
+    const c = stateOf(nearTurnover(r, randomConfig(r, { plugs: [0, 10], rings: 'random' }), k % 4))
+    const key = randLetter(r)
+    return { label: '', fn: 'runKeypress', args: [c, key], expect: keypressResult(c, key) }
+  })
+  return bank
+}
+
+/** The BDZGO sequence: rotors I II III, rings 01 01 01, AAA, A pressed five times lights B D Z G O. */
+let bdzgo: CodeCase[] | null = null
+function bdzgoCases(): CodeCase[] {
+  if (bdzgo) return bdzgo
+  const out: CodeCase[] = []
   let s = stateOf(START)
   for (let k = 0; k < 5; k++) {
     const res = keypressResult(s, 'A')
-    cases.push({ label: `BDZGO, press ${k + 1}`, fn: 'runKeypress', args: [s, 'A'], expect: res })
+    out.push({ label: `BDZGO, press ${k + 1}`, fn: 'runKeypress', args: [s, 'A'], expect: res })
     s = { ...s, positions: res.positions }
   }
-  const r = createRng(i.seed)
-  for (let k = 0; k < 30; k++) {
-    const c = stateOf(nearTurnover(r, randomConfig(r, { plugs: [0, 10], rings: 'random' }), k % 4))
-    const key = randLetter(r)
-    cases.push({ label: `random machine #${k + 1}`, fn: 'runKeypress', args: [c, key], expect: keypressResult(c, key) })
-  }
-  cases.push({
-    label: 'the predicted press, hop by hop',
-    fn: 'runKeypress',
-    args: [i.state, i.key],
-    expect: referenceHops(i.state, i.key).map((h) => ({ stage: h.stage, input: h.input, output: h.output })),
-    compare: 'hops',
-  })
-  return cases
+  return (bdzgo = out)
+}
+
+/**
+ * 36 cases: the BDZGO sequence; 30 random machines picked by the instance's seed from the bank (random rings, 0–10
+ * cables, windows near a turnover in three of every four, double steps included), each comparing {output, positions};
+ * and the prediction's own press, hop by hop against the engine's trace (compare 'hops': the parts must be called in
+ * the order the current flows).
+ */
+export function keypressCases(i: KeypressInstance): CodeCase[] {
+  const picks = sample(createRng(i.seed), machineBank(), 30)
+  return [
+    ...bdzgoCases(),
+    ...picks.map((c, k) => ({ ...c, label: `random machine #${k + 1}` })),
+    {
+      label: 'the predicted press, hop by hop',
+      fn: 'runKeypress',
+      args: [i.state, i.key],
+      expect: referenceHops(i.state, i.key).map((h) => ({ stage: h.stage, input: h.input, output: h.output })),
+      compare: 'hops',
+    },
+  ]
 }
 
 /**
@@ -279,8 +315,11 @@ export const keypress = codeItem<KeypressInstance>(
     rule: WINDOW,
     generate(r) {
       const seed = int(r, 2 ** 31)
-      const config = randomConfig(r, { plugs: [2, 6], rings: 'random' })
-      return { seed, state: stateOf(config), key: randLetter(r) }
+      for (;;) {
+        const config = randomConfig(r, { plugs: [2, 6], rings: 'random' })
+        const key = randLetter(r)
+        if (probeSeparates(config, key)) return { seed, state: stateOf(config), key }
+      }
     },
     same: (a, b) => a.seed === b.seed || (a.key === b.key && sameJson(a.state, b.state)),
     // The stage shows this press's machine after its step, so the reference path is the engine's trace.
@@ -339,10 +378,56 @@ const PART_NAME: Readonly<Partial<Record<PartId, string>>> = {
   reflector: 'reflector',
 }
 
+/** The parts a fault can be in (the entry wheel is never one: its hops are wires straight through). */
+export const FAULT_PARTS: readonly PartId[] = ['plugboard', 'rotor-right', 'rotor-middle', 'rotor-left', 'reflector']
+
+/**
+ * An instance whose answer is `part`, so answers are uniform over the five parts. The rotors' faults come from a bug
+ * that bends the path at that rotor first: no step or a flipped ring sign for the right rotor; middle and left swapped,
+ * or a flipped ring sign with the right ring at 01 or 14 (where p + r = p − r), for the middle; forward wiring on the
+ * way back, or a flipped ring sign with the right and middle rings at 01 or 14, for the left.
+ */
+export function drawWhichWrongFor(r: Rng, part: PartId): WhichWrongInstance {
+  const neutral = () => pick(r, ['A', 'N'] as const)
+  const shifted = () => pick(r, LETTERS.filter((l) => l !== 'A' && l !== 'N'))
+  const ringSign = (slot: number) => (c: MachineConfig): MachineConfig => {
+    const rings = [...c.rings]
+    for (let i = 2; i > slot; i--) rings[i] = neutral()
+    rings[slot] = shifted()
+    return normalizeConfig({ ...c, rings })
+  }
+  const options: Readonly<Record<string, readonly [Bug, (c: MachineConfig) => MachineConfig][]>> = {
+    'rotor-right': [
+      ['no-step', (c) => c],
+      ['ring-sign', ringSign(2)],
+    ],
+    'rotor-middle': [
+      ['swap-middle-left', (c) => c],
+      ['ring-sign', ringSign(1)],
+    ],
+    'rotor-left': [
+      ['backward-forward', (c) => c],
+      ['ring-sign', ringSign(0)],
+    ],
+    plugboard: [['plug-once', (c) => c]],
+    reflector: [['no-reflector', (c) => c]],
+  }
+  const [bug, shape] = pick(r, options[part]!)
+  for (;;) {
+    const config = shape(randomConfig(r, { plugs: [2, 6], rings: 'random' }))
+    const key = randLetter(r)
+    const hops = keypressHops(config, key, bug)
+    const claim = claimedHop(bug, config)
+    if (claim !== null && firstDivergence(hops, keypressHops(config, key, null)) === claim) {
+      return { options: PATH_PARTS, ghost: { hops, divergeAt: -1 }, config, key }
+    }
+  }
+}
+
 export const whichWrong = ghostPickItem<WhichWrongInstance>({
   id: 'which-wrong',
   rule: WINDOW,
-  generate: (r) => drawWhichWrong(r, BUGS[int(r, BUGS.length)]!),
+  generate: (r) => drawWhichWrongFor(r, pick(r, FAULT_PARTS)),
   same: (a, b) => a.key === b.key && sameJson(a.ghost, b.ghost),
   solve: (i) => partForStage(STAGES[faultyHop(i)]!),
   check(i, a) {
@@ -354,7 +439,7 @@ export const whichWrong = ghostPickItem<WhichWrongInstance>({
     return verdict(
       a === part,
       { kind: 'path', ghost: { hops: i.ghost.hops, divergeAt: k } },
-      `You picked the ${picked}. Hop ${k + 1} (${STAGES[k]}) is the first that disagrees with its table: ${ref.input} ` +
+      `You picked the ${picked}. Hop ${k + 1} (${STAGE_LABEL[STAGES[k]!]}) is the first that disagrees with its table: ${ref.input} ` +
         `should leave as ${ref.output}, the path shows ${got.output}. Every hop before it matches, so the fault is in the ` +
         `${PART_NAME[part]}.`,
     )
@@ -369,7 +454,8 @@ export const whichWrong = ghostPickItem<WhichWrongInstance>({
 // hop-chain-full: chain(12), the windows after the step and then the 11 letters (rollback: path)
 // ---------------------------------------------------------------------------
 
-const STAGE_LABEL: Readonly<Record<string, string>> = {
+/** Stage names as the learner reads them (never the raw stage ids). */
+export const STAGE_LABEL: Readonly<Record<string, string>> = {
   'plugboard-in': 'plugboard',
   'etw-in': 'entry wheel',
   'rotor-right-fwd': 'right rotor',
@@ -395,6 +481,12 @@ export interface ChainFullInstance {
   readonly key: Letter
 }
 
+/** The 12 tokens a learner holding misconception `bug` would type (null: the right chain). */
+export function misconceptionChain(config: MachineConfig, key: Letter, bug: Bug | null): string[] {
+  const windows = bug === 'no-step' ? config.positions.join('') : windowsAfterStep(config)
+  return [windows, ...keypressHops(config, key, bug).map((h) => h.output as string)]
+}
+
 const tokensOf = (a: unknown): string[] => (Array.isArray(a) ? a.map((t) => String(t ?? '').toUpperCase().replace(/[^A-Z]/g, '')) : [])
 
 const chainReference = (i: ChainFullInstance): PathHop[] => referenceHops(stateOf(i.config), i.key)
@@ -415,7 +507,10 @@ export const hopChainFull = chainItem<ChainFullInstance>({
       if (base.rings.every((x) => x === 'A')) continue
       // Half of the instances start within two presses of a turnover (0: carry now, 1: next press, 2: double step).
       const config = int(r, 2) === 0 ? nearTurnover(r, base, int(r, 3)) : base
-      return { stages: CHAIN_STAGES, config, key: randLetter(r) }
+      const key = randLetter(r)
+      // Every seeded misconception gives a different chain (plug-once only when the letter coming back is plugged).
+      const truth = misconceptionChain(config, key, null).join()
+      if (BUGS.every((b) => misconceptionChain(config, key, b).join() !== truth)) return { stages: CHAIN_STAGES, config, key }
     }
   },
   same: (a, b) => a.key === b.key && sameJson(a.config, b.config),

@@ -20,11 +20,16 @@ import {
   validateConfig,
   withPositions,
 } from '../../../engine'
-import { codeTaskOf } from '../../../lesson/kinds'
+import type { GateRecord } from '../../../contracts/lesson'
+import { EMPTY_GATE, currentItem, ensureCurrent, revealCurrent, shownInstance, submitAnswer, type GateCtx } from '../../../lesson/gateEngine'
+import { codeTaskOf, partForStage, passingRun } from '../../../lesson/kinds'
+import { hintLevel } from '../../../lesson/rules'
 import { createRng, randLetter, randomConfig, sample, seedFor } from '../../../lib/rng'
 import {
   BUGS,
   FACTORS,
+  FAULT_PARTS,
+  PROBE_BUGS,
   GATES,
   KEYPRESS_REFERENCE,
   NOTATION_START,
@@ -39,11 +44,13 @@ import {
   keypressCases,
   keypressHops,
   keypressProbe,
+  misconceptionChain,
   partialProduct,
   referenceHops,
   stateOf,
   whichWrong,
   windowsAfterStep,
+  type Bug,
   type ChainFullInstance,
   type KeypressInstance,
   type WhichWrongInstance,
@@ -216,8 +223,29 @@ describe('which-wrong', () => {
       const res = whichWrong.check(i, a === 'etw' ? 'plugboard' : 'etw')
       expect(res).toMatchObject({ correct: false, rollback: { kind: 'path', ghost: { divergeAt: faultyHop(i) } } })
     }
-    expect([...answers.keys()].sort()).toEqual(['plugboard', 'reflector', 'rotor-left', 'rotor-middle', 'rotor-right'])
-    for (const n of answers.values()) expect(n).toBeGreaterThan(20)
+    expect([...answers.keys()].sort()).toEqual([...FAULT_PARTS].sort())
+    // Uniform over the five parts: a constant guess is right one time in five.
+    for (const n of answers.values()) expect(n).toBeGreaterThan(SEEDS / 5 - 25)
+  })
+})
+
+describe('every instance needs the key idea', () => {
+  it('keypress: each misconception acting before M⁻¹ predicts another letter (300 seeds)', () => {
+    for (let s = 0; s < SEEDS; s++) {
+      const i = gen(keypress, s) as KeypressInstance
+      const c = { model: 'I' as const, ...i.state, rings: [...i.state.rings], positions: [...i.state.positions] } as never
+      for (const bug of PROBE_BUGS) {
+        expect(keypressHops(c, i.key, bug)[PROBE_HOP]!.output, `seed ${s} ${bug}`).not.toBe(keypressProbe(i))
+      }
+    }
+  })
+
+  it('hop-chain-full: each of the six misconceptions types another chain (300 seeds)', () => {
+    for (let s = 0; s < SEEDS; s++) {
+      const i = gen(hopChainFull, s) as ChainFullInstance
+      for (const bug of BUGS) expect(hopChainFull.check(i, misconceptionChain(i.config, i.key, bug)).correct, `seed ${s} ${bug}`).toBe(false)
+      expect(hopChainFull.check(i, misconceptionChain(i.config, i.key, null)).correct).toBe(true)
+    }
   })
 })
 
@@ -277,5 +305,60 @@ describe('gate keypress', () => {
     expect(g.items.every((i) => i.rule.kind === 'window')).toBe(true)
     expect(g.fallback).toBe(whichWrong)
     expect(g.items.some((i) => i.compute)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Misconception bots: a learner right about everything except one seeded bug, whose code is correct (an agent wrote
+// it) but whose predictions, fault-finding and chains follow the bug; paced like the guess bot. None passes.
+// ---------------------------------------------------------------------------
+
+const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
+/** Every keypress instance has the same number of cases (checked above: 36). */
+const KEYPRESS_CASES = 36
+
+function believer(bug: Bug) {
+  return (l: ItemLogic, inst: unknown): unknown => {
+    if (l.id === 'keypress') {
+      const i = inst as KeypressInstance
+      const c = { model: 'I' as const, ...i.state, rings: [...i.state.rings], positions: [...i.state.positions] } as never
+      return { probe: keypressHops(c, i.key, bug)[PROBE_HOP]!.output, run: passingRun(KEYPRESS_CASES, i.seed) }
+    }
+    if (l.id === 'which-wrong') {
+      const i = inst as WhichWrongInstance
+      const k = firstDivergence(i.ghost.hops, keypressHops(i.config, i.key, bug))
+      return k === -1 ? 'etw' : partForStage(STAGES[k]!)
+    }
+    const i = inst as ChainFullInstance
+    return misconceptionChain(i.config, i.key, bug)
+  }
+}
+
+function botPasses(answer: (l: ItemLogic, i: unknown) => unknown, run: number): boolean {
+  const ctx: GateCtx = { key: 'i4-permutations/keypress', logic: GATES.keypress!, salt: `misconception:${run}` }
+  let rec: GateRecord = EMPTY_GATE
+  let now = 1
+  for (;;) {
+    rec = ensureCurrent(ctx, rec, now)
+    const item = currentItem(ctx.logic, rec)
+    if (!item) return true
+    const it = rec.items[item.id]!
+    if (it.attempt > 6) return false
+    now += 10_000
+    if (hintLevel(it, false) === 3) rec = revealCurrent(ctx, rec, item.id, now).gate
+    else {
+      const shown = shownInstance(ctx, item, it)
+      rec = submitAnswer(ctx, rec, item.id, clone(answer(shown.logic, shown.instance)), now).gate
+    }
+  }
+}
+
+describe('misconception bots: none passes gate keypress (300 runs each)', () => {
+  it.each(BUGS.map((b) => [b]))('believes %s', (bug) => {
+    for (let run = 0; run < SEEDS; run++) expect(botPasses(believer(bug), run), `run ${run}`).toBe(false)
+  })
+
+  it('the right learner passes (the bots are fair)', () => {
+    expect(botPasses((l, i) => l.solve(i), 0)).toBe(true)
   })
 })

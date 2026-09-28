@@ -80,12 +80,14 @@ export function ReciprocityView(p: SceneProps): JSX.Element {
         So the setting that enciphers a message also deciphers it. Type a word of three letters or more, rewind the tape to where it
         began, type the ciphertext, and read the tape.
       </p>
+      <div aria-live="polite">
       {trip ? (
         <p data-testid="reciprocity-result" className="text-emerald-300">
           From <Mono>{trip.start}</Mono>, <Mono>{trip.input}</Mono> enciphered to <Mono>{trip.output}</Mono>, and{' '}
           <Mono>{trip.output}</Mono> deciphered back to <Mono>{trip.input}</Mono>: the same setting did both.
         </p>
       ) : null}
+      </div>
     </div>
   )
 }

@@ -75,9 +75,10 @@ export function PlugboardTwiceView(p: SceneProps): JSX.Element {
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="plugboard-view">
       <p>
         The plugboard <Sym s="S" /> sits between the keyboard and the entry wheel. A cable joins two letters and swaps them; a letter
-        without a cable passes straight through. Two cables are plugged: <Mono>{DEMO_CABLES.join(' ')}</Mono>. Bet first, then press{' '}
-        <Mono>{DEMO_KEY}</Mono>.
+        without a cable passes straight through. Two cables are plugged: <Mono>{DEMO_CABLES.join(' ')}</Mono>. Bet first, then press a
+        key: <Mono>{DEMO_KEY}</Mono> has a cable.
       </p>
+      <div aria-live="polite">
       {fired && last ? (
         <section data-testid="plugboard-worked" className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3">
           <p>
@@ -92,6 +93,7 @@ export function PlugboardTwiceView(p: SceneProps): JSX.Element {
           <p>Now plug two cables of your own with the plugboard controls, and press a key that has one of them.</p>
         </section>
       ) : null}
+      </div>
       {own.length ? (
         <p data-testid="own-cables">
           Your cables: <Mono>{own.join(' ')}</Mono>.

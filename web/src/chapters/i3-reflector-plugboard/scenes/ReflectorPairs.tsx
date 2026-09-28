@@ -104,6 +104,7 @@ export function ReflectorPairsView(p: SceneProps): JSX.Element {
         join the contacts to one another. The current arrives on one contact and leaves on another, back into the rotors.
       </p>
       <ReflectorCircle lit={lit} />
+      <div aria-live="polite" className="flex flex-col gap-3">
       {fired ? (
         <p data-testid="reflector-count">
           {lit} of {PAIRS.length} wires lit.
@@ -133,6 +134,7 @@ export function ReflectorPairsView(p: SceneProps): JSX.Element {
           </ol>
         </section>
       ) : null}
+      </div>
     </div>
   )
 }

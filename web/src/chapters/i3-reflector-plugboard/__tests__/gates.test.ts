@@ -20,21 +20,31 @@ import {
   PLUG_START,
   RECIPROCITY_START,
   SEARCH_START,
-  SELF_OPTIONS,
+  SELF_DISTRACTORS,
   START,
   composeCases,
   composeInverse,
   composeProbe,
+  handsOn,
   lampFor,
+  selfPositions,
+  selfWired,
   plugOne,
   plugToHit,
   reflectorPairs,
   scrambler,
   selfHits,
+  wayOutCable,
   whyNoSelf,
   type ComposeInstance,
+  type HandsOnInstance,
   type PlugInstance,
+  type SelfInstance,
 } from '../gates'
+import type { GateRecord } from '../../../contracts/lesson'
+import { EMPTY_GATE, currentItem, ensureCurrent, revealCurrent, shownInstance, submitAnswer, type GateCtx } from '../../../lesson/gateEngine'
+import { hintLevel } from '../../../lesson/rules'
+import { passingRun } from '../../../lesson/kinds'
 
 const ctx = (id: string, attempt: number): GenCtx => ({ key: `i3-reflector-plugboard/reflector/${id}`, attempt, purpose: 'instance', previous: [] })
 const gen = <I>(l: ItemLogic<I, unknown>, s: number): I => l.generate(createRng(seedFor('i3-test', l.id, s)), ctx(l.id, (s % 4) + 1))
@@ -115,6 +125,8 @@ describe('plug-to-hit and plug-one', () => {
       expect(lampFor(m, i.k)).not.toBe(i.t)
       const solution = item.solve(i) as MachineConfig
       expect(solution.plugboard.length).toBeLessThanOrEqual(max)
+      expect(solution.plugboard.join('')).not.toContain(i.k)
+      expect(solution.plugboard).toEqual([wayOutCable(i)])
       expect(lampFor(solution, i.k)).toBe(i.t)
       expect(item.check(i, solution).correct).toBe(true)
     }
@@ -147,6 +159,24 @@ describe('plug-to-hit and plug-one', () => {
     expect(right).toBeGreaterThanOrEqual(200)
   })
 
+  it('every instance needs the way back: the in-only cable K–E₀(T) and the direct cable K–T never pass (300 seeds)', () => {
+    for (const item of [plugToHit, plugOne]) {
+      for (let s = 0; s < SEEDS; s++) {
+        const i = gen(item, s) as PlugInstance
+        const e0 = scrambler(i.setup.machine)
+        for (const cable of [i.k + LETTERS[e0[idx(i.t)]!], i.k + i.t]) {
+          const res = item.check(i, { ...i.setup.machine, plugboard: [cable] })
+          expect(res, `seed ${s}: ${cable}`).toMatchObject({ correct: false, rollback: { kind: 'machine', field: 'plugboard' } })
+        }
+      }
+    }
+    // A cable on K lights T sometimes (K–E₀(T)), but K's socket must stay empty.
+    const i = gen(plugToHit, 1) as PlugInstance
+    const inOnly = { ...i.setup.machine, plugboard: [i.k + LETTERS[scrambler(i.setup.machine)[idx(i.t)]!]] }
+    expect(lampFor(inOnly, i.k)).toBe(i.t)
+    expect(plugToHit.check(i, inOnly).feedback).toMatch(/socket empty/)
+  })
+
   it('refuses more cables than allowed, and any change outside the plugboard', () => {
     const i = gen(plugOne, 3) as PlugInstance
     const solution = plugOne.solve(i) as MachineConfig
@@ -168,22 +198,32 @@ describe('plug-to-hit and plug-one', () => {
 })
 
 describe('why-no-self', () => {
-  it('is shuffled, once, constant, and every distractor explains itself (rollback none)', () => {
-    const orders = new Set<string>()
+  it('once, constant answer; the wording, the distractors and the anchoring press vary per instance', () => {
+    const labels = new Set<string>()
+    const sets = new Set<string>()
     for (let s = 0; s < 100; s++) {
-      const i = gen(whyNoSelf, s) as { options: typeof SELF_OPTIONS }
-      orders.add(i.options.map((o) => o.id).join())
+      const i = gen(whyNoSelf, s) as SelfInstance
       expect(i.options).toHaveLength(4)
-      expect(i.options.find((o) => o.id === 'plugboard')).toMatchObject({ misconception: true })
+      expect(i.options.filter((o) => o.id === 'reflector')).toHaveLength(1)
+      expect(i.options.filter((o) => o.misconception)).toHaveLength(3)
+      labels.add(i.options.find((o) => o.id === 'reflector')!.label)
+      sets.add(i.options.map((o) => o.id).sort().join())
+      expect(lampFor({ ...SEARCH_START, positions: i.windows }, i.key)).toBe(i.lamp)
       expect(whyNoSelf.check(i, 'reflector').correct).toBe(true)
-      for (const o of i.options.filter((x) => x.id !== 'reflector')) {
-        const res = whyNoSelf.check(i, o.id)
-        expect(res).toMatchObject({ correct: false, rollback: { kind: 'none' } })
-        expect(res.feedback).toBeTruthy()
-      }
     }
-    expect(orders.size).toBeGreaterThan(10)
+    expect(labels.size).toBe(3)
+    expect(sets.size).toBeGreaterThan(5)
     expect(whyNoSelf).toMatchObject({ rule: { kind: 'once' }, constantAnswer: true, kind: 'choice' })
+  })
+
+  it('a distractor\'s feedback says why it is wrong without naming the right option', () => {
+    const i = gen(whyNoSelf, 2) as SelfInstance
+    for (const d of SELF_DISTRACTORS) {
+      const res = whyNoSelf.check(i, d.id)
+      expect(res).toMatchObject({ correct: false, rollback: { kind: 'none' } })
+      expect(res.feedback).toBeTruthy()
+      expect(res.feedback).not.toMatch(/reflector|pairs|wire/i)
+    }
   })
 })
 
@@ -255,13 +295,125 @@ describe('compose-inverse', () => {
   })
 })
 
+describe('hands-on, the in-page fallback', () => {
+  const at = (from: string, s: number): HandsOnInstance =>
+    handsOn.generate(createRng(seedFor('hands-on', from, s)), {
+      key: `i3-reflector-plugboard/reflector/${from}`,
+      attempt: 2,
+      purpose: 'fallback',
+      previous: [],
+    })
+
+  it('tests the skill of the item that triggered it', () => {
+    for (let s = 0; s < 100; s++) {
+      expect(at('plug-to-hit', s).variant).toBe('plug')
+      expect(at('compose-inverse', s).variant).toBe('compose')
+      expect(at('why-no-self', s).variant).toBe('self')
+    }
+    expect(handsOn).toMatchObject({ kind: 'custom', inPage: true })
+  })
+
+  it('plug: one cable, K kept empty; compose: q-first is wrong; self: exactly one window lights the key itself', () => {
+    for (let s = 0; s < SEEDS; s++) {
+      const plug = at('plug-to-hit', s) as Extract<HandsOnInstance, { variant: 'plug' }>
+      expect(plug.maxPlugs).toBe(1)
+      expect(handsOn.check(plug, handsOn.solve(plug)).correct).toBe(true)
+      expect(handsOn.setup!(plug).locks).toMatchObject({ keyboard: true, lampsHidden: true, plugboard: false })
+      const c = at('compose-inverse', s) as Extract<HandsOnInstance, { variant: 'compose' }>
+      const p = [...c.p].map(idx)
+      const q = [...c.q].map(idx)
+      expect(handsOn.solve(c)).toBe(compose(p, q).map((x) => LETTERS[x]).join(''))
+      const qFirst = compose(q, p).map((x) => LETTERS[x]).join('')
+      expect(handsOn.check(c, qFirst)).toMatchObject({ correct: false, rollback: { kind: 'perm' } })
+      const t = at('why-no-self', s) as Extract<HandsOnInstance, { variant: 'self' }>
+      expect(selfWired(t.spec)).toHaveLength(2)
+      expect(selfPositions(t)).toHaveLength(1)
+      expect(handsOn.check(t, handsOn.solve(t)).correct).toBe(true)
+      for (let w = 0; w < 6; w++) if (w !== selfPositions(t)[0]) expect(handsOn.check(t, w).rollback.kind).toBe('machine')
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Misconception bots: a learner right about everything except one idea, answering like the guess bot (10 s per
+// answer, the L3 reveal when it comes, at most 6 attempts per item). None ever passes the gate.
+// ---------------------------------------------------------------------------
+
+const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
+type Answerer = (l: ItemLogic, i: unknown) => unknown
+
+function botPasses(answer: Answerer, run: number, stepMs = 10_000): { gate: boolean; items: Record<string, boolean> } {
+  const ctx: GateCtx = { key: 'i3-reflector-plugboard/reflector', logic: GATES.reflector!, salt: `misconception:${run}` }
+  let rec: GateRecord = EMPTY_GATE
+  let now = 1
+  for (;;) {
+    rec = ensureCurrent(ctx, rec, now)
+    const item = currentItem(ctx.logic, rec)
+    const passed = Object.fromEntries(Object.entries(rec.items).map(([k, v]) => [k, v.passed]))
+    if (!item) return { gate: true, items: passed }
+    const it = rec.items[item.id]!
+    if (it.attempt > 6) return { gate: false, items: passed }
+    now += stepMs
+    if (hintLevel(it, false) === 3) rec = revealCurrent(ctx, rec, item.id, now).gate
+    else {
+      const shown = shownInstance(ctx, item, it)
+      rec = submitAnswer(ctx, rec, item.id, clone(answer(shown.logic, shown.instance)), now).gate
+    }
+  }
+}
+
+/** The right answer everywhere, except where `wrong` says otherwise. */
+const knowsAllBut =
+  (wrong: (l: ItemLogic, i: unknown) => unknown | undefined): Answerer =>
+  (l, i) =>
+    wrong(l, i) ?? l.solve(i)
+
+const plugOf = (i: unknown): PlugInstance | null => ((i as { unlocked?: unknown }).unlocked ? (i as PlugInstance) : null)
+const inOnlyCable = (i: PlugInstance) => ({ ...i.setup.machine, plugboard: [i.k + LETTERS[scrambler(i.setup.machine)[idx(i.t)]!]] })
+
+const BOTS: Record<string, Answerer> = {
+  // The current crosses the plugboard only on the way in: join K to the letter E₀ turns into T.
+  'plugboard once': knowsAllBut((_l, i) => (plugOf(i) ? inOnlyCable(plugOf(i)!) : undefined)),
+  // A cable from K to T makes K light T.
+  'cable K to T': knowsAllBut((_l, i) => (plugOf(i) ? { ...plugOf(i)!.setup.machine, plugboard: [plugOf(i)!.k + plugOf(i)!.t] } : undefined)),
+  // compose(p, q) applies q first.
+  'q first': knowsAllBut((l, i) => {
+    const c = i as ComposeInstance & { variant?: string }
+    if (l.id === 'compose-inverse') {
+      const q = [...c.q].map(idx)
+      const p = [...c.p].map(idx)
+      return { probe: LETTERS[p[q[3]!]!], run: passingRun(composeCases(c).length, c.seed) }
+    }
+    if (c.variant === 'compose') return compose([...c.q].map(idx), [...c.p].map(idx)).map((x) => LETTERS[x]).join('')
+    return undefined
+  }),
+  // The plugboard is what stops a letter lighting itself.
+  'the plugboard prevents it': knowsAllBut((l) => (l.id === 'why-no-self' ? 'plugboard' : undefined)),
+}
+
+describe('misconception bots: none passes gate reflector (300 runs each)', () => {
+  it.each(Object.entries(BOTS))('%s', (_name, bot) => {
+    for (let run = 0; run < SEEDS; run++) expect(botPasses(bot, run).gate, `run ${run}`).toBe(false)
+  })
+
+  it('answering fast (so every other instance is the fallback) does not help: the fallback tests the same idea', () => {
+    for (const name of ['plugboard once', 'cable K to T', 'q first']) {
+      for (let run = 0; run < 100; run++) expect(botPasses(BOTS[name]!, run, 500).gate, `${name} run ${run}`).toBe(false)
+    }
+  })
+
+  it('the right learner passes (the bots are fair)', () => {
+    expect(botPasses((l, i) => l.solve(i), 0).gate).toBe(true)
+  })
+})
+
 describe('gate reflector', () => {
-  it('holds plug-to-hit, why-no-self and compose-inverse in order, with the plug-one fallback (in page)', () => {
+  it('holds plug-to-hit, why-no-self and compose-inverse in order, with the hands-on fallback (in page, custom)', () => {
     const g = GATES.reflector!
     expect(g.items.map((i) => i.id)).toEqual(['plug-to-hit', 'why-no-self', 'compose-inverse'])
     expect(g.items.map((i) => i.rule.kind)).toEqual(['window', 'once', 'window'])
     expect(g.items.map((i) => i.kind)).toEqual(['set-machine', 'choice', 'code'])
-    expect(g.fallback).toMatchObject({ id: 'plug-one', kind: 'set-machine', inPage: true })
+    expect(g.fallback).toMatchObject({ id: 'hands-on', kind: 'custom', inPage: true })
   })
 
   it('every generated machine uses rotors I–V (the Enigma I of Act I)', () => {

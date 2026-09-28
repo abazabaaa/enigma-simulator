@@ -21,6 +21,7 @@ import {
   FACTORS,
   PROBE_HOP,
   STAGES,
+  STAGE_LABEL,
   componentPerm,
   faultyHop,
   hopTables,
@@ -192,7 +193,7 @@ function WhichWrongPrompt({ instance }: { instance: WhichWrongInstance }): JSX.E
         {instance.ghost.hops.map((h, k) => (
           <li key={k} className="flex flex-col gap-0.5">
             <span className="text-sm">
-              {k + 1}. <Sym s={symForStage(STAGES[k]!)} inv={FACTORS[k]!.inv} /> {STAGES[k]}: <Mono>{h.input}</Mono> →{' '}
+              {k + 1}. <Sym s={symForStage(STAGES[k]!)} inv={FACTORS[k]!.inv} /> {STAGE_LABEL[STAGES[k]!]}: <Mono>{h.input}</Mono> →{' '}
               <Mono>{h.output}</Mono>
             </span>
             <LetterTable images={perm(tables[k]!)} />
@@ -211,7 +212,7 @@ const whichWrong = {
     const ref = keypressHops(instance.config, instance.key, null)[k]!
     return (
       <p className="text-sm">
-        Every hop up to hop {k} matches its table. Hop {k + 1} ({STAGES[k]}) should send <Mono>{ref.input}</Mono> to{' '}
+        Every hop up to hop {k} matches its table. Hop {k + 1} ({STAGE_LABEL[STAGES[k]!]}) should send <Mono>{ref.input}</Mono> to{' '}
         <Mono>{ref.output}</Mono>, but the path shows <Mono>{instance.ghost.hops[k]!.output}</Mono>: the fault is in the{' '}
         {partName(solution).toLowerCase()}.
       </p>

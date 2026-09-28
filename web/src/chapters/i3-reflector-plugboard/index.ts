@@ -13,11 +13,10 @@ import { PlugboardTwiceView, ReciprocityView, ReflectorPairsView, SelfSearchView
 
 const STORY =
   'Bletchley Park, 4 September 1939, the day after Britain declared war. Alan Turing and Gordon Welchman report for work. The ' +
-  'machine they face has two more parts than its rotors. A reflector at the far end sends the current back through the rotors on ' +
-  'a different wire, and a plugboard at the front swaps letters in pairs. Together they make Enigma its own inverse: the setting ' +
-  'that enciphers a message also deciphers it. They also guarantee that no letter is ever enciphered as itself, "a severe ' +
-  'cryptological flaw". A guessed word, a crib, cannot sit where one of its letters meets the same ciphertext letter. Turing ' +
-  'designed the bombe that year.'
+  'machine they face has two more parts than its rotors: a reflector at the far end, which sends the current back through ' +
+  'the rotors, and a plugboard at the front, where cables swap letters. Together they carry what has been called "a severe ' +
+  'cryptological flaw", and the codebreakers exploited it; Turing designed the bombe that year. This chapter finds out, on ' +
+  'the machine itself, what the two parts do.'
 
 const scenes: readonly SceneDef[] = [
   {
@@ -25,7 +24,7 @@ const scenes: readonly SceneDef[] = [
     kind: 'story',
     title: 'Two parts that make a flaw',
     stage: null,
-    story: { text: STORY, people: ['turing', 'welchman'], date: 'bletchley', facts: ['flaw', 'crashes', 'bombe'] },
+    story: { text: STORY, people: ['turing', 'welchman'], date: 'bletchley', facts: ['flaw', 'bombe'] },
   },
   {
     id: 'reflector-pairs',
@@ -50,7 +49,7 @@ const scenes: readonly SceneDef[] = [
   {
     id: 'plugboard-twice',
     kind: 'explore',
-    title: 'The plugboard, crossed twice',
+    title: 'Cables on the plugboard',
     stage: 'plugboard',
     setup: { machine: PLUG_START, locks: { ...FIXED, plugboard: false } },
     panels: { plugboard: true, keyboard: true, trace: true },
@@ -58,7 +57,7 @@ const scenes: readonly SceneDef[] = [
     bets: [
       {
         id: 'twice',
-        prompt: `Cables ${DEMO_CABLES.join(' and ')} are plugged. You press ${DEMO_KEY}. How many times does the current cross the plugboard?`,
+        prompt: `Cables ${DEMO_CABLES.join(' and ')} are plugged. You press a key (try ${DEMO_KEY}). How many times does the current cross the plugboard?`,
         kind: 'choice',
         options: [
           { id: 'once', label: 'Once, on its way in', misconception: true },
@@ -67,10 +66,11 @@ const scenes: readonly SceneDef[] = [
         ],
       },
     ],
-    reveals: [{ bet: 'twice', trigger: 'press', key: DEMO_KEY }],
+    // Any key reveals: every key is unlocked once the bet is in, and every press crosses the plugboard the same way.
+    reveals: [{ bet: 'twice', trigger: 'press' }],
     tasks: [
       { id: 'add2', label: 'Plug two cables of your own' },
-      { id: 'press-plugged', label: 'Press a key on one of your cables and find both plugboard rows in the trace' },
+      { id: 'press-plugged', label: 'Press a key on one of your cables and follow its letter through the trace' },
     ],
     View: PlugboardTwiceView,
   },

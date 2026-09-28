@@ -105,9 +105,10 @@ export function SelfSearchView(p: SceneProps): JSX.Element {
           </button>
         </div>
       ) : null}
+      <div aria-live="polite">
       {search ? (
         <section data-testid="self-result" className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3">
-          <p className="font-mono text-base text-stone-100" aria-live="polite">
+          <p className="font-mono text-base text-stone-100">
             Positions tried: <span data-testid="self-counter" data-count={search.done}>{search.done.toLocaleString('en')}</span> of{' '}
             {POSITIONS_TOTAL.toLocaleString('en')} · A lit A: <span data-testid="self-hits" data-hits={search.hits}>{search.hits}</span>
           </p>
@@ -121,6 +122,7 @@ export function SelfSearchView(p: SceneProps): JSX.Element {
           ) : null}
         </section>
       ) : null}
+      </div>
     </div>
   )
 }

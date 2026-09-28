@@ -28,6 +28,7 @@ import {
   assertRollback,
   commitBet,
   completeScene,
+  completeTasks,
   configure,
   continueGate,
   current,
@@ -396,5 +397,13 @@ test.describe('chapter i4-permutations in 3D', { tag: ['@3d', '@chapter:i4-permu
     await commitBet(page, 'inverse', 'returns')
     await fireReveal(page, play!)
     await expect(page.getByTestId('symbols-back')).toBeVisible()
+    // Across a scene change the 3D view stays up with the same focus.
+    await completeTasks(page)
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('tables')
+    await expect.poll(async () => `${(await stageInfo(page)).renderer}:${(await stageInfo(page)).focus}`, { timeout: 30_000 }).toBe('webgl2:wire')
+    expect((await stageInfo(page)).dimmed).toEqual(dimmedParts('wire', 'I'))
+    await page.getByTestId('compose-next').click()
+    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(['plugboard'])
   })
 })

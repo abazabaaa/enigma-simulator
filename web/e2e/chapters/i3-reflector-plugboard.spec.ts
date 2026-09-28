@@ -130,7 +130,8 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     await assertFocus(page, 'plugboard')
     await expectNextDisabled(page)
     const [press] = await sceneReveals(page)
-    expect(press).toMatchObject({ bet: 'twice', trigger: 'press', key: 'A' })
+    expect(press).toMatchObject({ bet: 'twice', trigger: 'press' })
+    expect(press!.key, 'any key reveals: every key unlocks with the bet').toBeUndefined()
     await assertRevealGated(page, press!)
     await commitBet(page, 'twice', 'twice')
     await fireReveal(page, press!)
@@ -255,9 +256,11 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     expect(c).toMatchObject({ itemId: 'why-no-self', kind: 'choice' })
     expect(await axeSerious(page, '[data-testid="item-why-no-self"]')).toEqual([])
     await assertNoAnswerLeak(page)
-    await answerViaUi(page, 'choice', 'plugboard')
+    const distractor = (c.instance as { options: { id: string; misconception?: true }[] }).options.find((o) => o.misconception)!.id
+    await answerViaUi(page, 'choice', distractor)
     await assertRollback(page, 'none')
-    await expect(page.getByTestId('rollback')).toContainText('reflector')
+    await expect(page.getByTestId('rollback')).toContainText(/not the reason|never/)
+    await expect(page.getByTestId('rollback'), 'the feedback never names the right option').not.toContainText(/reflector/i)
     await continueGate(page)
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
     await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toContain('reflector')
@@ -320,7 +323,9 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     await expect(page.getByTestId('chapter-link-i4-permutations')).toHaveAttribute('data-locked', 'false')
   })
 
-  test('the agent paste never passes the gate while the in-page item is wrong; the gaming fallback is plug-one', async ({ page }) => {
+  test('the agent paste never passes the gate while the in-page item is wrong; the gaming fallback tests the same idea', async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await enter(page, CHAPTER)
     await toGate(page)
@@ -340,7 +345,8 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     await answerViaApi(page, 'plug-to-hit', await wrongAnswer(page))
     expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: `${CHAPTER}/reflector/plug-to-hit`, reason: 'fast' }])
     const fb = await current(page)
-    expect(fb).toMatchObject({ itemId: 'plug-to-hit', fallback: true, kind: 'set-machine' })
+    expect(fb).toMatchObject({ itemId: 'plug-to-hit', fallback: true, kind: 'custom' })
+    expect((fb.instance as { variant: string }).variant).toBe('plug')
     expect((fb.instance as { maxPlugs: number }).maxPlugs).toBe(1)
     await expect(page.getByTestId('item-plug-to-hit')).toHaveAttribute('data-fallback', 'true')
     await expect(page.getByTestId('key-A')).toBeDisabled()
@@ -360,6 +366,28 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     const rec = (await progress(page)).gates[`${CHAPTER}/reflector`]!.items['plug-to-hit']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'wrong', fallback: true })
     expect(await current(page)).toMatchObject({ itemId: 'plug-to-hit', fallback: false })
+
+    // The fallback tests the idea of the item that triggered it: after two instant answers to compose-inverse the
+    // learner builds compose(p, q) in the page, and applying q first is wrong there too.
+    for (const id of ['plug-to-hit', 'plug-to-hit', 'why-no-self']) await answerViaApi(page, id, await solveInNode(page))
+    expect((await current(page)).itemId).toBe('compose-inverse')
+    await configure(page, { minLatencyMs: 2000 })
+    await answerViaApi(page, 'compose-inverse', await wrongAnswer(page))
+    await answerViaApi(page, 'compose-inverse', await wrongAnswer(page))
+    const built = await current(page)
+    expect(built).toMatchObject({ itemId: 'compose-inverse', fallback: true, kind: 'custom' })
+    const { p, q, variant } = built.instance as { variant: string; p: string; q: string }
+    expect(variant).toBe('compose')
+    await configure(page, { minLatencyMs: 0 })
+    const qFirst = [0, 1, 2, 3, 4, 5].map((i) => p['ABCDEF'.indexOf(q[i]!)]!).join('')
+    for (const [i, ch] of [...qFirst].entries()) await page.getByTestId(`compose-build-cell-${i}`).locator('input').press(ch)
+    await page.getByTestId('gate-submit').click()
+    await assertRollback(page, 'perm')
+    await expect(page.getByTestId('compose-build-feedback')).toBeVisible()
+    await continueGate(page)
+    expect((await gate(page))!.passed).toBe(false)
+    const comp = (await progress(page)).gates[`${CHAPTER}/reflector`]!.items['compose-inverse']!
+    expect(comp.outcomes.at(-1)).toMatchObject({ result: 'wrong', fallback: true })
   })
 
   test('the hint ladder on plug-to-hit, and a reload mid-gate keeps the seed and the instance', async ({ page }) => {
@@ -403,5 +431,11 @@ test.describe('chapter i3-reflector-plugboard in 3D', { tag: ['@3d', '@chapter:i
     await commitBet(page, 'pairs', '13')
     await fireReveal(page, play!)
     await expect(page.getByTestId('task-seen')).toHaveAttribute('data-done', 'true')
+    // Across a scene change the 3D view stays up and refocuses on the plugboard.
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('plugboard-twice')
+    await expect.poll(async () => (await page.evaluate(() => window.__stage!.info())).focus, { timeout: 30_000 }).toBe('plugboard')
+    expect(await page.evaluate(() => window.__stage!.info().renderer)).toBe('webgl2')
+    expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts('plugboard', 'I'))
   })
 })
