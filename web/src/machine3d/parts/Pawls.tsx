@@ -39,6 +39,20 @@ const DOWN = aim(TIP_DOWN_R)
 /** rotation.x of a pawl, engaged or not. */
 export const pawlAngle = (engaged: boolean): number => (engaged ? DOWN.angle : UP.angle)
 
+/** The tip of a pawl in its own frame (pivot at the origin, before its rotation). */
+export const PAWL_TIP_LOCAL: Vec3 = { x: ROTOR_PITCH + ROTOR.notchX0 - PAWL_DX + 0.15, y: -UP.length, z: 0 }
+
+/** World position of pawl i's tip, where it meets the notch ring: the pawl–notch contact. */
+export function pawlTip(l: Layout, i: number, engaged: boolean): Vec3 {
+  const a = pawlAngle(engaged)
+  const { x, y } = PAWL_TIP_LOCAL
+  return {
+    x: slotX(l, i) + PAWL_DX + x,
+    y: AXIS_Y + PAWL_PIVOT.y + y * Math.cos(a),
+    z: AXIS_Z + PAWL_PIVOT.z + y * Math.sin(a),
+  }
+}
+
 /** World position of pawl i's pivot (for labels and highlights). */
 export function pawlAnchor(l: Layout, i: number): Vec3 {
   return { x: slotX(l, i) + PAWL_DX, y: AXIS_Y + PAWL_PIVOT.y, z: AXIS_Z + PAWL_PIVOT.z }

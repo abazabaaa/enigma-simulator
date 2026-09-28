@@ -72,6 +72,18 @@ export interface PlaybackInput {
   readonly hops: number
 }
 
+/**
+ * The playback clock as this view sees it. The clock plays the latest press of one source; while it
+ * belongs to the other source, this source's own last press (ownHops long) is shown finished.
+ */
+export function playbackFor(
+  source: 'machine' | 'toy',
+  played: PlaybackInput & { readonly source: 'machine' | 'toy' },
+  ownHops: number,
+): PlaybackInput {
+  return played.source === source ? { t: played.t, hops: played.hops } : { t: 1 + ownHops, hops: ownHops }
+}
+
 /** Ease in and out over the stepping phase. */
 export function easeStep(t: number): number {
   const x = Math.min(1, Math.max(0, t))
