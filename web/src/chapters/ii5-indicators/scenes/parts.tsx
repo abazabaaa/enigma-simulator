@@ -3,7 +3,7 @@
  * pair of letters picked out, and the fill-in table of AD whose outlined cells are the learner's.
  */
 
-import { useEffect, useRef, type JSX, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type JSX, type KeyboardEvent, type ReactNode } from 'react'
 import { LETTERS } from '../../../engine'
 import { spaced } from '../gates'
 
@@ -92,7 +92,7 @@ export function FillTable(p: {
       focus(k + 1)
     }
   }
-  const cell = 'h-8 w-7 border border-stone-700 p-0 text-center font-mono text-sm'
+  const cell = 'h-8 w-7 min-w-7 border border-stone-700 p-0 text-center font-mono text-sm'
   return (
     <div className="max-w-full overflow-x-auto" role="region" aria-label={p.label}>
       <table data-testid={p.testId} className="border-collapse">
@@ -185,5 +185,17 @@ export function DefiningPair(p: { indicator: string; typed: string; reducedMotio
         (you typed <span className="font-mono">{p.typed || 'nothing'}</span>)
       </span>
     </li>
+  )
+}
+
+/**
+ * A 26-column table at full size: on a narrow screen it scrolls sideways instead of squeezing its cells (machine-ui's
+ * PermTable shrinks its cells to fit the width).
+ */
+export function Wide({ children }: { children: ReactNode }): JSX.Element {
+  return (
+    <div className="max-w-full overflow-x-auto">
+      <div className="min-w-[46rem]">{children}</div>
+    </div>
   )
 }

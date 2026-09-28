@@ -11,7 +11,7 @@ import { cycleSignature, formatCycles } from '../../../engine'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
 import { PermTable } from '../../../machine-ui'
 import { AD65, AD_FIXED_TRUTH, BE65, CF65, CONFLICT_AT, L, idx, spaced } from '../gates'
-import { IndicatorChips, IndicatorPair } from './parts'
+import { IndicatorChips, IndicatorPair, Wide } from './parts'
 
 const TOTAL = REJEWSKI_65.length
 const STEP_MS = 90
@@ -66,14 +66,16 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
         label="The 65 indicators"
         testId="ad-indicators"
       />
-      <PermTable
-        perm={own}
-        editable={committed}
-        highlight={wrong}
-        label={committed ? 'Your AD: under each letter, the letter AD sends it to' : 'Your AD (make your bet first)'}
-        testId="ad-own"
-        onEdit={(x, v) => setOwn((all) => all.map((y, j) => (j === x ? v : y)))}
-      />
+      <Wide>
+        <PermTable
+          perm={own}
+          editable={committed}
+          highlight={wrong}
+          label={committed ? 'Your AD: under each letter, the letter AD sends it to' : 'Your AD (make your bet first)'}
+          testId="ad-own"
+          onEdit={(x, v) => setOwn((all) => all.map((y, j) => (j === x ? v : y)))}
+        />
+      </Wide>
       <p data-testid="ad-own-count" aria-live="polite">
         {right} {right === 1 ? 'cell agrees' : 'cells agree'} with the indicators
         {wrong.length ? `; ${wrong.length} outlined ${wrong.length === 1 ? 'cell does' : 'cells do'} not` : ''}.
@@ -100,9 +102,11 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
               </button>
             ) : null}
           </div>
-          <PermTable perm={sofar.AD} highlight={latestCells.slice(0, 1)} label="AD (letters 1 → 4)" testId="ad-table" />
-          <PermTable perm={sofar.BE} highlight={latestCells.slice(1, 2)} label="BE (letters 2 → 5)" testId="be-table" />
-          <PermTable perm={sofar.CF} highlight={latestCells.slice(2, 3)} label="CF (letters 3 → 6)" testId="cf-table" />
+          <Wide>
+            <PermTable perm={sofar.AD} highlight={latestCells.slice(0, 1)} label="AD (letters 1 → 4)" testId="ad-table" />
+            <PermTable perm={sofar.BE} highlight={latestCells.slice(1, 2)} label="BE (letters 2 → 5)" testId="be-table" />
+            <PermTable perm={sofar.CF} highlight={latestCells.slice(2, 3)} label="CF (letters 3 → 6)" testId="cf-table" />
+          </Wide>
           {bad ? (
             <p data-testid="ad-conflict" className="text-amber-200">
               Indicator {CONFLICT_AT + 1}, <Mono>{spaced(bad)}</Mono>, says CF sends {bad[2]} to {bad[5]}, but other

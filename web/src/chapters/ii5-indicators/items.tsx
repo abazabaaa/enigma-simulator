@@ -23,7 +23,7 @@ import {
   type FillAdInstance,
   type FixedPointInstance,
 } from './gates'
-import { DefiningPair, FillTable, IndicatorChips, IndicatorPair } from './scenes/parts'
+import { DefiningPair, FillTable, IndicatorChips, IndicatorPair, Wide } from './scenes/parts'
 
 // ---------------------------------------------------------------------------
 // fill-ad
@@ -123,7 +123,9 @@ function FillAdFeedback({
         Your table, with the {wrong.length === 1 ? 'wrong cell' : `${wrong.length} wrong cells`} outlined. The indicator
         that defines each one slides into it: its letter 1 goes to its letter 4.
       </p>
-      <PermTable perm={mine} highlight={wrong} label="Your cells of AD" testId="fill-ad-yours" />
+      <Wide>
+        <PermTable perm={mine} highlight={wrong} label="Your cells of AD" testId="fill-ad-yours" />
+      </Wide>
       <PermWhy indicators={instance.indicators} wrongCells={wrong} typed={typed} testId="fill-ad-why" />
     </div>
   )
