@@ -32,7 +32,8 @@ describe('STAGE_PRESETS', () => {
       plugboard: false,
       interactive: true,
     })
-    expect(STAGE_PRESETS['rotor-layers']).toMatchObject({ focus: 'ring-right', ringLayer: true, interactive: false, trace: 'off' })
+    const layers = { focus: 'ring-right', ringLayer: true, interactive: false, trace: 'off' }
+    expect(STAGE_PRESETS['rotor-layers']).toMatchObject(layers)
     expect(STAGE_PRESETS.symbols).toMatchObject({ labels: 'symbols', focus: 'wire', plugboard: true })
     expect(STAGE_PRESETS['type-a-word']).toMatchObject({ shot: 'front', focus: 'overview', trace: 'off', lid: 'closed' })
     expect(Object.isFrozen(STAGE_PRESETS.overview)).toBe(true)
