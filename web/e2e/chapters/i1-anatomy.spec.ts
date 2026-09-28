@@ -56,6 +56,8 @@ import {
   traceOf,
 } from '../../src/chapters/i1-anatomy/gates'
 import type { Rollback } from '../../src/contracts/lesson'
+import type { HighlightWithResult } from '../../src/lesson/gateEngine'
+import { partList } from '../../src/lesson/partNames'
 import { dimmedParts } from '../../src/contracts/stage'
 import { LETTERS } from '../../src/engine'
 import { partForStage } from '../../src/lesson/kinds/helpers'
@@ -306,6 +308,8 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
 
       // a. One wrong answer through the UI, its rollback, then the L1 hint.
       await assertNoAnswerLeak(page)
+      // The answered instance and its logic, captured before the submit moves the item on (the L1 hint is theirs).
+      const answeredLogic = await logicFor(c.gateKey, id, false)
       let wrong: unknown
       if (c.kind === 'order') {
         // The blocks as shown are never in order: submitting them untouched is a wrong answer through the UI.
@@ -341,10 +345,15 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       const l1 = await current(page)
       expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
-      const logic = await logicFor(l1.gateKey, id, false)
-      const hint = logic.highlight(l1.instance, wrong).map((h) => h.part)
-      if (hint.length)
-        await expect.poll(async () => (await info(page)).highlighted).toEqual(expect.arrayContaining(hint))
+      // L1 through the real path (submit → ensureCurrent): highlight(the ANSWERED instance, the wrong answer).
+      const result = answeredLogic.check(c.instance, wrong)
+      expect(result.correct).toBe(false)
+      const highlight = answeredLogic.highlight as HighlightWithResult
+      const hint = highlight.call(answeredLogic, c.instance, wrong, result).map((h) => h.part)
+      await expect.poll(async () => [...(await info(page)).highlighted].sort()).toEqual([...hint].sort())
+      await expect(page.getByTestId('hint-panel')).toContainText(
+        hint.length ? `look at the highlighted ${partList(hint)}` : 'take it one step at a time',
+      )
 
       // b. A correct instance through the real widget.
       await assertNoAnswerLeak(page)
@@ -352,7 +361,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'true')
 
       // d. data-passed turns true exactly when the rule is met: once → now; window (W C) → after one more.
-      const once = logic.rule.kind === 'once'
+      const once = answeredLogic.rule.kind === 'once'
       await expect(item).toHaveAttribute('data-passed', String(once))
       await continueGate(page)
       if (!once) {

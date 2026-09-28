@@ -8,7 +8,7 @@ import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
-import { configure, walkChapter, where } from './helpers/course'
+import { configure, nextScene, walkChapter, where } from './helpers/course'
 import { START } from '../src/chapters/prologue/gates'
 import { createMachine, encipher, pressKey } from '../src/engine'
 import { MACHINE_3D_READY } from '../src/machine3d/ready'
@@ -120,7 +120,9 @@ test.describe('home', { tag: '@area:home' }, () => {
 })
 
 test.describe('home in 3D', { tag: ['@3d', '@area:home'] }, () => {
-  test('the home stage is the 3D machine when WebGL 2 works, and typing lights a lamp', async ({ page }) => {
+  test('the home stage is the 3D machine when WebGL 2 works, typing lights a lamp, and Begin keeps 3D into the Prologue', async ({
+    page,
+  }) => {
     test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
     test.setTimeout(60_000)
     await gotoApp(page, '/', { stage: '3d' })
@@ -131,5 +133,20 @@ test.describe('home in 3D', { tag: ['@3d', '@area:home'] }, () => {
     await expect.poll(() => page.evaluate(() => window.__stage!.info().litLamp), { timeout: 10_000 }).toBe(lamp)
     await page.getByTestId('lid-slider').fill('2')
     await expect.poll(() => page.evaluate(() => window.__stage!.info().directive?.lid)).toBe('cutaway')
+    // Begin: across the Prologue's stage-less story, the 3D view comes back for the first mechanism scene.
+    await page.getByTestId('home-begin').click()
+    await expect.poll(async () => (await where(page)).chapter).toBe('prologue')
+    await expect(page.getByTestId('stage')).toHaveCount(0)
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('type-a-word')
+    await expect
+      .poll(
+        async () => {
+          const i = await page.evaluate(() => window.__stage!.info())
+          return `${i.renderer}:${i.focus}:${i.directive?.lid}`
+        },
+        { timeout: 30_000 },
+      )
+      .toBe('webgl2:overview:closed')
   })
 })

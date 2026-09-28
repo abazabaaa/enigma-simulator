@@ -239,7 +239,8 @@ describe('hop-chain', () => {
           : stage.startsWith('plug')
             ? 'plugboard'
             : 'reflector'
-      expect(hopChain.highlight(i, bad)).toEqual([{ part, tone: 'hint' }])
+      // The plugboard is hidden on the item's stage (no cables): no outline for a slip there.
+      expect(hopChain.highlight(i, bad)).toEqual(part === 'plugboard' ? [] : [{ part, tone: 'hint' }])
       // The feedback names the hop, the row to read and the letter it gives.
       const hop = traceOf(i.config, i.key)[k]!
       expect(res.feedback).toContain(`Hop ${k + 1}`)

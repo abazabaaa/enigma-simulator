@@ -499,7 +499,10 @@ export const hopChain = chainItem<ChainInstance>({
           lastWrong.map((t) => String(t).toUpperCase()),
         )
       : -1
-    return [{ part: k >= 0 && k < ref.length ? partForStage(ref[k]!.stage) : 'rotor-right', tone: 'hint' }]
+    if (k < 0 || k >= ref.length) return [{ part: 'rotor-right', tone: 'hint' }]
+    // The item's stage hides the plugboard (no cables): nothing to outline there, the feedback says why.
+    const part = partForStage(ref[k]!.stage)
+    return part === 'plugboard' ? [] : [{ part, tone: 'hint' }]
   },
 })
 
