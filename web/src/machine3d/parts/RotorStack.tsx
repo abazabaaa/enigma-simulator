@@ -43,6 +43,7 @@ import {
   type Layout,
 } from '../layout'
 import { PALETTE, slotColor } from '../palette'
+import { dialUp } from '../shots'
 import { StaticInstances } from '../StaticInstances'
 import type { RotorView } from '../view'
 
@@ -53,6 +54,22 @@ export const EXPLODE_SCALE = 1.3
 export const RING_SETTING_COLOR = '#fbbf24'
 
 const ringNumber = (i: number): string => String(i + 1).padStart(2, '0')
+
+/**
+ * The exploded view's dial: a flange on the ring's right face carrying the numbers 01–26, wide
+ * enough for digits that stay legible on a phone.
+ */
+export const DIAL = {
+  r0: 4.55,
+  r1: ROTOR.bandR * EXPLODE_SCALE,
+  x: ROTOR.bandX1,
+  depth: 0.08,
+  /** Digit cells near the outer edge, as large as 26 of them around allow. */
+  digit: 1.3,
+  settingDigit: 1.4,
+} as const
+/** Radius of the dial's digits. */
+export const DIAL_R = 5.72
 
 const X_AXIS = new Vector3(1, 0, 0)
 
@@ -110,11 +127,18 @@ interface RotorProps {
   readonly explode: boolean
 }
 
-/** Orientation of a glyph on the ring's right side face at angle a: facing +x, its top outwards. */
-function dialQuaternion(a: number): Quaternion {
-  const out = new Vector3(0, Math.cos(a), Math.sin(a))
-  const side = new Vector3(0, Math.sin(a), -Math.cos(a))
-  return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(side, out, X_AXIS))
+/**
+ * Orientation of a dial number on the ring's right side face (facing +x) of a ring turned by `turn`:
+ * upright for the 'rotor-layers' camera, whatever its place around the dial (dialUp()).
+ */
+function dialQuaternion(turn: number): Quaternion {
+  const u = dialUp()
+  // the dial's up, in the ring's own frame (which is turned by `turn` about x)
+  const c = Math.cos(-turn)
+  const s = Math.sin(-turn)
+  const up = new Vector3(0, u.y * c - u.z * s, u.y * s + u.z * c)
+  const side = new Vector3(0, up.z, -up.y)
+  return new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(side, up, X_AXIS))
 }
 
 /**
@@ -126,12 +150,12 @@ function dialQuaternion(a: number): Quaternion {
 export function ringGlyphItems(
   layout: Layout,
   letters: readonly Letter[],
-  rotor: Pick<RotorView, 'window' | 'ring'>,
+  rotor: Pick<RotorView, 'window' | 'ring' | 'ringTurn'>,
   o: { numbers: boolean; annotate: boolean; explode: boolean },
 ): GlyphItem[] {
+  const upright = o.numbers ? dialQuaternion(ringAngle(layout, rotor.ringTurn)) : null
   const k = o.explode ? EXPLODE_SCALE : 1
   const r = ROTOR.bandR * k + 0.02
-  const dialR = ((ROTOR.innerR + ROTOR.bandR) * k) / 2
   const arc = (2 * Math.PI * ROTOR.bandR) / layout.n
   const size = Math.min(0.8, arc * 0.66)
   const out: GlyphItem[] = []
@@ -148,9 +172,9 @@ export function ringGlyphItems(
     if (!o.numbers || (i === rotor.window && !setting)) return
     out.push({
       glyph: ringNumber(i),
-      position: [ROTOR.bandX1 + 0.02, dialR * Math.cos(a), dialR * Math.sin(a)],
-      quaternion: dialQuaternion(a),
-      size: setting ? 0.9 : 0.62,
+      position: [DIAL.x + DIAL.depth + 0.02, DIAL_R * Math.cos(a), DIAL_R * Math.sin(a)],
+      quaternion: upright!,
+      size: setting ? DIAL.settingDigit : DIAL.digit,
       color: setting ? '#b45309' : PALETTE.ringNumber,
     })
   })
@@ -173,8 +197,9 @@ function AlphabetRing({
       merge([
         shellX(ROTOR.innerR * k, ROTOR.bandR * k, ROTOR.bandX0, ROTOR.bandX1),
         shellX(ROTOR.innerR * k, ROTOR.notchR * k, ROTOR.notchX0, ROTOR.notchX1),
+        ...(numbers ? [shellX(DIAL.r0, DIAL.r1, DIAL.x, DIAL.x + DIAL.depth)] : []),
       ]),
-    [k],
+    [k, numbers],
   )
   const notches = useGeometry(
     () =>
@@ -194,7 +219,7 @@ function AlphabetRing({
   )
   const glyphs = useMemo(
     () => ringGlyphItems(layout, letters, rotor, { numbers, annotate, explode }),
-    [layout, letters, rotor.window, rotor.ring, numbers, annotate, explode],
+    [layout, letters, rotor.window, rotor.ring, numbers && rotor.ringTurn, numbers, annotate, explode],
   )
   const digits = glyphs.filter((g) => /\d/.test(g.glyph)).map((g) => g.glyph)
   return (
@@ -235,14 +260,7 @@ function coreIndex(angle: number) {
 
 /** The exploded view's leader: from the core index out to the ring number it faces on the dial. */
 function leader(angle: number) {
-  const g = box(
-    ROTOR.bandX1 - 0.02,
-    ROTOR.bandX1 + 0.14,
-    ROTOR.coreR + 0.2,
-    ROTOR.innerR * EXPLODE_SCALE + 0.12,
-    -0.09,
-    0.09,
-  )
+  const g = box(DIAL.x - 0.02, DIAL.x + DIAL.depth + 0.06, ROTOR.coreR + 0.2, DIAL.r0 + 0.1, -0.09, 0.09)
   g.rotateX(angle)
   return g
 }
