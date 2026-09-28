@@ -59,3 +59,24 @@ The design rationale is in `reports/Interactive Enigma teaching tools.md`; the b
   each PR's own diff stays clean; resolve conflicts once, in the branch whose author wrote one side.
 - Pages deployment needs the one-off repo setting Settings → Pages → Source = GitHub Actions; the `deploy` job runs
   on pushes to `master`.
+
+## Chapter authoring checklist (distilled from the chapter reviews)
+- Generators: measure the modal (most common) answer of every generator and cap it; the guess-bot test must stay
+  below 1 %. Add a misconception bot for each naive strategy the chapter names, not only uniform guessing.
+- Never gate the key idea on attempt parity (an answer that is right on alternate attempts is not learning).
+- Hints: L1 receives the ANSWERED instance and must never name the answer; the L2 worked example renders its own
+  instance's data, never the question's.
+- Code gates are paired with a typed prediction whose probe varies per instance.
+- A ghost-pick item draws nothing during the question (`divergeAt: -1` in the instance); never store answer-derived
+  data in the instance (`__course.gate()` exposes it). Constant-answer items are "once".
+- Prompts stand alone (turnover letters, tables, the machine key), including inside the return-check overlay.
+- Run axe on the rollback, hint and worked-example states, not only the first render; a scrollable viz must be
+  focusable (`tabIndex={0}` plus a label).
+- Counters print numbers that explain their totals; story lines attribute each property to the right component;
+  every number in prose matches the value on screen.
+- Any `@3d` smoke test crosses a scene change (the 3D view must survive an unmount and remount).
+- Keep each chapter spec ≤ 60 s under load: precompute per seed in Node instead of searching in the page.
+- On a 4-CPU box use `VITEST_MAX_WORKERS=1`–`2` and Playwright `--workers=1`; rerun a load timeout alone before
+  treating it as real, and never weaken an assertion to make it pass.
+- Shared helpers: `web/src/lib/memoise.ts` caches a seeded generator by its seed (a pure function of the seed);
+  prefer it to a per-chapter copy.
