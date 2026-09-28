@@ -6,13 +6,13 @@
  */
 
 import { useEffect, useState, type JSX } from 'react'
-import type { Letter } from '../../contracts/core'
+import type { Letter, MachineConfig } from '../../contracts/core'
 import type { AnswerProps, CheckResult, HintLevel, ItemUiMap } from '../../contracts/lesson'
 import { LETTERS } from '../../engine'
 import { LetterTable, Mono, QUIET_BUTTON, SubmitButton } from '../../lesson'
-import { WIDGETS, type WidgetProps } from '../../lesson/kinds/widgets'
-import { PermTable } from '../../machine-ui'
+import { MachinePanel, PermTable, PlugboardEditor } from '../../machine-ui'
 import { Sym } from '../../lib/Sym'
+import { useMachine, useMachineApi } from '../../state/activeMachine'
 import { useToyStore } from '../../state/toyStore'
 import {
   PROBE_LETTER,
@@ -65,16 +65,22 @@ function PlugPrompt({ instance, hintLevel }: { instance: PlugInstance; hintLevel
           change the letter?
         </p>
       ) : null}
-      <p className="text-stone-400">The keyboard is locked and the lamps are hidden: plug the cables, then submit.</p>
     </div>
   )
 }
 
+/** Another instance (L2) or this one (L3), with its own E₀: the table on screen above belongs to the question. */
 function PlugWorked({ instance }: { instance: PlugInstance }): JSX.Element {
-  const e0 = scrambler(instance.setup.machine)
+  const c = instance.setup.machine
+  const e0 = scrambler(c)
   const out = L(e0[idx(instance.k)]!)
   return (
     <div className="flex flex-col gap-1 text-sm">
+      <p>
+        Rotors <Mono>{c.rotors.join(' ')}</Mono>, rings <Mono>{c.rings.map(ring).join(' ')}</Mono>, windows{' '}
+        <Mono>{c.positions.join('')}</Mono>: key <Mono>{instance.k}</Mono> must light <Mono>{instance.t}</Mono>. Its E₀:
+      </p>
+      <PermTable perm={e0} label="E₀ of this example" testId="plug-worked-e0" />
       <p>
         Key <Mono>{instance.k}</Mono> has no cable, so it enters E₀ as <Mono>{instance.k}</Mono> and leaves as{' '}
         <Mono>{out}</Mono> (the letter below <Mono>{instance.k}</Mono>).
@@ -88,7 +94,33 @@ function PlugWorked({ instance }: { instance: PlugInstance }): JSX.Element {
   )
 }
 
-const plug = { Prompt: PlugPrompt, Worked: PlugWorked }
+/**
+ * The plug items' Answer: the set-machine widget's parts with the plugboard first. The keyboard stays on screen,
+ * locked (G8), after the plugboard, so the first control of the item (where the gate puts the focus after Continue)
+ * is the cable input, not a locked key. The answer is the machine's snapshot, as with the generic widget.
+ */
+function PlugAnswer({ instance, disabled, submit }: AnswerProps<PlugInstance, MachineConfig>): JSX.Element {
+  const api = useMachineApi()
+  const plugs = useMachine((s) => s.machine.config.plugboard)
+  return (
+    <div className="flex flex-col gap-3" data-testid="set-machine">
+      <p className="text-sm text-stone-400">
+        The keyboard is locked and the lamps are hidden: plug at most {instance.maxPlugs} cable{instance.maxPlugs === 1 ? '' : 's'},
+        then submit.
+      </p>
+      <PlugboardEditor store={api} />
+      <MachinePanel store={api} show={{ keyboard: true, lamps: true }} />
+      <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
+        plugs {plugs.join(' ') || 'none'}
+      </p>
+      <div>
+        <SubmitButton disabled={disabled} onClick={() => submit(api.getState().snapshot())} />
+      </div>
+    </div>
+  )
+}
+
+const plug = { Prompt: PlugPrompt, Answer: PlugAnswer, Worked: PlugWorked }
 
 // ---------------------------------------------------------------------------
 // why-no-self
@@ -279,10 +311,7 @@ const handsOn = {
     ),
   Answer: (p: AnswerProps<HandsOnInstance, HandsOnAnswer>) => {
     const i = p.instance
-    if (i.variant === 'plug') {
-      const SetMachine = WIDGETS['set-machine']
-      return <SetMachine {...(p as unknown as WidgetProps)} />
-    }
+    if (i.variant === 'plug') return <PlugAnswer {...(p as unknown as AnswerProps<PlugInstance, MachineConfig>)} instance={i} />
     if (i.variant === 'compose') return <ComposeAnswer {...(p as AnswerProps<ComposeBuildInstance, string>)} instance={i} />
     return <SelfAnswer {...(p as AnswerProps<SelfToyInstance, number>)} instance={i} />
   },

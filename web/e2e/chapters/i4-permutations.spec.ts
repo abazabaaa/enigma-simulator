@@ -54,6 +54,7 @@ import {
   SYMBOLS_KEY,
   faultyHop,
   keypressProbe,
+  whichWrongHint,
   windowsAfterStep,
   type ChainFullInstance,
   type KeypressInstance,
@@ -233,7 +234,7 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     const rb = (await page.evaluate(() => window.__course!.lastCheck()))!.result.rollback
     expect(rb).toMatchObject({ kind: 'path', ghost: { divergeAt: 3 } })
     if (rb.kind === 'path') expect(rb.ghost.hops.map((h) => h.stage).slice(2, 5)).toEqual(['rotor-right-fwd', 'rotor-left-fwd', 'rotor-middle-fwd'])
-    await expect(page.getByTestId('rollback')).toContainText('Left rotor, hop 4')
+    await expect(page.getByTestId('rollback')).toContainText('left rotor, hop 4')
     expect(await axeSerious(page, '[data-testid="item-keypress"]')).toEqual([])
     await continueGate(page)
     // Right through the editor: W W C, not passed yet.
@@ -262,6 +263,9 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     const wrongPart = truth === 'etw' ? 'plugboard' : 'etw'
     await answerViaUi(page, 'ghost-pick', wrongPart)
     await assertRollback(page, 'path')
+    // The verdict is stated once (review F6); the chapter adds only the hop-by-hop evidence.
+    expect(((await page.getByTestId('rollback').innerText()).match(/You picked/g) ?? []).length).toBe(1)
+    await expect(page.getByTestId('rollback')).toContainText('is the first that disagrees with its table')
     await expect.poll(async () => (await stageInfo(page)).ghost).toBe(true)
     await expect(page.getByTestId('stage2d-ghost')).toHaveCount(1)
     await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual([partForStage(w0.ghost.hops[faultyHop(w0)]!.stage)])
@@ -274,6 +278,8 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
     const logic = await logicFor(c.gateKey, 'which-wrong', false)
     await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(logic.highlight(c.instance, wrongPart).map((h) => h.part))
+    // The L1 hint says what the highlight means (review F1): the last part still right, the fault after it.
+    await expect(page.getByTestId('which-wrong-hint')).toHaveText(whichWrongHint(c.instance as WhichWrongInstance))
     expect((await stageInfo(page)).ghost).toBe(false)
     await assertNoAnswerLeak(page)
     await answerViaUi(page, 'ghost-pick', await solveInNode(page))
@@ -405,5 +411,10 @@ test.describe('chapter i4-permutations in 3D', { tag: ['@3d', '@chapter:i4-permu
     expect((await stageInfo(page)).dimmed).toEqual(dimmedParts('wire', 'I'))
     await page.getByTestId('compose-next').click()
     await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(['plugboard'])
+    // A second scene change: the gate, still in 3D.
+    await completeTasks(page)
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('gate')
+    await expect.poll(async () => `${(await stageInfo(page)).renderer}:${(await stageInfo(page)).focus}`, { timeout: 30_000 }).toBe('webgl2:wire')
   })
 })

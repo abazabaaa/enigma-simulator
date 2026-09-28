@@ -14,9 +14,9 @@ import { PlugboardTwiceView, ReciprocityView, ReflectorPairsView, SelfSearchView
 const STORY =
   'Bletchley Park, 4 September 1939, the day after Britain declared war. Alan Turing and Gordon Welchman report for work. The ' +
   'machine they face has two more parts than its rotors: a reflector at the far end, which sends the current back through ' +
-  'the rotors, and a plugboard at the front, where cables swap letters. Together they carry what has been called "a severe ' +
-  'cryptological flaw", and the codebreakers exploited it; Turing designed the bombe that year. This chapter finds out, on ' +
-  'the machine itself, what the two parts do.'
+  'the rotors, and a plugboard at the front, where cables swap letters. The reflector let one setting both encipher and ' +
+  'decipher, and it also carried what has been called "a severe cryptological flaw", which the codebreakers exploited; ' +
+  'Turing designed the bombe that year. This chapter finds out, on the machine itself, what the two parts do.'
 
 const scenes: readonly SceneDef[] = [
   {
@@ -109,7 +109,7 @@ const scenes: readonly SceneDef[] = [
       },
     ],
     reveals: [{ bet: 'self', trigger: 'run', label: 'Run: try every position' }],
-    tasks: [{ id: 'searched', label: 'Search all 17,576 positions' }],
+    tasks: [{ id: 'searched', label: 'Search all 17,576 positions, every key' }],
     View: SelfSearchView,
   },
   {

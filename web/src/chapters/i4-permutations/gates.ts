@@ -299,7 +299,9 @@ export const keypress = codeItem<KeypressInstance>(
       'positions are the windows, e.g. "AAB"). Each other part takes the letter arriving at it and returns the letter that leaves ' +
       'it: plugIn, etwIn, rotorFwd(slot, c) and rotorBwd(slot, c) with slot "right", "middle" or "left", reflect, etwOut and ' +
       'plugOut. Call them in the order the current flows and return { output, positions } with the windows after the step. The ' +
-      'tests call runKeypress(state, key), which hands your function the parts for that state and records every part you call.',
+      'tests call runKeypress(state, key), which hands your function the parts for that state and records every part you call. ' +
+      'In a state the rotors are listed left to right, and the rings and windows are letters: ring "A" is 01, "B" is 02 and ' +
+      'so on, so "rings":"AAA" means 01 01 01.',
     starter:
       'function enigmaKeypress(state, key, parts) {\n  // 1. turn the rotors: parts.step(state)\n  // 2. send the letter through every part, in order\n' +
       '  // 3. return { output, positions }\n}\n',
@@ -435,20 +437,39 @@ export const whichWrong = ghostPickItem<WhichWrongInstance>({
     const part = partForStage(STAGES[k]!)
     const ref = keypressHops(i.config, i.key, null)[k]!
     const got = i.ghost.hops[k]!
-    const picked = PART_NAME[a as PartId] ?? String(a)
+    // The shared rollback already says which part was picked and which is at fault: this adds the evidence only.
     return verdict(
       a === part,
       { kind: 'path', ghost: { hops: i.ghost.hops, divergeAt: k } },
-      `You picked the ${picked}. Hop ${k + 1} (${STAGE_LABEL[STAGES[k]!]}) is the first that disagrees with its table: ${ref.input} ` +
-        `should leave as ${ref.output}, the path shows ${got.output}. Every hop before it matches, so the fault is in the ` +
-        `${PART_NAME[part]}.`,
+      `Hop ${k + 1} (${STAGE_LABEL[STAGES[k]!]}) is the first that disagrees with its table: ${ref.input} should leave ` +
+        `as ${ref.output}, the path shows ${got.output}. Every hop before it matches.`,
     )
   },
   // The machine after the press's step: the rollback draws the buggy path against the engine's.
   setup: (i) => ({ machine: steppedConfig(i.config), locks: READ_ONLY, stage: 'wire' }),
-  // The last hop that is still right: the fault is after it.
-  highlight: (i) => [{ part: partForStage(STAGES[Math.max(0, faultyHop(i) - 1)]!), tone: 'hint' }],
+  // L1: the part of the last hop that is still right (never the fault's part); the Prompt says so (whichWrongHint).
+  highlight: (i) => [{ part: lastRightPart(i), tone: 'hint' }],
 })
+
+/** The part of the last hop that still matches its table (the fault is in a later hop, never this part's). */
+export const lastRightPart = (i: Pick<WhichWrongInstance, 'ghost' | 'config' | 'key'>): PartId =>
+  partForStage(STAGES[Math.max(0, faultyHop(i) - 1)]!)
+
+/** Which pass of the current a hop index is on: before the reflector, the reflector itself, or after it. */
+const passOf = (k: number): string => (k < 5 ? ' on the way in' : k === 5 ? '' : ' on the way back')
+
+/**
+ * The L1 hint the Prompt shows with the stage highlight: where the path is still right, never where it goes wrong.
+ * "Every hop up to and including the entry wheel on the way back matches its table (…); check the hops after it."
+ */
+export function whichWrongHint(i: Pick<WhichWrongInstance, 'ghost' | 'config' | 'key'>): string {
+  const k = Math.max(0, faultyHop(i) - 1)
+  const name = PART_NAME[partForStage(STAGES[k]!)]!
+  return (
+    `Every hop up to and including the ${name}${passOf(k)} matches its table: the ${name} is highlighted on the stage. ` +
+    'The fault comes later along the path, so check the hops after it against their tables, one at a time.'
+  )
+}
 
 // ---------------------------------------------------------------------------
 // hop-chain-full: chain(12), the windows after the step and then the 11 letters (rollback: path)

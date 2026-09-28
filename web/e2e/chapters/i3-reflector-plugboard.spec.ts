@@ -190,6 +190,8 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     await page.getByTestId('self-give-up').click()
     await expect(page.getByTestId('self-counter')).toHaveAttribute('data-count', '17576')
     await expect(page.getByTestId('self-hits')).toHaveAttribute('data-hits', '0')
+    await expect(page.getByTestId('self-tried')).toHaveAttribute('data-tried', '456976')
+    await expect(page.getByTestId('self-any-hits')).toHaveAttribute('data-hits', '0')
     await expect(page.getByTestId('task-searched')).toHaveAttribute('data-done', 'true')
     expect((await eventsOf(page, 'reveal')).at(-1)).toMatchObject({ bet: `${CHAPTER}/self`, trigger: 'run' })
     expect((await betResults(page)).self).toBe(true)
@@ -216,6 +218,8 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     expect(await axeSerious(page, '[data-testid="item-plug-to-hit"]')).toEqual([])
     await assertFocus(page, 'plugboard')
     await expect(page.getByTestId('plug-e0')).toBeVisible()
+    const locked = (await page.getByTestId('item-plug-to-hit').innerText()).match(/keyboard is locked/g) ?? []
+    expect(locked.length, 'the lock notice appears once (review F6)').toBe(1)
     await expect(page.getByTestId('key-A')).toBeDisabled()
     expect(await pressThrows(page)).toBe(true)
     expect(await page.locator('[data-testid^="lamp-"][data-lit="true"]').count()).toBe(0)
@@ -231,7 +235,10 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     await expect(page.getByTestId('rollback')).toContainText(`lights`)
     await expect.poll(async () => (await state(page)).config.plugboard).toEqual(wrong.plugboard)
     await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toEqual(['plugboard'])
-    await continueGate(page)
+    // Continue by keyboard (review F5): the focus lands on the new instance's first control, never on the body.
+    await expect(page.getByTestId('gate-continue')).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? document.activeElement?.tagName)).toBe('plug-input')
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'plug-to-hit', hintLevel: 1, passed: false })
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
@@ -256,11 +263,13 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     expect(c).toMatchObject({ itemId: 'why-no-self', kind: 'choice' })
     expect(await axeSerious(page, '[data-testid="item-why-no-self"]')).toEqual([])
     await assertNoAnswerLeak(page)
-    const distractor = (c.instance as { options: { id: string; misconception?: true }[] }).options.find((o) => o.misconception)!.id
-    await answerViaUi(page, 'choice', distractor)
+    const options = (c.instance as { options: { id: string; label: string }[] }).options
+    expect(options.map((o) => o.id)).toEqual(expect.arrayContaining(['plugboard', 'reflector-shift']))
+    await answerViaUi(page, 'choice', 'plugboard')
     await assertRollback(page, 'none')
-    await expect(page.getByTestId('rollback')).toContainText(/not the reason|never/)
-    await expect(page.getByTestId('rollback'), 'the feedback never names the right option').not.toContainText(/reflector/i)
+    await expect(page.getByTestId('rollback')).toContainText('not the reason')
+    const right = options.find((o) => o.id === 'reflector')!.label
+    await expect(page.getByTestId('rollback'), 'the feedback never quotes the right option').not.toContainText(right)
     await continueGate(page)
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
     await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toContain('reflector')
@@ -437,5 +446,17 @@ test.describe('chapter i3-reflector-plugboard in 3D', { tag: ['@3d', '@chapter:i
     await expect.poll(async () => (await page.evaluate(() => window.__stage!.info())).focus, { timeout: 30_000 }).toBe('plugboard')
     expect(await page.evaluate(() => window.__stage!.info().renderer)).toBe('webgl2')
     expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts('plugboard', 'I'))
+    // A second scene change in the same session: still the 3D view (06's remount fix).
+    await commitBet(page, 'twice', 'twice')
+    await page.getByTestId('key-A').click()
+    await page.evaluate(() => window.__course!.completeTasks())
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('reciprocity')
+    await expect
+      .poll(async () => {
+        const i = await page.evaluate(() => window.__stage!.info())
+        return `${i.renderer}:${i.focus}`
+      }, { timeout: 30_000 })
+      .toBe('webgl2:wire')
   })
 })

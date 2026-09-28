@@ -89,7 +89,9 @@ export function TablesView(p: SceneProps): JSX.Element {
         {done ? (
           <p data-testid="compose-result">
             {agrees ? 'This product is E: exactly the machine at these windows. ' : ''}Every letter goes to a different letter and the
-            letters come in pairs (E is its own inverse). Press a key: the lamp is the letter below the key.
+            letters come in pairs (E is its own inverse). Everything between the two plugboard factors, H·N·M·L·U·L⁻¹·M⁻¹·N⁻¹·H⁻¹,
+            is the scrambler E₀ of the previous chapter, so E = S·E₀·S⁻¹: the cables relabel E₀&apos;s letters on the way in and
+            again on the way out. Press a key: the lamp is the letter below the key.
             {pressed ? (
               <>
                 {' '}

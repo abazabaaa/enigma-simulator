@@ -1,7 +1,8 @@
 /**
  * self-search: the learner hunts for a letter that lights itself, turning the rotors and pressing keys. After the
- * bet, the Run reveal (or "give up", offered after 30 presses) lets the machine try key A at every one of the 17,576
- * rotor positions with the scene's rings and cables, counting A→A as it goes: the counter reaches 17,576 with 0 hits.
+ * bet, the Run reveal (or "give up", offered after 30 presses) lets the machine try key A (encodeLetter) and then every
+ * key (the whole substitution) at each of the 17,576 rotor positions with the scene's rings and cables, counting the
+ * keys that light themselves as it goes: the counter reaches 17,576 positions and 456,976 key presses with 0 hits.
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
@@ -11,15 +12,20 @@ import type { MachineConfig } from '../../../engine'
 import { BUTTON, Mono, useRevealFired } from '../../../lesson'
 import { Sym } from '../../../lib/Sym'
 import { usePlaybackStore } from '../../../state/playbackStore'
-import { POSITIONS_TOTAL, selfHits } from '../gates'
+import { POSITIONS_TOTAL, selfHits, selfHitsAllKeys } from '../gates'
 
 /** Manual presses before the "give up" button appears. */
 export const GIVE_UP_AFTER = 30
 const CHUNK = Math.ceil(POSITIONS_TOTAL / 32)
 
 interface Search {
+  /** Positions searched. */
   readonly done: number
+  /** Key A lighting A. */
   readonly hits: number
+  /** Key presses tried (every key at every position searched) and keys that lit themselves. */
+  readonly tried: number
+  readonly anyHits: number
 }
 
 /** Search every position for key A lighting A: all at once, or a chunk per animation frame. */
@@ -32,17 +38,23 @@ function useSearch(run: boolean, config: MachineConfig, animate: boolean): Searc
     if (!run) return
     const { config: cfg, animate: slow } = setting.current
     if (!slow) {
-      setState({ done: POSITIONS_TOTAL, hits: selfHits(cfg, 0, POSITIONS_TOTAL) })
+      const all = selfHitsAllKeys(cfg, 0, POSITIONS_TOTAL)
+      setState({ done: POSITIONS_TOTAL, hits: selfHits(cfg, 0, POSITIONS_TOTAL), tried: all.tried, anyHits: all.hits })
       return
     }
     let done = 0
     let hits = 0
+    let tried = 0
+    let anyHits = 0
     let frame = 0
     const tick = () => {
       const to = Math.min(POSITIONS_TOTAL, done + CHUNK)
       hits += selfHits(cfg, done, to)
+      const all = selfHitsAllKeys(cfg, done, to)
+      tried += all.tried
+      anyHits += all.hits
       done = to
-      setState({ done, hits })
+      setState({ done, hits, tried, anyHits })
       if (done < POSITIONS_TOTAL) frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
@@ -87,7 +99,7 @@ export function SelfSearchView(p: SceneProps): JSX.Element {
       <p>
         Rings <Mono>{config.rings.map((r) => String(r.charCodeAt(0) - 64).padStart(2, '0')).join(' ')}</Mono>, cables{' '}
         <Mono>{config.plugboard.join(' ')}</Mono>. The windows are yours to turn. Hunt for a key that lights its own lamp: turn the
-        rotors, press keys, and watch the lamps.
+        rotors, press A and any other keys you like, and watch the lamps.
       </p>
       <p data-testid="self-manual" data-presses={presses} data-self={selfLit}>
         Your presses: {presses}. Letters that lit themselves: {selfLit}.
@@ -112,10 +124,20 @@ export function SelfSearchView(p: SceneProps): JSX.Element {
             Positions tried: <span data-testid="self-counter" data-count={search.done}>{search.done.toLocaleString('en')}</span> of{' '}
             {POSITIONS_TOTAL.toLocaleString('en')} · A lit A: <span data-testid="self-hits" data-hits={search.hits}>{search.hits}</span>
           </p>
+          <p className="font-mono text-stone-100">
+            Every key at those positions:{' '}
+            <span data-testid="self-tried" data-tried={search.tried}>
+              {search.tried.toLocaleString('en')}
+            </span>{' '}
+            key presses · keys that lit themselves:{' '}
+            <span data-testid="self-any-hits" data-hits={search.anyHits}>
+              {search.anyHits}
+            </span>
+          </p>
           {finished ? (
             <p>
-              Key <Mono>A</Mono> at every rotor position, with these rings and cables: it never lit <Mono>A</Mono>. Nor does any other
-              letter light itself. The current reaches the reflector <Sym s="U" /> on one contact and always leaves on another, so it
+              Key <Mono>A</Mono> at every rotor position, with these rings and cables: it never lit <Mono>A</Mono>. And of all{' '}
+              {search.tried.toLocaleString('en')} key presses, every key at every position, not one lit its own lamp. The current reaches the reflector <Sym s="U" /> on one contact and always leaves on another, so it
               comes back to the lamps on a different letter, whatever the rotors and cables do on the way. Codebreakers leaned on this
               guarantee.
             </p>

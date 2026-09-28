@@ -23,6 +23,7 @@ import {
   STAGES,
   STAGE_LABEL,
   componentPerm,
+  whichWrongHint,
   faultyHop,
   hopTables,
   keypressHops,
@@ -179,24 +180,33 @@ function WhichWrongAnswer({ instance, disabled, submit }: AnswerProps<WhichWrong
   )
 }
 
-function WhichWrongPrompt({ instance }: { instance: WhichWrongInstance }): JSX.Element {
+function WhichWrongPrompt({ instance, hintLevel }: { instance: WhichWrongInstance; hintLevel: HintLevel }): JSX.Element {
   const c = instance.config
   const tables = hopTables(c)
   return (
     <div className="flex flex-col gap-2">
       <p>
         A keypress function with one bug pressed <Mono>{instance.key}</Mono> on a machine with <Setting c={c} />. The rotors should
-        step to <Mono>{windowsAfterStep(c)}</Mono> first. Below, hop by hop, is the path it recorded, and under each hop the table that
-        part applies on a correct press. Where does the path first go wrong?
+        step to <Mono>{windowsAfterStep(c)}</Mono> first. Below, hop by hop, is the path it recorded; open a hop to see the table
+        that part applies on a correct press. Where does the path first go wrong?
       </p>
-      <ol className="flex flex-col gap-2 text-xs" data-testid="which-wrong-hops">
+      {hintLevel >= 1 ? (
+        <p className="text-sky-200" data-testid="which-wrong-hint">
+          {whichWrongHint(instance)}
+        </p>
+      ) : null}
+      <ol className="flex flex-col gap-1 text-sm" data-testid="which-wrong-hops">
         {instance.ghost.hops.map((h, k) => (
-          <li key={k} className="flex flex-col gap-0.5">
-            <span className="text-sm">
-              {k + 1}. <Sym s={symForStage(STAGES[k]!)} inv={FACTORS[k]!.inv} /> {STAGE_LABEL[STAGES[k]!]}: <Mono>{h.input}</Mono> →{' '}
-              <Mono>{h.output}</Mono>
-            </span>
-            <LetterTable images={perm(tables[k]!)} />
+          <li key={k}>
+            <details className="rounded border border-stone-800 px-2 py-1" data-testid={`which-wrong-hop-${k}`}>
+              <summary className="cursor-pointer">
+                {k + 1}. <Sym s={symForStage(STAGES[k]!)} inv={FACTORS[k]!.inv} /> {STAGE_LABEL[STAGES[k]!]}:{' '}
+                <Mono>{h.input}</Mono> → <Mono>{h.output}</Mono>
+              </summary>
+              <div className="mt-1 text-xs">
+                <LetterTable images={perm(tables[k]!)} label="the correct table" />
+              </div>
+            </details>
           </li>
         ))}
       </ol>
@@ -315,7 +325,7 @@ function ChainFullAnswer({ instance, disabled, submit }: AnswerProps<ChainFullIn
         })}
       </ol>
       <div>
-        <SubmitButton disabled={disabled || !valid} onClick={send} />
+        <SubmitButton form disabled={disabled || !valid} />
       </div>
     </form>
   )

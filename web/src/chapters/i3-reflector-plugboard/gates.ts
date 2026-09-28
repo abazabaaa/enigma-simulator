@@ -137,6 +137,20 @@ export function selfHits(config: MachineConfigInput, from: number, to: number, k
   return hits
 }
 
+/**
+ * Every key at the positions [from, to): the machine's whole substitution at each position (machinePermutation, the
+ * same signal as encodeLetter without the trace), counting the keys that light themselves. Always 0.
+ */
+export function selfHitsAllKeys(config: MachineConfigInput, from: number, to: number): { tried: number; hits: number } {
+  const base = createMachine(config)
+  let hits = 0
+  for (let n = from; n < to; n++) {
+    const e = machinePermutation(withPositions(base, positionAt(n)))
+    for (let x = 0; x < 26; x++) if (e[x] === x) hits++
+  }
+  return { tried: 26 * Math.max(0, to - from), hits }
+}
+
 // ---------------------------------------------------------------------------
 // plug-to-hit and plug-one: set-machine, at most 2 (or 1) cables so that K lights T (rollback: machine)
 // ---------------------------------------------------------------------------
@@ -236,9 +250,17 @@ const SELF_RIGHT: readonly string[] = [
   'No reflector contact is wired to itself, so the way back always ends on another letter',
 ]
 
-/** The distractors, three of which each instance shows. */
+/**
+ * The distractors. Every instance shows 'plugboard' (PLAN §4.4's distractor) and 'reflector-shift' (so the right option
+ * is not the only one that names the reflector), plus one of the others.
+ */
 export const SELF_DISTRACTORS: readonly Choice[] = [
   { id: 'plugboard', label: 'The plugboard prevents it: every letter is swapped for another one', misconception: true },
+  {
+    id: 'reflector-shift',
+    label: 'The reflector moves every letter one place on in the alphabet, so it can never come back unchanged',
+    misconception: true,
+  },
   { id: 'stepping', label: 'The rotors step before every letter, so a letter never meets the same wiring twice', misconception: true },
   { id: 'rare', label: 'It does happen, but only about once in 26 letters', misconception: true },
   { id: 'rings', label: 'The ring settings shift every letter away from itself', misconception: true },
@@ -252,7 +274,10 @@ const SELF_FEEDBACK: Readonly<Record<string, string>> = {
     'the plugboard is not the reason.',
   stepping:
     'The search tried key A at each position without stepping in between, and it still never lit A: stepping is not the reason.',
-  rare: 'The search tried key A at all 17,576 positions and it never lit A, not even once: it never happens.',
+  'reflector-shift':
+    "Look at the reflector's table in the first scene: A goes to Y and B goes to R, not one place on. A shift is not what " +
+    'it does.',
+  rare: 'The search tried every key at all 17,576 positions and not one lit itself: it never happens.',
   rings: 'With every ring at 01 no letter lights itself either: the ring settings are not the reason.',
   entry: 'The entry wheel of this machine leaves every letter where it is (A to A, B to B): it is not the reason.',
 }
@@ -274,7 +299,9 @@ export const whyNoSelf = choiceItem<SelfInstance>({
     const key = randLetter(r)
     const lamp = lampFor({ ...SEARCH_START, positions: windows }, key)
     const right: Choice = { id: 'reflector', label: pick(r, SELF_RIGHT) }
-    return { options: shuffle(r, [right, ...sample(r, SELF_DISTRACTORS, 3)]), windows, key, lamp }
+    const always = SELF_DISTRACTORS.filter((d) => d.id === 'plugboard' || d.id === 'reflector-shift')
+    const other = pick(r, SELF_DISTRACTORS.filter((d) => !always.includes(d)))
+    return { options: shuffle(r, [right, ...always, other]), windows, key, lamp }
   },
   same: (a, b) => sameJson(a, b),
   solve: () => 'reflector',

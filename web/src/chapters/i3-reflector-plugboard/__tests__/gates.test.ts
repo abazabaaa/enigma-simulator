@@ -9,7 +9,20 @@ import type { GenCtx, ItemLogic } from '../../../contracts/lesson'
 import { countLines } from '../../../code/runner'
 import { executeRequest } from '../../../code/runnerCore'
 import { summarizeRun } from '../../../code/summary'
-import { LETTERS, ROTORS, compose, createMachine, fixedPoints, isInvolution, pressKey, validateConfig, type MachineConfig } from '../../../engine'
+import {
+  LETTERS,
+  ROTORS,
+  compose,
+  createMachine,
+  encodeLetter,
+  fixedPoints,
+  isInvolution,
+  machinePermutation,
+  pressKey,
+  validateConfig,
+  withPositions,
+  type MachineConfig,
+} from '../../../engine'
 import { codeTaskOf } from '../../../lesson/kinds'
 import { createRng, sample, seedFor } from '../../../lib/rng'
 import {
@@ -26,6 +39,8 @@ import {
   composeInverse,
   composeProbe,
   handsOn,
+  positionAt,
+  selfHitsAllKeys,
   lampFor,
   selfPositions,
   selfWired,
@@ -102,9 +117,16 @@ describe('the chapter machines', () => {
     }
   })
 
-  it('the self-search finds no position where A lights A (all 17,576)', () => {
+  it('the self-search finds no position where A lights A (all 17,576), nor any key lighting itself (456,976 presses)', () => {
     expect(selfHits(SEARCH_START, 0, 17_576)).toBe(0)
     expect(selfHits(START, 0, 17_576, 'Q')).toBe(0)
+    expect(selfHitsAllKeys(SEARCH_START, 0, 17_576)).toEqual({ tried: 456_976, hits: 0 })
+    // The whole-substitution count is the same signal as encodeLetter: a machine with a self-wired reflector would count.
+    const base = createMachine(SEARCH_START)
+    for (const n of [0, 1, 677, 9000, 17_575]) {
+      const e = machinePermutation(withPositions(base, positionAt(n)))
+      for (const k of LETTERS) expect(LETTERS[e[idx(k)]!]).toBe(encodeLetter(withPositions(base, positionAt(n)), k).output)
+    }
   })
 })
 
@@ -207,12 +229,15 @@ describe('why-no-self', () => {
       expect(i.options.filter((o) => o.id === 'reflector')).toHaveLength(1)
       expect(i.options.filter((o) => o.misconception)).toHaveLength(3)
       labels.add(i.options.find((o) => o.id === 'reflector')!.label)
+      // The distractor of PLAN §4.4 is always there, and so is a wrong option that names the reflector.
+      expect(i.options.map((o) => o.id)).toEqual(expect.arrayContaining(['plugboard', 'reflector-shift']))
+      expect(i.options.filter((o) => /reflector/i.test(o.label)).length).toBeGreaterThanOrEqual(2)
       sets.add(i.options.map((o) => o.id).sort().join())
       expect(lampFor({ ...SEARCH_START, positions: i.windows }, i.key)).toBe(i.lamp)
       expect(whyNoSelf.check(i, 'reflector').correct).toBe(true)
     }
     expect(labels.size).toBe(3)
-    expect(sets.size).toBeGreaterThan(5)
+    expect(sets.size).toBe(4)
     expect(whyNoSelf).toMatchObject({ rule: { kind: 'once' }, constantAnswer: true, kind: 'choice' })
   })
 
@@ -222,7 +247,8 @@ describe('why-no-self', () => {
       const res = whyNoSelf.check(i, d.id)
       expect(res).toMatchObject({ correct: false, rollback: { kind: 'none' } })
       expect(res.feedback).toBeTruthy()
-      expect(res.feedback).not.toMatch(/reflector|pairs|wire/i)
+      // Never the right option's idea: contacts joined in pairs, a different wire or contact on the way back.
+      expect(res.feedback).not.toMatch(/\bpairs?\b|different (wire|contact)|wired to itself|wire it (went|arrived)/i)
     }
   })
 })

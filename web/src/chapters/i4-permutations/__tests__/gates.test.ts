@@ -44,7 +44,9 @@ import {
   keypressCases,
   keypressHops,
   keypressProbe,
+  lastRightPart,
   misconceptionChain,
+  whichWrongHint,
   partialProduct,
   referenceHops,
   stateOf,
@@ -245,6 +247,36 @@ describe('every instance needs the key idea', () => {
       const i = gen(hopChainFull, s) as ChainFullInstance
       for (const bug of BUGS) expect(hopChainFull.check(i, misconceptionChain(i.config, i.key, bug)).correct, `seed ${s} ${bug}`).toBe(false)
       expect(hopChainFull.check(i, misconceptionChain(i.config, i.key, null)).correct).toBe(true)
+    }
+  })
+})
+
+describe('which-wrong L1 hint (review F1)', () => {
+  const NAME: Record<string, string> = {
+    plugboard: 'plugboard',
+    etw: 'entry wheel',
+    'rotor-right': 'right rotor',
+    'rotor-middle': 'middle rotor',
+    'rotor-left': 'left rotor',
+    reflector: 'reflector',
+  }
+  it('highlights the last part that is still right, says so, and never names the answer (300 seeds)', () => {
+    for (let s = 0; s < SEEDS; s++) {
+      const i = gen(whichWrong, s) as WhichWrongInstance
+      const k = faultyHop(i)
+      const answer = whichWrong.solve(i) as string
+      const lit = whichWrong.highlight(i, null).map((h) => h.part)
+      expect(lit).toEqual([lastRightPart(i)])
+      expect(k, `seed ${s}`).toBeGreaterThanOrEqual(1)
+      // The rule the text states: every hop up to and including the highlighted one matches its table.
+      expect(partForStage(STAGES[k - 1]!)).toBe(lit[0])
+      expect(firstDivergence(i.ghost.hops.slice(0, k), keypressHops(i.config, i.key, null).slice(0, k))).toBe(-1)
+      expect(lit[0]).not.toBe(answer)
+      const text = whichWrongHint(i)
+      expect(text).toContain(`up to and including the ${NAME[lit[0]!]}`)
+      expect(text).toContain('highlighted')
+      expect(text.includes(NAME[answer]!), `seed ${s}: the hint names the answer, ${answer}`).toBe(false)
+      expect(text).toMatch(k - 1 < 5 ? /on the way in/ : k - 1 > 5 ? /on the way back/ : /the reflector matches/)
     }
   })
 })
