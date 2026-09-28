@@ -12,7 +12,7 @@ import { checkStop, type Stop } from '../../../crypto'
 import { menuFromEdges } from '../../../crypto/menu'
 import type { RotorName } from '../../../engine'
 import { Mono, QUIET_BUTTON } from '../../../lesson'
-import { MachinePanel } from '../../../machine-ui'
+import { MachinePanel, PlugboardEditor } from '../../../machine-ui'
 import { cribLinks, decryptWith, windowsAfter } from '../gates'
 import { BombeBench, CribPlacer, InterceptReader, MenuBuilder, Vocabulary } from './british'
 import {
@@ -52,6 +52,18 @@ function Step({ n, title, children, testId }: { n: number; title: string; childr
       </summary>
       <div className="mt-2 flex flex-col gap-2">{children}</div>
     </details>
+  )
+}
+
+/** The machine's setting in one line, all of it live (rings as 01–26). */
+function MachineState({ store }: { store: MachineStoreHook }): JSX.Element {
+  const config = useStore(store, (s) => s.machine.config)
+  const windows = useWindows(store)
+  const rings = config.rings.map((r) => String(r.charCodeAt(0) - 64).padStart(2, '0')).join(' ')
+  return (
+    <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
+      Rotors {config.rotors.join('-')} · windows {windows} · rings {rings} · cables {config.plugboard.join(' ') || 'none'}
+    </p>
   )
 }
 
@@ -148,13 +160,11 @@ export function PolishWorkbench(p: {
         </p>
       </Step>
       <Step n={n0 + 2} title="The machine" testId="step-machine">
-        <MachinePanel
-          store={store}
-          show={{ keyboard: !!p.keys, lamps: !!p.keys, rotors: true, plugboard: true }}
-        />
-        <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
-          Rotors {rotors.join('-')} · windows {windows} · rings 01 01 01 · cables {cables.join(' ') || 'none'}
-        </p>
+        <MachinePanel store={store} show={{ keyboard: !!p.keys, lamps: !!p.keys, rotors: !p.given }} />
+        <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3">
+          <PlugboardEditor store={store} maxPairs={p.maxCables} />
+        </div>
+        <MachineState store={store} />
         <BodyPreview message={p.message} read={read} known={p.known} />
       </Step>
     </div>
@@ -186,9 +196,8 @@ export function BritishWorkbench(p: {
   const config = useStore(store, (s) => s.machine.config)
   const windows = useWindows(store)
   const menu = menuFromEdges(cribLinks(p.message, p.crib, offset).filter((e) => chosen.includes(e.pos)))
-  const use = (stop: Pick<Stop, 'rotors' | 'positions'>, steckers: readonly string[]) => {
+  const use = (stop: Pick<Stop, 'rotors'>, steckers: readonly string[]) => {
     tryIt(() => setRotors(store, stop.rotors))
-    tryIt(() => store.getState().setPositions(stop.positions))
     tryIt(() => store.getState().setPlugs([...steckers]))
   }
   return (
@@ -208,7 +217,7 @@ export function BritishWorkbench(p: {
       ) : (
         <>
           <Step n={1} title="Place the crib" testId="step-crib">
-            <CribPlacer cipher={p.message} crib={p.crib} window={p.window} offset={offset} onOffset={setOffset} />
+            <CribPlacer cipher={p.message} crib={p.crib} window={p.window} offset={offset} onOffset={setOffset} intro />
           </Step>
           <Step n={2} title="Build the menu" testId="step-menu">
             <MenuBuilder cipher={p.message} crib={p.crib} offset={offset} chosen={chosen} onChosen={setChosen} />
@@ -231,18 +240,18 @@ export function BritishWorkbench(p: {
           </Step>
         </>
       )}
-      <Step n={p.given ? 1 : 4} title="Wind back to the message key, then find the remaining cables" testId="step-read">
+      <Step n={p.given ? 1 : 4} title="Read the message key, then find the remaining cables" testId="step-read">
         <p className="text-sm text-stone-300">
-          A stop&apos;s drum positions are the windows at the crib&apos;s first letter{p.given ? '' : ', that many letters into the body'}: the
-          message key is that many places back on the right rotor (the middle rotor stands still until the crib ends). Where a word
-          almost reads, a cable joins the letter shown and the letter the word needs.
+          With a checked stop&apos;s rotors and cables in, the enciphered key read at the start position gives the message key: turn
+          the windows to it. Where a word of the body almost reads, a cable joins the letter shown and the letter the word needs.
         </p>
         <InterceptReader store={store} config={config} windows={windows} start={p.start} encKey={p.encKey} message={p.message} />
         <Vocabulary />
-        <MachinePanel store={store} show={{ keyboard: !!p.keys, lamps: !!p.keys, rotors: true, plugboard: true }} />
-        <p className="font-mono text-xs text-stone-400" data-testid="set-machine-state">
-          Rotors {config.rotors.join('-')} · windows {windows} · rings 01 01 01 · cables {config.plugboard.join(' ') || 'none'}
-        </p>
+        <MachinePanel store={store} show={{ keyboard: !!p.keys, lamps: !!p.keys, rotors: !p.given }} />
+        <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3">
+          <PlugboardEditor store={store} maxPairs={p.maxCables} />
+        </div>
+        <MachineState store={store} />
       </Step>
     </div>
   )
@@ -260,7 +269,7 @@ function GivenStop(p: {
   return (
     <div className="flex flex-col gap-2 text-sm text-stone-300" data-testid="given-stop">
       <p>
-        The crib <Mono>{p.crib}</Mono> stands at letter {p.offset + 1} of the body. The bombe stopped on {p.stop.rotors.join('-')} with
+        The crib <Mono>{p.crib}</Mono> stands at offset {p.offset} of the body. The bombe stopped on {p.stop.rotors.join('-')} with
         the drums at <Mono>{p.stop.positions}</Mono>: test letter {p.stop.testLetter} steckered to {p.stop.stecker.toLowerCase()}.
       </p>
       <div className="flex flex-wrap items-center gap-2">

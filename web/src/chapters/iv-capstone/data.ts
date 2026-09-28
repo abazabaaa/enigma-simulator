@@ -142,3 +142,21 @@ export const POLISH_CARDS =
   'yo21ao289q28c650ovj0tek1buu27l828c628f631x5s28f628yo28i721yc228i728km30ata205828km28ou20nh728ou28po2255a' +
   '28po28tx510ee1bzy1d371hzy28tx28wn408f30j801h9j28wn292150dh31g281glq271x2921294i516u61dr01j6n1olq294i2964' +
   '20bwe29642986222lk298629b221k3j29b229ce21mdh29ce'
+
+/**
+ * BRITISH_DAYS: the British days british-key draws, as k (base 36, space-separated): the day is
+ * britishDay(britishDaySeed(k)). Each was verified by a full bombe run over its three candidate wheel orders with the
+ * menu the hints teach (the whole piece that holds the loops, at most 14 links, diagonal board on): the true stop is
+ * found, at least one false stop is too (the checking machine always has one to reject), and there are at most 12
+ * stops. 299 days; k = 22 is the british-tools practice day and is not among them.
+ */
+export const BRITISH_DAYS =
+  '0 2 6 7 b c d e f g i k n p u w 11 12 17 19 1a 1b 1d 1e 1f 1g 1k 1l 1m 1n 1p 1u 20 21 22 28 29 2a 2b ' +
+  '2c 2d 2f 2g 2h 2j 2k 2n 2o 2q 2w 30 33 35 36 38 39 3a 3c 3d 3e 3f 3j 3l 3m 3n 3o 3p 3q 3r 3s 3t 3u ' +
+  '3y 40 41 42 44 47 4e 4j 4l 4m 4p 4v 4x 4y 55 56 5a 5c 5g 5i 5j 5m 5o 5r 5u 5v 5w 5x 61 62 64 65 66 ' +
+  '68 69 6a 6d 6j 6k 6l 6m 6o 6p 6r 6t 6u 6x 6y 71 79 7e 7f 7g 7i 7n 7r 7s 7v 7w 7x 7y 81 85 87 8a 8c ' +
+  '8e 8f 8g 8i 8j 8l 8n 8p 8t 8u 8v 8w 8x 90 91 92 93 95 96 97 9e 9g 9h 9l 9o 9q 9t 9v 9x 9y 9z a0 a1 ' +
+  'a4 a5 a6 a7 ab ae ag al ao az b0 b1 b3 b5 b6 bc bg bh bk bl bs bt bv bw c2 c7 ca cb cc cd ce cg ch ' +
+  'ck cl cm cs cu cx cy d1 d2 d3 d4 d5 d6 da de dh dj dk dl dn dt dv dw dx dz e1 e2 e6 ec ed ef eh ei ' +
+  'ek el eo eq er ev ex f0 f3 f5 f8 f9 fa fb fc fd ff fg fj fn fo fp fq fu fv fy g1 g3 g4 g7 g9 gf gh ' +
+  'gi go gr gv gw gx h1 h8 hd hg hi hj hl hp hq hr hu hx hz i2 i4 i6 i8 ia ib ie if ig ii'

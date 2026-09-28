@@ -30,7 +30,7 @@ import type { ChapterGates, CheckResult, ItemLogic, ItemSetup, Rollback } from '
 import type { LockKey, MachineLocks } from '../../contracts/machine'
 import type { PartId, StageRef } from '../../contracts/stage'
 import { CATALOGUE_ORDERS, characteristic, checkStop, crashes, dayKey, positionString, testLetterOf } from '../../crypto'
-import { closures, loops, menuFromEdges, type MenuEdge } from '../../crypto/menu'
+import { closures, loops, menuFromEdges, turnoverWithin, type MenuEdge } from '../../crypto/menu'
 import { scramblerTables } from '../../crypto/tables'
 import {
   LETTERS,
@@ -42,9 +42,9 @@ import {
   type ReflectorName,
   type RotorName,
 } from '../../engine'
-import { createRng, int, pick, randLetter, sample, shuffle, type Rng } from '../../lib/rng'
+import { createRng, int, pick, randLetter, sample, seedFor, shuffle, type Rng } from '../../lib/rng'
 import { lettersItem, randomPairedPartition, setMachineItem, verdict } from '../../lesson/kinds'
-import { POLISH_CARDS } from './data'
+import { BRITISH_DAYS, POLISH_CARDS } from './data'
 
 const ONCE = { kind: 'once' } as const
 const WINDOW = { kind: 'window' } as const
@@ -756,8 +756,6 @@ export const CRIBS: readonly string[] = [
 export const MAX_LINKS = 14
 export const BRITISH_CABLES = 10
 export const BRITISH_MESSAGE_LENGTH = 50
-/** The crib ends by letter 24 of the body, so a message key exists at which the middle rotor stands still until then. */
-export const MAX_CRIB_END = 24
 
 /** The 60 rotor orders of the Enigma I (three of I–V). */
 export const ORDERS_I_V: readonly (readonly RotorName[])[] = (() => {
@@ -776,13 +774,18 @@ export function randomCables(r: Rng, n: number): string[] {
 }
 
 /**
- * Windows at which the middle rotor stands still for the next `n` presses (n ≤ 25; rotors with one notch): the right
- * rotor starts past its turnover letter far enough not to reach it, the middle rotor off its own.
+ * A message key at which the middle rotor stands still during key presses offset + 1 … offset + n (the crib: the
+ * bombe's drums assume it): the right rotor does not reach its turnover letter then, nor does the middle rotor stand
+ * on its own. Null after a few tries (the caller draws again).
  */
-export function stillMiddle(r: Rng, rotors: readonly RotorName[], n: number): string {
+export function stillDuring(r: Rng, rotors: readonly RotorName[], offset: number, n: number): string | null {
   const right = idx(ROTORS[rotors[2]!].turnovers[0]!)
-  const middle = idx(ROTORS[rotors[1]!].turnovers[0]!)
-  return randLetter(r) + L(middle + 1 + int(r, 25)) + L(right + 1 + int(r, 26 - n))
+  for (let t = 0; t < 8; t++) {
+    // The right rotor's window at press p is start + p − 1: keep its turnover letter out of the crib's presses.
+    const key = randLetter(r) + randLetter(r) + L(right - offset + 1 + int(r, 26 - n))
+    if (turnoverWithin(rotors, key, offset + 1, offset + n) === null) return key
+  }
+  return null
 }
 
 /** The connected pieces of a list of links (each in position order), largest first. */
@@ -802,18 +805,6 @@ export function pieces(edges: readonly MenuEdge[]): MenuEdge[][] {
   return [...groups.values()].sort((x, y) => y.length - x.length)
 }
 
-/** Links that hang off a piece removed again and again: what is left holds every loop. */
-export function twoCore(edges: readonly MenuEdge[]): MenuEdge[] {
-  let rest = [...edges]
-  for (;;) {
-    const degree = new Map<Letter, number>()
-    for (const e of rest) for (const l of [e.a, e.b]) degree.set(l, (degree.get(l) ?? 0) + 1)
-    const leaf = rest.find((e) => degree.get(e.a) === 1 || degree.get(e.b) === 1)
-    if (!leaf) return rest
-    rest = rest.filter((e) => e !== leaf)
-  }
-}
-
 const closuresOf = (edges: readonly MenuEdge[]): number => closures(menuFromEdges(edges))
 
 /** Crib position i + 1 links the crib letter to the cipher letter under it. */
@@ -821,18 +812,29 @@ export function cribLinks(cipher: string, crib: string, offset: number): MenuEdg
   return range(crib.length).map((i) => ({ a: crib[i] as Letter, b: cipher[offset + i] as Letter, pos: i + 1 }))
 }
 
+/** Menus shorter than this leave the bombe too many stops to check (measured: see __tests__). */
+export const MIN_MENU_LINKS = 10
+
 /**
- * A menu that works: the loop-holding core of the piece with the most closures (≤ 14 links); null unless it has
- * ≥ 2 closures and no other piece has 2.
+ * A menu that works: the piece of the crib's links with the loops, whole (its branches narrow the bombe's stops once
+ * the diagonal board joins the letters), with hanging links dropped until at most 14 remain. Null unless it has ≥ 2
+ * closures and ≥ 10 links, and no other piece has 2 closures.
  */
 export function menuSolution(cipher: string, crib: string, offset: number): number[] | null {
-  const cores = pieces(cribLinks(cipher, crib, offset))
-    .map(twoCore)
-    .sort((x, y) => closuresOf(y) - closuresOf(x) || x.length - y.length)
-  const best = cores[0]
-  // One piece holds every menu a learner could build (so the checking machine derives the same cables from any).
-  if (!best || closuresOf(best) < 2 || best.length > MAX_LINKS || cores.slice(1).some((c) => closuresOf(c) >= 2)) return null
-  return best.map((e) => e.pos).sort((a, b) => a - b)
+  const ranked = pieces(cribLinks(cipher, crib, offset)).sort((x, y) => closuresOf(y) - closuresOf(x) || y.length - x.length)
+  const best = ranked[0]
+  if (!best || closuresOf(best) < 2 || ranked.slice(1).some((p) => closuresOf(p) >= 2)) return null
+  let edges = [...best]
+  while (edges.length > MAX_LINKS) {
+    const degree = new Map<Letter, number>()
+    for (const e of edges) for (const l of [e.a, e.b]) degree.set(l, (degree.get(l) ?? 0) + 1)
+    // The hanging link furthest along the crib goes first.
+    const leaf = [...edges].reverse().find((e) => degree.get(e.a) === 1 || degree.get(e.b) === 1)
+    if (!leaf) return null
+    edges = edges.filter((e) => e !== leaf)
+  }
+  if (edges.length < MIN_MENU_LINKS || closuresOf(edges) < 2) return null
+  return edges.map((e) => e.pos).sort((a, b) => a - b)
 }
 
 /** Whether the crib crashes at `offset` (a letter enciphered to itself), on character codes. */
@@ -896,19 +898,19 @@ export interface BritishCore {
 }
 
 /**
- * A 1940-style day's key and one intercept: a crib somewhere in the first letters of its body (the middle rotor does
- * not move before the crib ends, so every link is usable), a window of offsets in which only the crib's own offset is
- * crash-free, and a menu of ≥ 2 closures within 14 links.
+ * A 1940-style day's key and one intercept: a crib anywhere in its body (the middle rotor does not move during the
+ * crib, so every link is usable), a window of offsets in which only the crib's own offset is crash-free, and a menu
+ * of ≥ 2 closures and 10 to 14 links.
  */
 export function britishCore(r: Rng, given?: DayKey): BritishCore {
   // british-menu (the gate's first item, drawn most often) takes a light draw of the same kind of key.
   const key: DayKey = given ?? { rotors: sample(r, I_TO_V, 3), reflector: 'B', rings: 'AAA', plugboard: randomCables(r, BRITISH_CABLES) }
   for (;;) {
     const crib = pick(r, CRIBS)
-    // The right rotor must not carry the middle one before the crib ends: at most 25 presses.
-    const offset = 2 + int(r, MAX_CRIB_END - crib.length - 1)
+    const offset = 2 + int(r, BRITISH_MESSAGE_LENGTH - crib.length - 1)
     const plain = plaintext(r, offset) + crib + plaintext(r, BRITISH_MESSAGE_LENGTH - offset - crib.length)
-    const messageKey = stillMiddle(r, key.rotors, offset + crib.length)
+    const messageKey = stillDuring(r, key.rotors, offset, crib.length)
+    if (!messageKey) continue
     const cipher = encipherFast(key, messageKey, plain)
     const window = cribWindow(cipher, crib, offset)
     if (!window || !oneLoopPiece(cipher, crib, offset)) continue
@@ -980,8 +982,9 @@ export function naiveBritishConfigs(d: BritishDay): Record<'drumAsKey' | 'startA
 
 /**
  * A 1940-style day from a seed: a core, three candidate orders, the start position in clear and the enciphered key,
- * and the true stop. Redrawn until the checking machine's cables leave 1 to 3 cables that matter, those come out of
- * the partial decrypt by II.7's method, and every misconception fails.
+ * and the true stop. Redrawn until the checking machine's cables leave 1 to 3 cables that matter, the enciphered key
+ * already reads as the message key with the checked cables, the rest come out of the partial decrypt by II.7's
+ * method, and every misconception fails.
  */
 export const britishDay = memo((seed: number): BritishDay => {
   const r = createRng(seed)
@@ -1006,6 +1009,8 @@ export const britishDay = memo((seed: number): BritishDay => {
     let start = letters3(r)
     while (start === c.messageKey) start = letters3(r)
     const encKey = encipherFast(c.key, start, c.messageKey)
+    // The wartime procedure works from the checking machine's cables alone: the key reads right before the rest.
+    if (encipherFast({ ...c.key, plugboard: checked }, start, encKey) !== c.messageKey) continue
     const others = sample(
       r,
       ORDERS_I_V.filter((o) => o.join('-') !== c.key.rotors.join('-')),
@@ -1017,6 +1022,16 @@ export const britishDay = memo((seed: number): BritishDay => {
     return d
   }
 })
+
+/** The seed of the k-th candidate British day (data.ts BRITISH_DAYS lists the verified k). */
+export const britishDaySeed = (k: number): number => seedFor('iv-british-days', k)
+
+/**
+ * The days british-key draws from: each verified by a full bombe run over its three wheel orders with the menu the
+ * hint teaches (diagonal board on): the true stop is found, at least one false stop is too, and there are at most 12.
+ * So the checking machine has a false stop to reject on every day. The practice day is not among them.
+ */
+export const BRITISH_DAY_SEEDS: readonly number[] = BRITISH_DAYS.split(' ').map((k) => britishDaySeed(parseInt(k, 36)))
 
 /** The answer the method finds: the day's rotor order, the message key, the checked cables plus the read ones. */
 export function britishSolution(d: BritishDay): MachineConfig {
@@ -1083,14 +1098,14 @@ export function menuCheck(i: BritishMenuInstance, a: unknown): CheckResult {
   }
   const [lo, hi] = i.window
   if (offset < lo || offset > hi) {
-    return verdict(false, cribRollback(), `The crib starts somewhere from letter ${lo + 1} to letter ${hi + 1}; you put it at letter ${offset + 1}.`)
+    return verdict(false, cribRollback(), `The crib starts at an offset from ${lo} to ${hi}; you put it at offset ${offset}.`)
   }
   const hits = crashes(i.cipher, i.crib, offset)
   if (hits.length) {
     return verdict(
       false,
       cribRollback(),
-      `At letter ${offset + 1} the crib crashes ${hits.length === 1 ? 'once' : `${hits.length} times`}: Enigma never enciphers a letter to itself, so the crib cannot stand there.`,
+      `At offset ${offset} the crib crashes ${hits.length === 1 ? 'once' : `${hits.length} times`}: Enigma never enciphers a letter to itself, so the crib cannot stand there.`,
     )
   }
   const links = cribLinks(i.cipher, i.crib, offset)
@@ -1200,7 +1215,7 @@ function britishVerdict(i: BritishKeyInstance, cfg: MachineConfig): true | { fie
   if (windows === d.stop.positions) {
     return fail(
       'positions',
-      `${begins} ${windows} is where the drums stood at the crib's first letter, ${d.offset} letters into the message: turn the right rotor back ${d.offset} places for the message key.`,
+      `${begins} ${windows} is where the drums stood at the crib's first letter, ${d.offset} letters into the body. The body starts at the message key: decipher the enciphered key ${i.encKey} at the start position ${d.start}.`,
     )
   }
   if (windows !== d.messageKey) return fail('positions', `${begins} The windows are not the message key.`)
@@ -1216,7 +1231,7 @@ export function britishItem(id: string, fallback: boolean): ItemLogic<BritishKey
     rule: ONCE,
     lintSeeds: 100,
     generate(r) {
-      const seed = drawSeed(r)
+      const seed = fallback ? drawSeed(r) : pick(r, BRITISH_DAY_SEEDS)
       const d = britishDay(seed)
       const base = {
         unlocked: fallback ? (['plugboard'] as LockKey[]) : (['rotors', 'positions', 'plugboard'] as LockKey[]),
@@ -1361,9 +1376,9 @@ export const readIntercepts = lettersItem<ReadInstance>({
 
 // ---------------------------------------------------------------------------
 
-/** Practice days for the tool scenes (fixed; never a gate's day): chosen for a short bombe run. */
+/** Practice days for the tool scenes (fixed; never a gate day): the British one runs the bombe to 3 stops, 2 of them false. */
 export const PRACTICE_POLISH_SEED = 1936
-export const PRACTICE_BRITISH_SEED = 1940
+export const PRACTICE_BRITISH_SEED = britishDaySeed(22)
 
 export const GATES: ChapterGates = {
   polish: {

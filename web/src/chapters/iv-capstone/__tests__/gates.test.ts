@@ -19,6 +19,7 @@ import { EMPTY_GATE, currentItem, ensureCurrent, revealCurrent, shownInstance, s
 import { hintLevel } from '../../../lesson/rules'
 import {
   BRITISH_CABLES,
+  BRITISH_DAY_SEEDS,
   BRITISH_START,
   GATES,
   INDICATOR_COUNT,
@@ -148,7 +149,7 @@ describe('Polish days are solvable with the given tools (the truth is within the
 })
 
 describe('British days are solvable with the given tools (the truth is within the candidates)', () => {
-  it.each([PRACTICE_BRITISH_SEED, ...Array.from({ length: 60 }, (_, k) => seedFor('british-day', k))])('seed %i', (seed) => {
+  it.each([PRACTICE_BRITISH_SEED, ...BRITISH_DAY_SEEDS.slice(0, 30), ...Array.from({ length: 30 }, (_, k) => seedFor('british-day', k))])('seed %i', (seed) => {
     const d = britishDay(seed)
     const day = normalizeConfig({ model: 'I', reflector: 'B', rotors: [...d.key.rotors], rings: 'AAA', positions: d.messageKey, plugboard: [...d.key.plugboard] })
     expect(validateConfig(day)).toEqual([])
@@ -166,8 +167,8 @@ describe('British days are solvable with the given tools (the truth is within th
     )
     expect(free).toEqual([d.offset])
     expect(d.window[0]).toBeLessThan(d.offset)
-    // The middle rotor stands still until the crib ends, so every link is usable and the drums sit at the crib.
-    expect(turnoverWithin(d.key.rotors, d.messageKey, 1, d.offset + d.crib.length)).toBeNull()
+    // The middle rotor stands still during the crib, so every link is usable and the drums sit at the crib.
+    expect(turnoverWithin(d.key.rotors, d.messageKey, d.offset + 1, d.offset + d.crib.length)).toBeNull()
     expect(d.stop.positions).toBe(trueBombePosition(day, d.messageKey, d.offset))
     // The solution menu: one piece, ≥ 2 closures, ≤ 14 links; the whole crib has more than 14.
     const links = cribLinks(d.cipher, d.crib, d.offset).filter((e) => d.menu.includes(e.pos))
@@ -179,6 +180,8 @@ describe('British days are solvable with the given tools (the truth is within th
     const check = checkStop({ ...d.stop, rotors: d.key.rotors, live: 1, reflector: 'B' }, d.cipher, d.crib, d.offset)
     expect(check.consistent).toBe(true)
     for (const c of check.steckers) expect(d.key.plugboard).toContain(c)
+    // With the checked cables alone, the enciphered key already reads as the message key (the wartime procedure).
+    expect(encipherFast({ ...d.key, plugboard: [...check.steckers] }, d.start, d.encKey)).toBe(d.messageKey)
     const solution = britishSolution(d)
     const extra = solution.plugboard.filter((c) => !check.steckers.includes(c))
     expect(extra.length).toBeGreaterThanOrEqual(1)
@@ -186,26 +189,30 @@ describe('British days are solvable with the given tools (the truth is within th
     expect(decryptWith(solution, d.cipher)).toBe(d.plain)
   })
 
-  it('the bombe run over the three orders finds the true stop, and no other stop reads the message (4 days)', { timeout: 240_000 }, () => {
-    for (const seed of [PRACTICE_BRITISH_SEED, seedFor('british-bombe', 1), seedFor('british-bombe', 2), seedFor('british-bombe', 3)]) {
+  it('british-key draws only verified days: the bombe finds the true stop and a false one, at most 12 (a sample of 4, full runs)', { timeout: 240_000 }, () => {
+    expect(BRITISH_DAY_SEEDS).toHaveLength(299)
+    expect(new Set(BRITISH_DAY_SEEDS).size).toBe(299)
+    expect(BRITISH_DAY_SEEDS).not.toContain(PRACTICE_BRITISH_SEED)
+    const sample = [PRACTICE_BRITISH_SEED, ...[0, 101, 298].map((k) => BRITISH_DAY_SEEDS[k]!)]
+    for (const seed of sample) {
       const d = britishDay(seed)
       const menu = menuFromEdges(cribLinks(d.cipher, d.crib, d.offset).filter((e) => d.menu.includes(e.pos)))
       const stops: Stop[] = d.orders.flatMap((rotors) => runBombe({ menu, rotors, reflector: 'B', diagonal: true }))
       const isTrue = (s: Stop) => s.rotors.join('-') === d.key.rotors.join('-') && s.positions === d.stop.positions
       expect(stops.some(isTrue), `seed ${seed}: the true stop`).toBe(true)
+      expect(stops.filter((s) => !isTrue(s)).length, `seed ${seed}: a false stop to reject`).toBeGreaterThanOrEqual(1)
+      expect(stops.length, `seed ${seed}: few enough to check`).toBeLessThanOrEqual(12)
       for (const s of stops.filter((x) => !isTrue(x))) {
-        // A false stop taken without checking: its rotors, drums wound back, the cables it implies.
+        // A false stop taken without checking: its rotors and the cables it implies, the key read at the start position.
         const c = checkStop(s, d.cipher, d.crib, d.offset)
-        const back = windowsBack(s.positions, d.offset)
-        const cfg = normalizeConfig({ ...BRITISH_START, rotors: [...s.rotors], positions: back, plugboard: c.consistent ? [...c.steckers] : [] })
+        const plugboard = c.consistent ? [...c.steckers] : []
+        const key = encipherFast({ rotors: s.rotors, reflector: 'B', rings: 'AAA', plugboard }, d.start, d.encKey)
+        const cfg = normalizeConfig({ ...BRITISH_START, rotors: [...s.rotors], positions: key, plugboard })
         expect(decryptWith(cfg, d.cipher), `seed ${seed}: stop ${s.rotors.join('-')} ${s.positions}`).not.toBe(d.plain)
       }
     }
   })
 })
-
-/** Drum positions `k` presses back on the right rotor (the middle one stands still). */
-const windowsBack = (p: string, k: number): string => p.slice(0, 2) + LETTERS[(((p.charCodeAt(2) - 65 - k) % 26) + 26) % 26]!
 
 describe('read-intercepts', () => {
   it('every intercept follows the wartime procedure: the key enciphered once at the start position', () => {
@@ -377,8 +384,8 @@ describe('the modal constant answer passes < 1 %', () => {
     ['polish-card', polishCard as ItemLogic, SEEDS],
     ['polish-key', polishKeyItem as ItemLogic, 100],
     ['polish-plugs', polishPlugs as ItemLogic, 100],
-    ['british-menu', britishMenu as ItemLogic, SEEDS],
-    ['british-key', britishKey as ItemLogic, 100],
+    ['british-menu', britishMenu as ItemLogic, 1000],
+    ['british-key', britishKey as ItemLogic, 1000],
     ['british-plugs', britishPlugs as ItemLogic, 100],
     ['read-intercepts', readIntercepts as ItemLogic, SEEDS],
   ]

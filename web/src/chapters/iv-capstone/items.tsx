@@ -300,18 +300,19 @@ const britishMenu = {
     <div className="flex flex-col gap-2">
       <BritishDayFacts />
       <p>
-        The crib <Mono>{instance.crib}</Mono> stands in this body, starting somewhere from letter {instance.window[0] + 1} to letter{' '}
-        {instance.window[1] + 1}. Place it where no crib letter sits under the same cipher letter, then build a menu for the bombe from
-        its links: at most {MAX_LINKS} links, in one connected piece, with at least 2 closures. The middle rotor does not move before
-        the crib ends, so every link may be used.
+        The crib <Mono>{instance.crib}</Mono> stands in this body at an offset from {instance.window[0]} to {instance.window[1]} (the
+        offset counts the body&apos;s letters before the crib; the strip numbers them). Slide it to the offset where no crib letter
+        sits under the same cipher letter, then build a menu for the bombe from its links: at most {MAX_LINKS} links, in one connected
+        piece, with at least 2 closures. The middle rotor does not move before the crib ends, so every link may be used.
       </p>
       <p className="font-mono break-all text-stone-300" data-testid="intercept-body">
         {instance.cipher}
       </p>
       <Hint level={hintLevel}>
-        Enigma never enciphers a letter to itself: a start where some crib letter stands under the same cipher letter is impossible,
-        and only one start in the range survives. For the menu, add every link, then drop the links that hang off the loops (a letter
-        with a single link) until {MAX_LINKS} or fewer remain; if two pieces remain, keep the one with the loops.
+        Enigma never enciphers a letter to itself: an offset where some crib letter stands under the same cipher letter is
+        impossible, and only one offset in the range survives. For the menu, keep the piece of links that holds the loops, whole: its
+        branches narrow the bombe&apos;s stops once the diagonal board joins the letters. Leave out links in other pieces, and if the
+        piece has more than {MAX_LINKS} links, drop links that hang off it (a letter with a single link).
       </Hint>
     </div>
   ),
@@ -322,13 +323,13 @@ const britishMenu = {
     return (
       <div className="flex flex-col gap-2 text-sm" data-testid="worked-british-menu">
         <p>
-          Crib <Mono>{instance.crib}</Mono>, starts {instance.window[0] + 1} to {instance.window[1] + 1}:{' '}
-          {offsets.map((o) => `letter ${o + 1}: ${crashes(instance.cipher, instance.crib, o).length} crash(es)`).join('; ')}. Only
-          letter {cribOffset(instance) + 1} is free of crashes.
+          Crib <Mono>{instance.crib}</Mono>, offsets {instance.window[0]} to {instance.window[1]}:{' '}
+          {offsets.map((o) => `offset ${o}: ${crashes(instance.cipher, instance.crib, o).length} crash(es)`).join('; ')}. Only offset{' '}
+          {cribOffset(instance)} is free of crashes.
         </p>
         <MenuGraph menu={menuFromEdges(edges)} testId="worked-menu" />
         <p>
-          Links {solution.links.join(', ')}: the loops without the links that hang off them.
+          Links {solution.links.join(', ')}: the piece that holds the loops, branches included, at most {MAX_LINKS} links.
         </p>
       </div>
     )
@@ -390,7 +391,7 @@ function BritishWorked({ instance }: { instance: BritishKeyInstance; solution: M
   return (
     <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm" data-testid="worked-british-key">
       <li>
-        The crib <Mono>{w.crib}</Mono> is crash-free only at letter {w.offset + 1}. Menu: links{' '}
+        The crib <Mono>{w.crib}</Mono> is crash-free only at offset {w.offset}. Menu: links{' '}
         {w.links.map((e) => e.pos).join(', ')} ({w.closures} closures).
       </li>
       <li>
@@ -398,8 +399,9 @@ function BritishWorked({ instance }: { instance: BritishKeyInstance; solution: M
         steckered to {w.stop.stecker.toLowerCase()}; the checking machine confirms it and derives <Mono>{cablesText(w.checked)}</Mono>.
       </li>
       <li>
-        The drums stood at <Mono>{w.stop.positions}</Mono> at the crib&apos;s first letter, {w.offset} letters in: the message key is{' '}
-        <Mono>{w.messageKey}</Mono> (and <Mono>{w.encKey}</Mono> at the start position <Mono>{w.start}</Mono> reads the same).
+        With those rotors and cables, the enciphered key <Mono>{w.encKey}</Mono> read at the start position <Mono>{w.start}</Mono> gives
+        the message key <Mono>{w.messageKey}</Mono> (the drums at <Mono>{w.stop.positions}</Mono> stood {w.offset} letters into the
+        body).
       </li>
       <li>
         The partial decrypt shows where words fail; the cables {w.read.length ? <Mono>{cablesText(w.read)}</Mono> : 'none'} complete
@@ -414,15 +416,16 @@ const britishKey = {
     <div className="flex flex-col gap-2">
       <BritishDayFacts orders={instance.orders} />
       <p>
-        Break this day and read the intercept: its crib <Mono>{instance.crib}</Mono> starts somewhere from letter {instance.window[0] + 1}{' '}
-        to letter {instance.window[1] + 1} of the body. Set the rotor order, turn the windows to the message key and plug in the
+        Break this day and read the intercept: its crib <Mono>{instance.crib}</Mono> stands in the body at an offset from{' '}
+        {instance.window[0]} to {instance.window[1]} (the body&apos;s letters before the crib). Set the rotor order, turn the windows to the message key and plug in the
         cables, so that the preview reads the body; then submit. The keyboard is locked and the lamps are hidden: the preview deciphers
         without a key press. A wrong submission brings a fresh day.
       </p>
       <Hint level={hintLevel}>
-        Place the crib, build a menu with 2 closures or more, and run the bombe on the three orders. Check the stops: only a true stop
-        gives consistent cables. Use it, turn the right rotor back as many places as the crib starts into the body, and fix the words
-        that almost read with one more cable each.
+        Place the crib, build the menu from the whole piece of links that holds the loops (up to {MAX_LINKS} links: a longer menu
+        stops less often), and run the bombe on the three orders. Check the stops: only a true stop gives consistent cables. Use it;
+        the enciphered key at the start position then reads as the message key. Turn the windows to it, and fix the words that almost
+        read with one more cable each.
       </Hint>
     </div>
   ),

@@ -6,10 +6,10 @@
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { MachineStoreHook } from '../../../contracts/machine'
-import { checkStop, crashes, type Stop } from '../../../crypto'
+import { checkStop, type Stop } from '../../../crypto'
 import { runBombeAsync } from '../../../crypto/bombeClient'
 import { closures, menuFromEdges, type Menu } from '../../../crypto/menu'
-import { LETTERS, type Letter, type RotorName } from '../../../engine'
+import type { RotorName } from '../../../engine'
 import { BUTTON, Mono, QUIET_BUTTON } from '../../../lesson'
 import { CribStrip, MenuGraph } from '../../../viz'
 import { MAX_LINKS, VOCABULARY, cribLinks, encipherFast, keyOfConfig, pieces } from '../gates'
@@ -29,21 +29,24 @@ export function CribPlacer(p: {
   offset: number
   onOffset(o: number): void
   disabled?: boolean
+  /** The tool scene introduces the strip itself; inside an item the prompt already has. */
+  intro?: boolean
 }): JSX.Element {
-  const hits = crashes(p.cipher, p.crib, Math.max(0, Math.min(p.cipher.length - p.crib.length, p.offset)))
   const inWindow = p.offset >= p.window[0] && p.offset <= p.window[1]
   return (
     <div className="flex flex-col gap-2" data-testid="crib-placer">
-      <p className="text-sm text-stone-300">
-        The crib <Mono>{p.crib}</Mono> starts somewhere from letter {p.window[0] + 1} to letter {p.window[1] + 1} of the body.
-        Slide it (arrow keys on the strip) to the start where no crib letter sits under the same cipher letter.
-      </p>
+      {p.intro ? (
+        <p className="text-sm text-stone-300">
+          The crib <Mono>{p.crib}</Mono> starts at an offset from {p.window[0]} to {p.window[1]} (the numbers above the strip). Slide
+          it (arrow keys on the strip) to the offset where no crib letter sits under the same cipher letter.
+        </p>
+      ) : null}
       <CribStrip cipher={p.cipher} crib={p.crib} offset={p.offset} onOffset={p.disabled ? undefined : p.onOffset} testId="crib-strip" />
-      <p className="text-sm text-stone-300" aria-live="polite" data-testid="crib-status">
-        Crib at letter {p.offset + 1}
-        {inWindow ? '' : ' (outside the letters it can start at)'}:{' '}
-        {hits.length === 0 ? 'no crash.' : `${hits.length} crash${hits.length === 1 ? '' : 'es'}.`}
-      </p>
+      {inWindow ? null : (
+        <p className="text-sm text-amber-200" data-testid="crib-outside">
+          Offset {p.offset} is outside the range the crib can start in ({p.window[0]} to {p.window[1]}).
+        </p>
+      )}
     </div>
   )
 }
@@ -62,11 +65,12 @@ export function MenuBuilder(p: {
   const edges = all.filter((e) => p.chosen.includes(e.pos))
   const menu = menuFromEdges(edges)
   const parts = edges.length ? pieces(edges).length : 0
+  const c = closures(menu)
   return (
     <div className="flex flex-col gap-2" data-testid={p.testId ?? 'menu-builder'} data-links={[...p.chosen].sort((a, b) => a - b).join(',')}>
       <p className="text-sm text-stone-300">
         Each crib position is a link between the crib letter and the cipher letter under it. Choose at most {MAX_LINKS} links in one
-        connected piece with at least 2 closures (closures = links − letters + pieces).
+        connected piece with at least 2 closures (closures = links − letters + pieces). The more links, the fewer the bombe&apos;s stops.
       </p>
       <MenuGraph
         menu={menu}
@@ -75,9 +79,9 @@ export function MenuBuilder(p: {
         onRemoveEdge={p.disabled ? undefined : (pos) => p.onChosen(p.chosen.filter((x) => x !== pos))}
         testId="menu-graph"
       />
-      <p className="text-sm text-stone-300" data-testid="menu-count">
-        {edges.length} link{edges.length === 1 ? '' : 's'}, {menu.letters.length} letters, {parts} piece{parts === 1 ? '' : 's'}:{' '}
-        {edges.length} − {menu.letters.length} + {parts} = {closures(menu)} closure{closures(menu) === 1 ? '' : 's'}.
+      <p className="text-sm text-stone-300" data-testid="menu-count" data-closures={c} data-pieces={parts}>
+        {edges.length} of at most {MAX_LINKS} links, in {parts} piece{parts === 1 ? '' : 's'}
+        {parts > 1 ? ': the bombe feeds its current in at one letter, so keep one connected piece' : ''}.
       </p>
       <div>
         <button
@@ -200,7 +204,9 @@ export function BombeBench(p: {
             <div key={r.rotors.join('-')} className="flex flex-col gap-1">
               <p className="text-xs text-stone-400">
                 {r.rotors.join('-')}
-                {r.stops.length > SHOWN_STOPS ? `: the first ${SHOWN_STOPS} of ${r.stops.length} stops (more closures give fewer stops)` : ''}
+                {r.stops.length > SHOWN_STOPS
+                  ? `: the first ${SHOWN_STOPS} of ${r.stops.length} stops (a menu with more links and closures stops less often)`
+                  : ''}
               </p>
               <ul className="flex flex-col gap-1" data-testid={`stops-${r.rotors.join('-')}`}>
                 {r.stops.slice(0, SHOWN_STOPS).map((s) => {
@@ -235,7 +241,7 @@ export function BombeBench(p: {
                             {p.onUse ? (
                               <button type="button" className={QUIET_BUTTON} onClick={() => p.onUse?.(s, verdict.steckers)}
                                 data-testid={`stop-use-${id}`}>
-                                Set rotors, drums and these cables
+                                Set these rotors and cables
                               </button>
                             ) : null}
                           </>
@@ -303,5 +309,3 @@ export function InterceptReader(p: {
   )
 }
 
-/** Letters as a Letter[] (helper for stops). */
-export const asLetters = (s: string): Letter[] => [...s].filter((c): c is Letter => (LETTERS as readonly string[]).includes(c))

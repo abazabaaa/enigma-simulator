@@ -115,7 +115,7 @@ export function PairingTool(p: {
             </label>
             {read === null ? null : 'perm' in read ? (
               p.view === 'table' ? (
-                <div className="max-w-full overflow-x-auto" tabIndex={0} aria-label={`${name} as a table`} data-testid={`product-table-${name}`}>
+                <div className="max-w-full overflow-x-auto" role="region" tabIndex={0} aria-label={`${name} as a table`} data-testid={`product-table-${name}`}>
                   <pre className="font-mono text-sm leading-tight text-stone-200">
                     {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'}
                     {'\n'}
