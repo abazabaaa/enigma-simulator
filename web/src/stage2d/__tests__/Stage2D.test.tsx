@@ -18,8 +18,8 @@ import { useMachineStore } from '../../state/machineStore'
 import { usePlaybackStore } from '../../state/playbackStore'
 import { useStageStore } from '../../state/stageStore'
 import { useToyStore } from '../../state/toyStore'
-import Stage2D from '../index'
-import { drawnPoints, makeCircuitLayout, pathPointCount, signalPath } from '../layout'
+import Stage2D, { focusCenter } from '../index'
+import { MIN_TEXT_PX, drawnPoints, makeCircuitLayout, pathPointCount, signalPath } from '../layout'
 
 const CONFIGS: Readonly<Record<ModelName, MachineConfigInput>> = {
   I: { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU', plugboard: 'AV BS CG' },
@@ -128,6 +128,77 @@ describe('Stage2D reports', () => {
     expect(last().windows).toBe('VJNA')
     expect(last().windows).toBe(positionsToString(store().machine))
     expect(document.querySelectorAll('[data-part="pawl-greek"], [data-part="notch-greek"]')).toHaveLength(0)
+  })
+})
+
+describe('review round 2 regressions', () => {
+  it('F1: keeps every text at least MIN_TEXT_PX (9) CSS px at the minimum width, and never shrinks below it', () => {
+    const layouts = [
+      makeCircuitLayout({ n: 26, slots: ['left', 'middle', 'right'], etw: true }),
+      makeCircuitLayout({ n: 26, slots: ['greek', 'left', 'middle', 'right'], etw: true }),
+      makeCircuitLayout({ n: 26, slots: ['greek', 'left', 'middle', 'right'], etw: true, ringLayer: true }),
+      makeCircuitLayout({ n: 6, slots: ['middle', 'right'], etw: false }),
+      makeCircuitLayout({ n: 8, slots: ['left', 'middle', 'right'], etw: false }),
+    ]
+    for (const l of layouts) {
+      for (const f of Object.values(l.fonts)) expect((f * l.minWidth) / l.width).toBeGreaterThanOrEqual(MIN_TEXT_PX)
+      // A phone's 390 px screen cannot fit a 26-letter machine at that size: it scrolls instead.
+      if (l.n === 26) expect(l.minWidth).toBeGreaterThan(390)
+    }
+    // The drawing never uses a font below the layout's smallest, and holds its minimum width.
+    for (const model of ['I', 'M4'] as const) {
+      run(() => store().setConfig(CONFIGS[model]))
+      for (const id of ['rotor-layers', 'pawls', 'wire', 'symbols'] as const) {
+        render(resolveStage(id))
+        const svg = byTestId('stage2d')
+        const l = makeCircuitLayout({
+          n: 26,
+          slots: model === 'M4' ? ['greek', 'left', 'middle', 'right'] : ['left', 'middle', 'right'],
+          etw: true,
+          ringLayer: resolveStage(id).ringLayer,
+        })
+        expect(svg.style.minWidth, id).toBe(`${l.minWidth}px`)
+        const smallest = Math.min(...Object.values(l.fonts))
+        const sizes = [...svg.querySelectorAll('text')].map((t) => Number(t.getAttribute('font-size')))
+        expect(Math.min(...sizes), `${model} ${id}`).toBeGreaterThanOrEqual(smallest)
+        expect(byTestId('stage2d-scroll').className).toMatch(/overflow-x-auto/)
+        cleanup()
+      }
+    }
+  })
+
+  it('F1: centres the scroll on the focused parts', () => {
+    const boxes = { 'ring-right': { x: 400, y: 0, w: 20, h: 10 }, battery: { x: 600, y: 0, w: 20, h: 10 } } as const
+    expect(focusCenter(boxes, new Set(['battery']))).toBe(410)
+    expect(focusCenter(boxes, new Set(['battery', 'ring-right']))).toBeNull()
+  })
+
+  it("F5: a 'static' trace waits for the stepping phase and has no moving head", () => {
+    const r = render(resolveStage('rotors'))
+    run(() => usePlaybackStore.getState().setSpeed(1))
+    run(() => store().pressKey('Q'))
+    expect(r.last()).toMatchObject({ pathPoints: 2, hop: -1, windows: 'ADU' })
+    expect(document.querySelector('[data-testid="stage2d-path"]')).toBeNull()
+    run(() => usePlaybackStore.getState().scrub(0.44))
+    expect(document.querySelector('[data-testid="stage2d-path"]')).toBeNull()
+    run(() => usePlaybackStore.getState().scrub(1))
+    expect(r.last()).toMatchObject({ pathPoints: 24, windows: 'ADV' })
+    expect(byTestId('stage2d-path')).toBeTruthy()
+    expect(document.querySelector('[data-testid="stage2d-head"]')).toBeNull()
+    // 'animate' does draw a head while the path grows.
+    r.rerender(resolveStage('wire'))
+    run(() => usePlaybackStore.getState().scrub(3.5))
+    expect(byTestId('stage2d-head')).toBeTruthy()
+  })
+
+  it('F8: draws the keys and lamps over the ends of the path', () => {
+    render(resolveStage('wire'))
+    run(() => store().pressKey('A'))
+    const path = byTestId('stage2d-path')
+    const front = document.querySelector('[data-testid="stage2d"] [data-layer="front"]')!
+    expect(front.querySelector('[data-part="lampboard"]')).not.toBeNull()
+    expect(front.querySelector('[data-part="keyboard"]')).not.toBeNull()
+    expect(path.compareDocumentPosition(front) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
 

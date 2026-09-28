@@ -16,6 +16,12 @@ export interface SpinbuttonProps {
   readonly text: string
   readonly disabled?: boolean
   readonly onChange: (value: number) => void
+  /**
+   * Arrows, PageUp/PageDown and ▲/▼ step by `delta`. With onStep the owner applies the step to the
+   * stored value (the shown value may lag behind it, e.g. a window showing stepping.before);
+   * without it the step is applied to `value`.
+   */
+  readonly onStep?: (delta: number) => void
   /** A printable key typed on the spinbutton; return true when it was used. */
   readonly onType?: (key: string) => boolean
   readonly size?: 'lg' | 'sm'
@@ -32,16 +38,22 @@ export function Spinbutton(p: SpinbuttonProps): JSX.Element {
   const change = (next: number) => {
     if (!disabled) p.onChange(wrap(next, min, max))
   }
+  const step = (delta: number) => {
+    if (disabled) return
+    if (p.onStep) p.onStep(delta)
+    else change(value + delta)
+  }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const moves: Record<string, number> = { ArrowUp: value + 1, ArrowDown: value - 1, PageUp: value + 5, PageDown: value - 5 }
-    let next: number | null = null
-    if (e.key in moves) next = moves[e.key]!
-    else if (e.key === 'Home') next = min
-    else if (e.key === 'End') next = max
-    if (next !== null) {
+    const steps: Record<string, number> = { ArrowUp: 1, ArrowDown: -1, PageUp: 5, PageDown: -5 }
+    if (e.key in steps) {
       e.preventDefault()
-      change(next)
+      step(steps[e.key]!)
+      return
+    }
+    if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault()
+      change(e.key === 'Home' ? min : max)
       return
     }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -56,7 +68,7 @@ export function Spinbutton(p: SpinbuttonProps): JSX.Element {
 
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <button type="button" tabIndex={-1} aria-label={`${p.label}: up`} disabled={disabled} onClick={() => change(value + 1)} className={arrow}>
+      <button type="button" tabIndex={-1} aria-label={`${p.label}: up`} disabled={disabled} onClick={() => step(1)} className={arrow}>
         ▲
       </button>
       <div
@@ -76,7 +88,7 @@ export function Spinbutton(p: SpinbuttonProps): JSX.Element {
       >
         {p.text}
       </div>
-      <button type="button" tabIndex={-1} aria-label={`${p.label}: down`} disabled={disabled} onClick={() => change(value - 1)} className={arrow}>
+      <button type="button" tabIndex={-1} aria-label={`${p.label}: down`} disabled={disabled} onClick={() => step(-1)} className={arrow}>
         ▼
       </button>
       {p.caption}

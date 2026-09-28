@@ -4,6 +4,11 @@
  * plaintext, and the share link encodes them. The store keeps only the configured start
  * (config.positions), which differs once the windows have been turned by hand, so each store's
  * first press after an empty tape is recorded here.
+ *
+ * One tape, one setting: while a PaperTape is shown, changing the setting by hand (turning a
+ * rotor, setting a ring, a rotor, the reflector, the model or a cable) with letters on the tape
+ * starts a new, empty tape at the new setting. Otherwise the tape would mix two settings and
+ * neither the share link nor a rewind could read it back.
  */
 
 import type { MachineStoreHook } from '../contracts/machine'
@@ -12,6 +17,8 @@ import { useMachineStore } from '../state/machineStore'
 
 const starts = new WeakMap<MachineStoreHook, string>()
 const tracked = new WeakSet<MachineStoreHook>()
+/** Mounted PaperTapes per store. */
+const shown = new WeakMap<MachineStoreHook, number>()
 
 /** Start recording where `api`'s tapes begin (idempotent). */
 export function trackTape(api: MachineStoreHook): void {
@@ -20,6 +27,27 @@ export function trackTape(api: MachineStoreHook): void {
   api.subscribe((s, prev) => {
     if (s.input === '') starts.delete(api)
     else if (prev.input === '' && s.last) starts.set(api, positionsToString(s.last.stepping.before))
+    else if (s.machine !== prev.machine && s.seq === prev.seq && (shown.get(api) ?? 0) > 0) newTapeSoon(api, s.seq)
+  })
+}
+
+/** A PaperTape for `api` is on screen (hand changes then start a new tape); returns the release. */
+export function showTape(api: MachineStoreHook): () => void {
+  trackTape(api)
+  shown.set(api, (shown.get(api) ?? 0) + 1)
+  return () => shown.set(api, Math.max(0, (shown.get(api) ?? 1) - 1))
+}
+
+/**
+ * Clear the tape, keeping the setting and the current windows (the setup path, so no lock is
+ * touched: the setting itself does not change). Deferred to a microtask so the store is never
+ * written from inside its own change notification.
+ */
+function newTapeSoon(api: MachineStoreHook, seq: number): void {
+  queueMicrotask(() => {
+    const s = api.getState()
+    if (s.seq !== seq || s.input === '') return
+    s.setConfig({ ...s.machine.config, positions: positionsToString(s.machine) })
   })
 }
 

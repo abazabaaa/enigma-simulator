@@ -98,9 +98,10 @@ export function SandboxPage() {
     store.setLocks({})
     const config = k === undefined ? null : decodeConfig(k)
     store.setConfig(config ?? DEFAULT_CONFIG)
+    const shown = k !== undefined && k.length > 48 ? `${k.slice(0, 48)}…` : k
     setNotice(
       k !== undefined && config === null
-        ? `The link's machine setting "${k}" is not valid, so the default machine is loaded (I II III, rings 01 01 01, windows AAA, no plugs).`
+        ? `The link's machine setting "${shown}" is not valid, so the default machine is loaded (I II III, rings 01 01 01, windows AAA, no plugs).`
         : null,
     )
   }, [k])
@@ -115,7 +116,11 @@ export function SandboxPage() {
         </p>
         <ShareLink />
         {notice ? (
-          <p role="alert" data-testid="sandbox-notice" className="rounded border border-amber-500/60 bg-amber-950/40 px-3 py-2 text-sm text-amber-100">
+          <p
+            role="alert"
+            data-testid="sandbox-notice"
+            className="rounded border border-amber-500/60 bg-amber-950/40 px-3 py-2 text-sm wrap-anywhere text-amber-100"
+          >
             {notice}
           </p>
         ) : null}

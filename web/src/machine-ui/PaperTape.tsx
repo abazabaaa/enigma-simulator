@@ -5,16 +5,17 @@
  * the plaintext. When the clipboard cannot be read, a text box takes the paste instead.
  */
 
-import { useId, useState, type FormEvent, type JSX } from 'react'
+import { useEffect, useId, useState, type FormEvent, type JSX } from 'react'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import type { MachineStoreHook } from '../contracts/machine'
-import { groups5, useApi } from './hooks'
-import { rewindTape, trackTape, typeText } from './tape'
+import { groups5, useApi, useMachinePress } from './hooks'
+import { rewindTape, showTape, trackTape, typeText } from './tape'
 
 export function PaperTape({ store }: { store?: MachineStoreHook }): JSX.Element {
   const api = useApi(store)
   trackTape(api)
+  useEffect(() => showTape(api), [api])
   const { input, output, keyboardLocked, lampsHidden } = useStore(
     api,
     useShallow((s) => ({
@@ -24,6 +25,10 @@ export function PaperTape({ store }: { store?: MachineStoreHook }): JSX.Element 
       lampsHidden: !!s.locks.lampsHidden,
     })),
   )
+  // The tape follows the playback clock like every other view: the last press's lamp letter is
+  // printed once that lamp lights (PLAN §2.5), and scrubbing back takes it off again.
+  const { hasPress, lit } = useMachinePress(api)
+  const printed = hasPress && !lit ? output.slice(0, -1) : output
   const [status, setStatus] = useState('')
   const [manual, setManual] = useState(false)
   const [pasted, setPasted] = useState('')
@@ -41,7 +46,7 @@ export function PaperTape({ store }: { store?: MachineStoreHook }): JSX.Element 
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(groups5(api.getState().output))
+      await navigator.clipboard.writeText(groups5(printed))
       setStatus('Copied the output tape.')
     } catch {
       setStatus('Copying was blocked: select the output tape and copy it by hand.')
@@ -68,13 +73,13 @@ export function PaperTape({ store }: { store?: MachineStoreHook }): JSX.Element 
 
   const button =
     'rounded border border-stone-600 px-3 py-1 text-sm text-stone-100 hover:bg-stone-800 disabled:opacity-50'
-  const shownOutput = lampsHidden ? output.replace(/[A-Z]/g, '?') : output
+  const shownOutput = lampsHidden ? printed.replace(/[A-Z]/g, '?') : printed
 
   return (
     <section aria-labelledby={headingId} data-testid="paper-tape" className="flex flex-col gap-2">
-      <h3 id={headingId} className="text-sm font-medium text-stone-200">
+      <h2 id={headingId} className="text-sm font-medium text-stone-200">
         Paper tape
-      </h3>
+      </h2>
       <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 gap-y-1 rounded border border-stone-800 bg-stone-900/60 p-2 font-mono text-sm">
         <span className="text-stone-300">in</span>
         <output data-testid="tape-input" className="min-h-5 break-words text-stone-100">
@@ -86,7 +91,7 @@ export function PaperTape({ store }: { store?: MachineStoreHook }): JSX.Element 
         </output>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" data-testid="tape-copy" disabled={!output || lampsHidden} onClick={() => void copy()} className={button}>
+        <button type="button" data-testid="tape-copy" disabled={!printed || lampsHidden} onClick={() => void copy()} className={button}>
           Copy output
         </button>
         <button type="button" data-testid="tape-paste" disabled={keyboardLocked} onClick={() => void paste()} className={button}>

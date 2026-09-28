@@ -73,6 +73,44 @@ test.describe('Stage2D', { tag: '@area:machine-ui' }, () => {
     await expect(page.getByTestId('stage2d-path')).toHaveCount(0)
   })
 
+  test('at 390×844 the drawing stays readable: every text ≥ 9 CSS px, scrolled to the focus, no page overflow', async ({
+    page,
+    stage,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const cases = [
+      ['/lab/stage?preset=rotor-layers', 'ring-right'],
+      ['/lab/stage?preset=pawls&model=M4', 'pawl-middle'],
+      ['/lab/stage?preset=wire', 'rotor-middle'],
+      ['/machine', 'rotor-middle'],
+    ] as const
+    for (const [hash, part] of cases) {
+      await gotoApp(page, hash, { stage })
+      const scroller = page.getByTestId('stage2d-scroll')
+      await expect(scroller, hash).toHaveAttribute('data-scrollable', 'true')
+      await expect(scroller, hash).toHaveAttribute('tabindex', '0')
+      const m = await page.evaluate((focused) => {
+        const svg = document.querySelector<SVGSVGElement>('[data-testid="stage2d"]')!
+        const px = (t: SVGTextElement) => Number(t.getAttribute('font-size')) * (t.getScreenCTM()?.a ?? 0)
+        const texts = [...svg.querySelectorAll('text')]
+        const box = svg.querySelector(`[data-part="${focused}"]`)!.getBoundingClientRect()
+        const view = document.querySelector('[data-testid="stage2d-scroll"]')!.getBoundingClientRect()
+        const mid = box.left + box.width / 2
+        return {
+          smallest: Math.min(...texts.map(px)),
+          band: Math.min(...texts.filter((t) => t.hasAttribute('data-band')).map(px)),
+          focusInView: mid >= view.left && mid <= view.right,
+          scrollWidth: document.documentElement.scrollWidth,
+          innerWidth: window.innerWidth,
+        }
+      }, part)
+      expect(m.band, `${hash} ring-band letters`).toBeGreaterThanOrEqual(9)
+      expect(m.smallest, `${hash} smallest text`).toBeGreaterThanOrEqual(9)
+      expect(m.focusInView, `${hash} ${part} scrolled into view`).toBe(true)
+      expect(m.scrollWidth, hash).toBeLessThanOrEqual(m.innerWidth)
+    }
+  })
+
   test('reduced motion makes t jump to the end; full motion animates', async ({ page, stage }) => {
     await gotoApp(page, '/lab/stage?preset=wire', { stage, motion: 'reduce' })
     await page.getByTestId('playback-speed').selectOption('0.25')

@@ -72,12 +72,12 @@ export function PlugboardEditor({ store, maxPairs }: { store?: MachineStoreHook;
 
   return (
     <section aria-labelledby={headingId} data-testid="plugboard-editor" className="flex flex-col gap-2">
-      <h3 id={headingId} className="text-sm font-medium text-stone-200">
+      <h2 id={headingId} className="text-sm font-medium text-stone-200">
         Plugboard{' '}
         <span className="font-normal text-stone-300">
           ({plugs.length} of {max} cables)
         </span>
-      </h3>
+      </h2>
       <form onSubmit={add} className="flex flex-wrap items-center gap-2">
         <label htmlFor={inputId} className="sr-only">
           Letters to join with a cable

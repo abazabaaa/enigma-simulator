@@ -16,6 +16,7 @@ import {
   MODELS,
   isLetter,
   letterToIndex,
+  mod,
   positionsToString,
   slotNames,
   type ReflectorName,
@@ -26,6 +27,9 @@ import { SLOT_LABEL, useApi, useMachinePress } from './hooks'
 import { Spinbutton } from './Spinbutton'
 
 const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** Digits typed on a ring spinbutton within this many ms of each other form one number. */
+export const RING_TYPING_MS = 1000
 
 /** Run a store setter; report a validation error instead of throwing into React. */
 function attempt(fn: () => void, onError: (message: string) => void): void {
@@ -53,12 +57,19 @@ export function RotorControls({
   const slots = slotNames(config.rotors.length)
   const reflectorId = useId()
 
-  const setWindow = (i: number, index: number) =>
+  /** Set slot i's window from its CURRENT window in the store (the shown one may be stepping.before). */
+  const setWindow = (i: number, next: (current: number) => number) =>
     attempt(() => {
       const s = api.getState()
       const current = positionsToString(s.machine).split('')
-      current[i] = LETTERS[index]!
+      current[i] = LETTERS[mod(next(letterToIndex(current[i]!)))]!
       s.setPositions(current.join(''))
+    }, setError)
+  const setRing = (i: number, next: (current: number) => number) =>
+    attempt(() => {
+      const s = api.getState()
+      const ring = mod(next(letterToIndex(s.machine.config.rings[i]!) + 1) - 1) + 1
+      s.setRing(i, LETTERS[ring - 1]!)
     }, setError)
 
   return (
@@ -98,8 +109,10 @@ export function RotorControls({
             showRing={rings}
             showSelect={rotorSelect}
             locks={locks}
-            onWindow={(index) => setWindow(i, index)}
-            onRing={(n) => attempt(() => api.getState().setRing(i, LETTERS[n - 1]!), setError)}
+            onWindow={(index) => setWindow(i, () => index)}
+            onWindowStep={(delta) => setWindow(i, (current) => current + delta)}
+            onRing={(n) => setRing(i, () => n)}
+            onRingStep={(delta) => setRing(i, (current) => current + delta)}
             onRotor={(r) => attempt(() => api.getState().setRotor(i, r), setError)}
           />
         ))}
@@ -124,19 +137,25 @@ function RotorColumn(p: {
   showSelect: boolean
   locks: { rotors?: boolean; positions?: boolean; rings?: boolean }
   onWindow: (index: number) => void
+  onWindowStep: (delta: number) => void
   onRing: (ring: number) => void
+  onRingStep: (delta: number) => void
   onRotor: (rotor: RotorName) => void
 }): JSX.Element {
   const selectId = useId()
   const name = SLOT_LABEL[p.slot]
   const choices = p.slot === 'greek' ? MODELS[p.model].greekRotors : MODELS[p.model].rotors
-  // Two typed digits set the ring: '0' then '5' → 05.
-  const digits = useRef('')
+  // Typed digits set the ring: '0' then '5' → 05, '1' then '3' → 13, '7' → 07. A pause of more
+  // than a second starts a new number.
+  const digits = useRef({ text: '', at: 0 })
 
   const typeRing = (key: string): boolean => {
     if (!/^\d$/.test(key)) return false
-    digits.current = (digits.current + key).slice(-2)
-    const n = Number(digits.current)
+    const now = Date.now()
+    const d = digits.current
+    const text = now - d.at > RING_TYPING_MS ? key : (d.text + key).slice(-2)
+    digits.current = { text, at: now }
+    const n = Number(text)
     if (n >= 1 && n <= 26) p.onRing(n)
     return true
   }
@@ -176,6 +195,7 @@ function RotorColumn(p: {
         text={p.window}
         disabled={!!p.locks.positions}
         onChange={p.onWindow}
+        onStep={p.onWindowStep}
         onType={(key) => {
           const up = key.toUpperCase()
           if (!isLetter(up)) return false
@@ -193,6 +213,7 @@ function RotorColumn(p: {
           text={pad2(p.ring)}
           disabled={!!p.locks.rings}
           onChange={p.onRing}
+          onStep={p.onRingStep}
           onType={typeRing}
           size="sm"
           caption={<span className="text-[10px] tracking-wide text-stone-300 uppercase">ring</span>}

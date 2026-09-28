@@ -100,7 +100,7 @@ function Row({
       </span>
       {showOffsets && !compact ? (
         <span className="hidden w-36 shrink-0 text-xs text-stone-300 sm:inline">
-          {rotorHop && !hidden ? `offset ${hop.offset}, core ${LETTERS[hop.entryContact!]}→${LETTERS[hop.exitContact!]}` : ''}
+          {rotorHop && lit && !hidden ? `offset ${hop.offset}, core ${LETTERS[hop.entryContact!]}→${LETTERS[hop.exitContact!]}` : ''}
         </span>
       ) : null}
     </li>

@@ -16,7 +16,7 @@
  * After every change of what is shown it calls onReport with renderer 'svg'.
  */
 
-import { memo, useEffect, useMemo, type JSX, type ReactNode } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MachineStoreHook, ToySpec } from '../contracts/machine'
 import {
@@ -222,16 +222,21 @@ interface PartsProps {
   readonly lampIndex: number
   readonly interactive: boolean
   readonly onKey: (letter: Letter) => void
+  /**
+   * 'back': every part the signal passes through, drawn under the path; 'front': the keys and lamps,
+   * drawn over the path's ends so the path never strikes through their letters.
+   */
+  readonly layer: 'back' | 'front'
 }
 
-/** Everything but the signal path; re-renders only when the machine or the directive changes. */
+/** Every part (one layer of them); re-renders only when the machine or the directive changes. */
 const Parts = memo(function Parts(p: PartsProps): JSX.Element {
   const { layout: l, scene } = p
   const dimmed = new Set(p.dimmedKey ? p.dimmedKey.split(',') : [])
   const rows = Array.from({ length: l.n }, (_, i) => i)
   const bottom = rowY(l, l.n - 1) + l.pitch / 2
   const small = l.n > 8
-  const font = small ? 9 : 14
+  const font = l.fonts.letter
   const part = (id: PartId, children: ReactNode) => (
     <Part key={id} part={id} dimmed={dimmed.has(id)} reducedMotion={p.reducedMotion}>
       {children}
@@ -243,7 +248,7 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
         x={(c.x0 + c.x1) / 2}
         y={14}
         textAnchor="middle"
-        fontSize={p.labels === 'symbols' && sym ? 13 : 10}
+        fontSize={p.labels === 'symbols' && sym ? l.fonts.symbol : l.fonts.label}
         fontWeight={p.labels === 'symbols' && sym ? 700 : 400}
         fill={p.labels === 'symbols' && sym ? `var(--sym-${sym})` : 'currentColor'}
       >
@@ -325,11 +330,11 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
           <>
             {/* The window shows the alphabet ring's letter. */}
             <rect x={cx - 13} y={22} width={26} height={26} rx={3} fill="#f5f5f4" stroke={color} strokeWidth={1.5} />
-            <text x={cx} y={41} textAnchor="middle" fontSize={17} fontWeight={700} fill="#0c0a09">
+            <text x={cx} y={41} textAnchor="middle" fontSize={l.fonts.window} fontWeight={700} fill="#0c0a09">
               {LETTERS[r.window]}
             </text>
             {r.ring !== null ? (
-              <text x={cx} y={64} textAnchor="middle" fontSize={10} fill="currentColor">
+              <text x={cx} y={66} textAnchor="middle" fontSize={l.fonts.ring} fill="currentColor">
                 ring {String(r.ring + 1).padStart(2, '0')}
               </text>
             ) : null}
@@ -340,7 +345,8 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
                 x={bandX}
                 y={rowY(l, k) + font / 3}
                 textAnchor="middle"
-                fontSize={font - 1}
+                fontSize={font}
+                data-band={r.slot}
                 fill={k === 0 ? '#fafaf9' : 'currentColor'}
                 fontWeight={k === 0 ? 700 : 400}
               >
@@ -435,7 +441,7 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
 
   const keys = l.columns.keyboard!
   const lamps = l.columns.lampboard!
-  const size = small ? 13 : 22
+  const size = small ? 15 : 24
   const keyboard = part(
     'keyboard',
     <>
@@ -460,7 +466,7 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
               stroke={pressed ? 'var(--sym-signal)' : '#57534e'}
               strokeWidth={pressed ? 2 : 1}
             />
-            <text x={x} y={rowY(l, k) + font / 3} textAnchor="middle" fontSize={font - 1} fill="currentColor">
+            <text x={x} y={rowY(l, k) + font / 3} textAnchor="middle" fontSize={font} fill="currentColor">
               {LETTERS[k]}
             </text>
           </g>
@@ -488,7 +494,7 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
               x={x}
               y={rowY(l, k) + font / 3}
               textAnchor="middle"
-              fontSize={font - 1}
+              fontSize={font}
               fill={lit ? '#0c0a09' : 'currentColor'}
               fontWeight={lit ? 700 : 400}
             >
@@ -504,7 +510,7 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
     'battery',
     <>
       <rect x={keys.x0} y={24} width={lamps.x1 - keys.x0} height={18} rx={3} fill="none" stroke="currentColor" />
-      <text x={(keys.x0 + lamps.x1) / 2} y={37} textAnchor="middle" fontSize={9} fill="currentColor">
+      <text x={(keys.x0 + lamps.x1) / 2} y={37} textAnchor="middle" fontSize={l.fonts.label} fill="currentColor">
         + −
       </text>
     </>,
@@ -527,15 +533,18 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
     </line>,
   )
 
-  return (
-    <g>
+  return p.layer === 'front' ? (
+    <g data-layer="front">
+      {keyboard}
+      {lampboard}
+    </g>
+  ) : (
+    <g data-layer="back">
       {lid}
       {ukw}
       {rotors}
       {etw}
       {plugboard}
-      {keyboard}
-      {lampboard}
       {battery}
     </g>
   )
@@ -627,8 +636,11 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
   const path = useMemo(() => signalPath(layout, view.hops), [layout, view.hops])
   const conceal = view.lampsHidden
   const traceOn = directive.trace !== 'off' && !conceal && view.hasPress
-  const hopsDrawn = !traceOn ? 0 : directive.trace === 'static' ? view.hops.length : Math.max(0, view.hop + 1)
-  const points = traceOn && path ? drawnPoints(path, view.t, directive.trace === 'static') : []
+  // 'static' draws the whole path at once, but only after the stepping phase: while the windows
+  // still show stepping.before, the new press's path would not match the drawn wiring.
+  const staticTrace = directive.trace === 'static'
+  const hopsDrawn = !traceOn ? 0 : staticTrace ? (view.t >= 1 ? view.hops.length : 0) : Math.max(0, view.hop + 1)
+  const points = traceOn && path && (!staticTrace || view.t >= 1) ? drawnPoints(path, view.t, staticTrace) : []
   const litLamp = view.lit && !conceal ? view.lamp : null
 
   // The ghost (the learner's path) against the reference path.
@@ -656,85 +668,140 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
 
   const onKey = useMemo(() => (letter: Letter) => pressOn(api, toy, letter), [api, toy])
   const keyIndex = view.key ? letterToIndex(view.key) : -1
-  const head = points.length > 1 && !view.lit ? points[points.length - 1]! : null
+  const head = directive.trace === 'animate' && points.length > 1 && !view.lit ? points[points.length - 1]! : null
+  const parts: Omit<PartsProps, 'layer'> = {
+    layout,
+    scene,
+    labels: directive.labels,
+    lid: directive.lid,
+    showPlugboard: directive.plugboard,
+    dimmedKey: dimmed.join(','),
+    reducedMotion,
+    keyIndex: keyIndex < scene.n ? keyIndex : -1,
+    lampIndex: litLamp ? letterToIndex(litLamp) : -1,
+    interactive: directive.interactive,
+    onKey,
+  }
+
+  // Narrow containers scroll the drawing sideways rather than shrink its text below MIN_TEXT_PX.
+  const scroller = useRef<HTMLDivElement>(null)
+  const scrollable = useScrollable(scroller)
+  const focusKey = `${directive.focus}|${layout.width}|${scrollable}`
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (!el || !scrollable) return
+    const center = focusCenter(boxes, new Set(dimmed))
+    if (center === null) return
+    const scale = el.scrollWidth / layout.width
+    el.scrollLeft = Math.max(0, center * scale - el.clientWidth / 2)
+    // Only when the focus or the layout changes (focusKey), never on a press.
+  }, [focusKey])
 
   return (
-    <svg
-      data-testid="stage2d"
-      data-source={directive.source}
-      viewBox={`0 0 ${layout.width} ${layout.height}`}
-      preserveAspectRatio="xMidYMid meet"
-      aria-hidden="true"
-      className="block h-auto max-h-[75vh] w-full font-mono text-stone-300 select-none"
+    <div
+      ref={scroller}
+      data-testid="stage2d-scroll"
+      data-scrollable={scrollable ? 'true' : 'false'}
+      className="w-full overflow-x-auto overscroll-x-contain"
+      tabIndex={scrollable ? 0 : undefined}
+      role={scrollable ? 'region' : undefined}
+      aria-label={scrollable ? 'Machine diagram (scrolls sideways)' : undefined}
     >
-      <Parts
-        layout={layout}
-        scene={scene}
-        labels={directive.labels}
-        lid={directive.lid}
-        showPlugboard={directive.plugboard}
-        dimmedKey={dimmed.join(',')}
-        reducedMotion={reducedMotion}
-        keyIndex={keyIndex < scene.n ? keyIndex : -1}
-        lampIndex={litLamp ? letterToIndex(litLamp) : -1}
-        interactive={directive.interactive}
-        onKey={onKey}
-      />
-      {referencePath ? (
-        <polyline
-          data-testid="stage2d-reference"
-          points={polyline(referencePath)}
-          fill="none"
-          stroke="var(--sym-reference)"
-          strokeWidth={2.5}
-          strokeLinejoin="round"
-          opacity={0.9}
-        />
-      ) : null}
-      {ghostPath ? (
-        <polyline
-          data-testid="stage2d-ghost"
-          points={polyline(ghostPath)}
-          fill="none"
-          stroke="var(--sym-ghost)"
-          strokeWidth={2.5}
-          strokeDasharray="7 5"
-          strokeLinejoin="round"
-        />
-      ) : null}
-      {divergeAt ? <circle cx={divergeAt.x} cy={divergeAt.y} r={7} fill="none" stroke="var(--sym-ghost)" strokeWidth={2} /> : null}
-      {points.length > 1 ? (
-        <polyline
-          data-testid="stage2d-path"
-          data-points={pathPointCount(hopsDrawn)}
-          points={polyline(points)}
-          fill="none"
-          stroke="var(--sym-signal)"
-          strokeWidth={2.8}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      ) : null}
-      {head ? <circle cx={head.x} cy={head.y} r={4.5} fill="var(--sym-signal)" /> : null}
-      {highlight.map((h, i) => {
-        const b = boxes[h.part]
-        return b ? (
-          <rect
-            key={`${h.part}-${i}`}
-            data-highlight={h.part}
-            data-tone={h.tone}
-            x={b.x}
-            y={b.y}
-            width={b.w}
-            height={b.h}
-            rx={5}
+      <svg
+        data-testid="stage2d"
+        data-source={directive.source}
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+        style={{ minWidth: layout.minWidth, maxWidth: Math.round(layout.width * 1.25) }}
+        className="mx-auto block h-auto w-full font-mono text-stone-300 select-none"
+      >
+        <Parts {...parts} layer="back" />
+        {referencePath ? (
+          <polyline
+            data-testid="stage2d-reference"
+            points={polyline(referencePath)}
             fill="none"
-            stroke={TONE[h.tone]}
+            stroke="var(--sym-reference)"
             strokeWidth={2.5}
-            className={reducedMotion ? undefined : 'animate-pulse'}
+            strokeLinejoin="round"
+            opacity={0.9}
           />
-        ) : null
-      })}
-    </svg>
+        ) : null}
+        {ghostPath ? (
+          <polyline
+            data-testid="stage2d-ghost"
+            points={polyline(ghostPath)}
+            fill="none"
+            stroke="var(--sym-ghost)"
+            strokeWidth={2.5}
+            strokeDasharray="7 5"
+            strokeLinejoin="round"
+          />
+        ) : null}
+        {divergeAt ? <circle cx={divergeAt.x} cy={divergeAt.y} r={7} fill="none" stroke="var(--sym-ghost)" strokeWidth={2} /> : null}
+        {points.length > 1 ? (
+          <polyline
+            data-testid="stage2d-path"
+            data-points={pathPointCount(hopsDrawn)}
+            points={polyline(points)}
+            fill="none"
+            stroke="var(--sym-signal)"
+            strokeWidth={2.8}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        ) : null}
+        {head ? <circle data-testid="stage2d-head" cx={head.x} cy={head.y} r={4.5} fill="var(--sym-signal)" /> : null}
+        <Parts {...parts} layer="front" />
+        {highlight.map((h, i) => {
+          const b = boxes[h.part]
+          return b ? (
+            <rect
+              key={`${h.part}-${i}`}
+              data-highlight={h.part}
+              data-tone={h.tone}
+              x={b.x}
+              y={b.y}
+              width={b.w}
+              height={b.h}
+              rx={5}
+              fill="none"
+              stroke={TONE[h.tone]}
+              strokeWidth={2.5}
+              className={reducedMotion ? undefined : 'animate-pulse'}
+            />
+          ) : null
+        })}
+      </svg>
+    </div>
   )
+}
+
+/** Whether the element scrolls sideways (its content is wider than its box). */
+function useScrollable(ref: RefObject<HTMLElement | null>): boolean {
+  const [scrollable, setScrollable] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref])
+  return scrollable
+}
+
+/** The x centre of the focused (undimmed) parts' outline boxes, or null when nothing is focused. */
+export function focusCenter(boxes: Partial<Record<PartId, Box>>, dimmed: ReadonlySet<PartId>): number | null {
+  let lo = Infinity
+  let hi = -Infinity
+  for (const [part, box] of Object.entries(boxes) as [PartId, Box | undefined][]) {
+    if (!box || dimmed.has(part)) continue
+    lo = Math.min(lo, box.x)
+    hi = Math.max(hi, box.x + box.w)
+  }
+  return lo === Infinity ? null : (lo + hi) / 2
 }

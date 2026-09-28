@@ -29,7 +29,30 @@ export interface Point {
   readonly y: number
 }
 
+/** The smallest text of the drawing, in CSS px, at the stage's minimum width (readable on a phone). */
+export const MIN_TEXT_PX = 9
+
+/** Font sizes in viewBox units. */
+export interface CircuitFonts {
+  /** Contact letters: the ring band, keys and lamps. */
+  readonly letter: number
+  /** Part labels (names) and the battery. */
+  readonly label: number
+  /** Part labels in symbols mode (S, H, N, …). */
+  readonly symbol: number
+  /** 'ring 01' under each window. */
+  readonly ring: number
+  /** The window letter. */
+  readonly window: number
+}
+
 export interface CircuitLayout {
+  readonly fonts: CircuitFonts
+  /**
+   * The narrowest the drawing may be shown, in CSS px, so its smallest text is at least MIN_TEXT_PX.
+   * Narrower containers scroll it sideways instead of shrinking it.
+   */
+  readonly minWidth: number
   readonly n: number
   readonly slots: readonly RotorSlot[]
   readonly etw: boolean
@@ -76,12 +99,19 @@ export function makeCircuitLayout(o: {
   add('plugboard', WIDTH.plugboard, GAP)
   add('keyboard', WIDTH.keyboard, 16)
   add('lampboard', WIDTH.lampboard, 0)
+  const fonts: CircuitFonts =
+    o.n > 8 ? { letter: 10, label: 11, symbol: 13, ring: 11, window: 17 } : { letter: 14, label: 12, symbol: 14, ring: 12, window: 17 }
+  const width = x + MARGIN
+  const smallest = Math.min(fonts.letter, fonts.label, fonts.symbol, fonts.ring, fonts.window)
   return {
+    fonts,
+    // + 4 px of slack: the auto height is rounded, and 'meet' scales by the smaller of the two ratios.
+    minWidth: Math.ceil((width * MIN_TEXT_PX) / smallest) + 4,
     n: o.n,
     slots: o.slots,
     etw: o.etw,
     ringLayer: !!o.ringLayer,
-    width: x + MARGIN,
+    width,
     height: top + pitch * o.n + 16,
     top,
     pitch,

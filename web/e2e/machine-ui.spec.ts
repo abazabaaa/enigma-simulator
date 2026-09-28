@@ -182,7 +182,7 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     await expect(page.getByTestId('tape-output')).toHaveText('ATTAC KATDA WN')
   })
 
-  test('axe finds no serious or critical issues on #/machine', async ({ page, stage }) => {
+  test('axe finds no serious or critical issues (and no heading-order skip) on #/machine', async ({ page, stage }) => {
     await openSandbox(page, { stage })
     await page.getByTestId('plug-input').fill('AV')
     await page.getByTestId('plug-add').click()
@@ -191,7 +191,7 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     await page.getByTestId('plug-add').click() // an error in the alert region
     const results = await new AxeBuilder({ page }).analyze()
     const bad = results.violations
-      .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+      .filter((v) => v.impact === 'serious' || v.impact === 'critical' || v.id === 'heading-order')
       .map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target.join(' ')).slice(0, 5) }))
     expect(bad).toEqual([])
   })
@@ -212,5 +212,18 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     await gotoApp(page, '/lab/stage?preset=wire&model=M4', { stage })
     o = await pageOverflow(page)
     expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
+
+    // A long invalid k is shortened and wraps inside the notice.
+    await openSandbox(page, { stage, k: 'X'.repeat(3000) })
+    await expect(page.getByTestId('sandbox-notice')).toContainText('…')
+    o = await pageOverflow(page)
+    expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
+
+    // The sideways-scrolling stage stays accessible at this width.
+    await openSandbox(page, { stage })
+    await page.getByTestId('key-Q').click()
+    const results = await new AxeBuilder({ page }).analyze()
+    const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)
+    expect(bad).toEqual([])
   })
 })

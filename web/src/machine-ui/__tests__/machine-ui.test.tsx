@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { KEYBOARD_ROWS, createMachine, pressKey, positionsToString, type MachineConfigInput } from '../../engine'
 import { useMachineStore } from '../../state/machineStore'
@@ -12,7 +13,9 @@ import { PlaybackBar } from '../PlaybackBar'
 import { PlugboardEditor, parsePairs } from '../PlugboardEditor'
 import { RotorControls } from '../RotorControls'
 import { TracePanel } from '../TracePanel'
+import { RING_TYPING_MS } from '../RotorControls'
 import { rewindTape, tapeStart, typeText } from '../tape'
+import { PaperTape } from '../PaperTape'
 import {
   allByTestId,
   byTestId,
@@ -406,5 +409,126 @@ describe('PermTable', () => {
     mount(<PermTable perm={[1, 0]} testId="p" />)
     expect(byTestId('p').querySelector('input')).toBeNull()
     expect(byTestId('p-cell-1').dataset.value).toBe('A')
+  })
+})
+
+/** Let deferred (microtask) store work finish and React re-render. */
+const settle = () => act(async () => {})
+
+describe('review round 2 regressions', () => {
+  it('F2: the tape prints the last letter only once its lamp lights, and offsets wait for their row', () => {
+    mount(
+      <>
+        <PaperTape />
+        <TracePanel showOffsets />
+      </>,
+    )
+    run(() => usePlaybackStore.getState().setSpeed(0.25))
+    run(() => store().pressKey('A'))
+    const out = () => byTestId('tape-output').textContent
+    const copy = byTestId('tape-copy') as HTMLButtonElement
+    expect(out()).toBe('')
+    expect(copy.disabled).toBe(true)
+    run(() => usePlaybackStore.getState().scrub(5)) // hop 3 live, lamp unlit
+    expect(out()).toBe('')
+    const offsets = (i: number) => byTestId(`trace-row-${i}`).textContent!.includes('offset')
+    expect(offsets(2)).toBe(true) // rotor-right-fwd, lit
+    expect(offsets(7)).toBe(false) // rotor-middle-bwd, not yet lit
+    run(() => usePlaybackStore.getState().finish())
+    expect(out()).toBe(store().output)
+    expect(copy.disabled).toBe(false)
+    expect(offsets(7)).toBe(true)
+    run(() => usePlaybackStore.getState().scrub(3)) // scrubbing back takes the letter off again
+    expect(out()).toBe('')
+  })
+
+  it('F3: a hand change with letters on the shown tape starts a new tape at the new setting', async () => {
+    mount(<MachinePanel show={{ rotors: true, rings: true, model: true, plugboard: true, tape: true }} />)
+    run(() => typeText(useMachineStore, 'HELLO'))
+    keyDown(byTestId('rotor-pos-right'), 'ArrowUp')
+    await settle()
+    expect(store().input).toBe('')
+    expect(store().machine.config.positions.join('')).toBe(positionsToString(store().machine))
+    const start = positionsToString(store().machine)
+    run(() => typeText(useMachineStore, 'WORLD'))
+    expect(tapeStart(useMachineStore)).toBe(start)
+    const cipher = store().output
+    run(() => rewindTape(useMachineStore))
+    run(() => typeText(useMachineStore, cipher))
+    expect(store().output).toBe('WORLD')
+
+    // Rings, cables and the model do the same.
+    for (const change of [
+      () => keyDown(byTestId('ring-middle'), 'ArrowUp'),
+      () => run(() => store().togglePlug('D', 'E')),
+      () => run(() => store().setModel('M3')),
+    ]) {
+      run(() => typeText(useMachineStore, 'ABC'))
+      change()
+      await settle()
+      expect(store().input).toBe('')
+    }
+  })
+
+  it('F3: without a tape on screen, hand changes keep the letters', async () => {
+    mount(<RotorControls />)
+    run(() => typeText(useMachineStore, 'HELLO'))
+    keyDown(byTestId('rotor-pos-right'), 'ArrowUp')
+    await settle()
+    expect(store().input).toBe('HELLO')
+  })
+
+  it('F4: a window step during the stepping phase starts from the current window, not the shown one', () => {
+    run(() => store().setConfig({ ...ADU, positions: 'BGF' }))
+    mount(<RotorControls rings />)
+    run(() => usePlaybackStore.getState().setSpeed(0.25))
+    run(() => store().pressKey('E')) // BGF → BGG, still showing BGF
+    expect(byTestId('rotor-pos-right').getAttribute('aria-valuetext')).toBe('F')
+    keyDown(byTestId('rotor-pos-right'), 'ArrowUp')
+    expect(positionsToString(store().machine)).toBe('BGH')
+    expect(byTestId('rotor-pos-right').getAttribute('aria-valuetext')).toBe('H')
+  })
+
+  it('F6: a repeated identical sentence (rotors held) is a new node, so it is spoken again', () => {
+    run(() => store().setLocks({ hold: true }))
+    mount(<Announcer />)
+    run(() => store().pressKey('Q'))
+    const first = byTestId('announcer').firstElementChild!
+    const text = first.textContent
+    run(() => store().pressKey('Q'))
+    const second = byTestId('announcer').firstElementChild!
+    expect(second.textContent).toBe(text)
+    expect(second).not.toBe(first)
+    expect(first.isConnected).toBe(false)
+  })
+
+  it('F9: the plugboard and the tape headings are h2 (no h1 → h3 jump)', () => {
+    const { container } = mount(<MachinePanel show={{ plugboard: true, tape: true }} />)
+    expect([...container.querySelectorAll('h2')].map((h) => h.textContent)).toEqual([
+      expect.stringContaining('Plugboard'),
+      'Paper tape',
+    ])
+    expect(container.querySelector('h3')).toBeNull()
+  })
+
+  it('F10: typed ring digits form one number only within a second of each other', () => {
+    let now = 10_000
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    mount(<RotorControls rings />)
+    const ring = byTestId('ring-right')
+    const type = (d: string, after: number) => {
+      now += after
+      keyDown(ring, d)
+    }
+    type('0', 0)
+    type('5', 100)
+    expect(ring.textContent).toBe('05')
+    type('1', RING_TYPING_MS + 1)
+    expect(ring.textContent).toBe('01')
+    type('3', 200)
+    expect(ring.textContent).toBe('13')
+    type('3', RING_TYPING_MS + 1)
+    expect(ring.textContent).toBe('03')
+    clock.mockRestore()
   })
 })
