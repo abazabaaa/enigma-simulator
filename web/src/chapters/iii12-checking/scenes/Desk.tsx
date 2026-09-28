@@ -270,7 +270,7 @@ export function CheckingDesk(p: {
                 disabled={p.disabled}
                 data-testid={`check-verdict-${v}`}
                 onClick={() => setCall(v)}
-                className={`${QUIET_BUTTON} ${call === v ? 'border-amber-400 text-amber-100' : ''}`}
+                className={`${QUIET_BUTTON} ${call === v ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
               >
                 {v === 'contradiction' ? 'The stop fails: a letter needs two partners' : 'The stop survives: every column agrees'}
               </button>

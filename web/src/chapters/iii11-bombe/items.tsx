@@ -138,7 +138,7 @@ function ClickAnswer({ instance, disabled, submit }: AnswerProps<ClickInstance, 
                     disabled={disabled || !open}
                     data-testid={`click-pick-s${j + 1}-${l}`}
                     onClick={() => pick(j, l)}
-                    className={`${QUIET_BUTTON} w-9 px-0 font-mono ${picks[j] === l ? 'border-amber-400 text-amber-100' : ''}`}
+                    className={`${QUIET_BUTTON} w-9 px-0 font-mono ${picks[j] === l ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
                   >
                     {lower(l)}
                   </button>
@@ -160,7 +160,7 @@ function ClickAnswer({ instance, disabled, submit }: AnswerProps<ClickInstance, 
             disabled={disabled || next !== -1}
             data-testid={`click-verdict-${v}`}
             onClick={() => setCall(v)}
-            className={`${QUIET_BUTTON} ${call === v ? 'border-amber-400 text-amber-100' : ''}`}
+            className={`${QUIET_BUTTON} ${call === v ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
           >
             {v === 'C' ? 'C: consistent' : 'X: contradiction'}
           </button>
@@ -316,7 +316,7 @@ function LiveAnswer({ instance, disabled, submit }: AnswerProps<LiveInstance, Li
             disabled={disabled}
             data-testid={`live-dead-${l}`}
             onClick={() => setDead(l)}
-            className={`${QUIET_BUTTON} w-9 px-0 font-mono ${dead === l ? 'border-amber-400 text-amber-100' : ''}`}
+            className={`${QUIET_BUTTON} w-9 px-0 font-mono ${dead === l ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
           >
             {lower(l)}
           </button>
@@ -361,14 +361,20 @@ function LiveWorked({ instance, solution }: { instance: LiveInstance; solution: 
 function LiveFeedback({ instance, result }: { instance: LiveInstance; answer: LiveAnswerValue; result: CheckResult }): JSX.Element | null {
   const rb = result.rollback
   const k = rb.kind === 'wires' ? rb.scrambler : 0
-  const h = k < 2 ? instance.hypotheses[k]! : (rb.kind === 'wires' ? (rb.expected[0] ?? instance.hypotheses[0]) : instance.hypotheses[0])
+  // A wrong count: replay that hypothesis. A wrong dead wire: replay a false hypothesis, where the wire the learner
+  // named goes live and only the true partner's stays dark.
+  const partner = rb.kind === 'wires' && k === 2 ? rb.expected[0] : undefined
+  const h = k < 2 ? instance.hypotheses[k]! : (instance.hypotheses.find((x) => x !== partner) ?? instance.hypotheses[0])
   const state = useMemo(() => walkState(instance, h as Letter), [instance, h])
   const [step, setStep] = useState(state.order.length)
   if (rb.kind !== 'wires') return null
   return (
     <div className="flex flex-col gap-2" data-testid="wires-feedback" data-scrambler={rb.scrambler}>
       <p>
-        The current from {testOf(instance)}↔{lower(h)}, scrambler by scrambler:
+        The current from {testOf(instance)}↔{lower(h)}, scrambler by scrambler
+        {partner && rb.kind === 'wires' && rb.got[0] && rb.got[0] !== partner
+          ? `: wire ${lower(rb.got[0])} goes live, and only wire ${lower(partner)} stays dark.`
+          : ':'}
       </p>
       <label className="flex flex-wrap items-center gap-2 text-xs">
         Replay the current

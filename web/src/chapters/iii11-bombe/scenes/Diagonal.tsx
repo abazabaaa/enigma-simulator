@@ -118,9 +118,8 @@ export function DiagonalView(p: SceneProps): JSX.Element {
             A close-up: the stop at <Mono>{DIAG_FALSE_STOP}</Mono>
           </h3>
           <p>
-            Without the board, the voltage on wire a of cable {TEST} left one register wire dead, so the bombe stopped at{' '}
-            {DIAG_FALSE_STOP}. Switch the board on: the extra joins (the dashed diagonal, in the plugboard colour) carry the current
-            to that last wire as well.
+            Without the board, the voltage on wire a of cable {TEST} leaves a register wire dead at {DIAG_FALSE_STOP}, so the bombe
+            stops there. With the board on, the extra joins (the dashed diagonal, in the plugboard colour) carry the current further.
           </p>
           <div role="radiogroup" aria-label="Diagonal board" className="flex flex-wrap gap-2">
             {[false, true].map((b) => (
@@ -131,7 +130,7 @@ export function DiagonalView(p: SceneProps): JSX.Element {
                 aria-checked={board === b}
                 data-testid={`diag-board-${b ? 'on' : 'off'}`}
                 onClick={() => setBoard(b)}
-                className={`${QUIET_BUTTON} ${board === b ? 'border-amber-400 text-amber-100' : ''}`}
+                className={`${QUIET_BUTTON} ${board === b ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
               >
                 Board {b ? 'on' : 'off'}
               </button>

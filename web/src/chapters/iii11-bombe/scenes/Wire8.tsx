@@ -98,7 +98,7 @@ export function Wire8View(p: SceneProps): JSX.Element {
               disabled={!fired}
               data-testid={`wire8-hyp-${l}`}
               onClick={() => choose({ wire: l })}
-              className={`${QUIET_BUTTON} w-9 px-0 font-mono ${wire === l ? 'border-amber-400 text-amber-100' : ''}`}
+              className={`${QUIET_BUTTON} w-9 px-0 font-mono ${wire === l ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
             >
               {l.toLowerCase()}
             </button>
@@ -114,7 +114,7 @@ export function Wire8View(p: SceneProps): JSX.Element {
               disabled={!fired}
               data-testid={`wire8-position-${w}`}
               onClick={() => choose({ where: w })}
-              className={`${QUIET_BUTTON} ${where === w ? 'border-amber-400 text-amber-100' : ''}`}
+              className={`${QUIET_BUTTON} ${where === w ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
             >
               {w === 'true' ? 'The day’s drum position' : 'A wrong drum position'}
             </button>
@@ -150,7 +150,7 @@ export function Wire8View(p: SceneProps): JSX.Element {
               ? `The loop gives ${wire.toLowerCase()} straight back, so the current goes nowhere else: 1 register wire is live. ${TEST}↔${wire.toLowerCase()} survives, and the bombe would stop here.`
               : live === 8
                 ? `Round the two loops the current reaches every wire: all 8 register wires are live, so every hypothesis for ${TEST} is refuted at once and the bombe moves on.`
-                : `Every trip round a loop changes the partner, and the current keeps going until there is nowhere new to go: ${live} register wires are live (${registerText(register)}). Only wire ${TOY_LETTERS.find((_, w) => !register[w])!.toLowerCase()} stays dead: the one wire no false hypothesis can reach.`}
+                : `Every trip round a loop changes the partner, and the current keeps going until there is nowhere new to go: ${live} register wires are live, ${registerText(register)}. Only wire ${TOY_LETTERS.find((_, w) => !register[w])!.toLowerCase()} stays dead: the one wire no false hypothesis can reach.`}
           </p>
         ) : null}
       </div>

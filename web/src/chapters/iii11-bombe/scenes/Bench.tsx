@@ -78,10 +78,10 @@ export function registerAt(state: WireState, test: Letter, step?: number): boole
   return live
 }
 
-/** A plain-text reading of a register: "a b c (3 of 8)". */
+/** A plain-text reading of a register: "a b c". */
 export function registerText(live: readonly boolean[]): string {
   const on = live.flatMap((x, w) => (x ? [up(w).toLowerCase()] : []))
-  return `${on.length ? on.join(' ') : 'none'} (${on.length} of ${live.length})`
+  return on.length ? on.join(' ') : 'none'
 }
 
 /** A sideways scroller for the 26-wire views: focusable, so the keyboard can scroll it (axe scrollable-region). */

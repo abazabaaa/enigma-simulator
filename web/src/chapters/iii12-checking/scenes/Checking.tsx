@@ -51,7 +51,7 @@ export function CheckingView(p: SceneProps): JSX.Element {
             aria-checked={positions === pos}
             data-testid={`check-stop-${pos}`}
             onClick={() => choose(pos)}
-            className={`${QUIET_BUTTON} font-mono ${positions === pos ? 'border-amber-400 text-amber-100' : ''}`}
+            className={`${QUIET_BUTTON} font-mono ${positions === pos ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
           >
             {pos} ({STOPS_DAY.test}↔{stecker}){finished[pos] ? (finished[pos] === 'consistent' ? ' ✓' : ' ✗') : ''}
           </button>

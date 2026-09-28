@@ -98,7 +98,7 @@ export function Wire26View(p: SceneProps): JSX.Element {
                 disabled={!fired}
                 data-testid={`wire26-position-${w}`}
                 onClick={() => choose({ where: w })}
-                className={`${QUIET_BUTTON} ${where === w ? 'border-amber-400 text-amber-100' : ''}`}
+                className={`${QUIET_BUTTON} ${where === w ? 'border-amber-400 bg-amber-400/25 text-amber-100' : ''}`}
               >
                 {w === 'true' ? `The day’s position ${B26.truth}` : `A wrong position ${B26.wrong}`}
               </button>

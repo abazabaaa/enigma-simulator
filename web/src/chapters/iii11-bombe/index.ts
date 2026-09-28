@@ -57,7 +57,7 @@ const scenes: readonly SceneDef[] = [
     ],
     reveals: [{ bet: 'live8', trigger: 'run', label: 'Switch on the current' }],
     tasks: [
-      { id: 'run-end', label: 'Step the current round the loop until it is back where it started' },
+      { id: 'run-end', label: 'Step the current through the scramblers until it has nowhere new to go' },
       { id: 'true-hyp', label: 'Find the hypothesis that lights a single register wire' },
       { id: 'wrong-pos', label: 'Move the drums to a wrong position and run the current again' },
     ],
