@@ -55,3 +55,20 @@ export function useSignal(): SignalState {
 export function hopShown(s: SignalState, index: number): boolean {
   return index >= 0 && index < s.hops.length && s.drawn > index
 }
+
+/**
+ * The plug cables the drawn path runs along: on the way in (hop 0, the key's socket → its partner)
+ * and on the way out (the last hop, a partner → the lamp's socket), once the signal gets there. An
+ * unplugged letter crosses no cable; the same cable twice when key and lamp are partners.
+ */
+export function crossedCables(s: SignalState): [number, number][] {
+  const out: [number, number][] = []
+  for (const index of [0, s.hops.length - 1]) {
+    if (!hopShown(s, index)) continue
+    const h = s.hops[index]!
+    if (h.kind !== 'plugboard' || h.inputIndex === h.outputIndex) continue
+    const pair: [number, number] = [Math.min(h.inputIndex, h.outputIndex), Math.max(h.inputIndex, h.outputIndex)]
+    if (!out.some(([a, b]) => a === pair[0] && b === pair[1])) out.push(pair)
+  }
+  return out
+}

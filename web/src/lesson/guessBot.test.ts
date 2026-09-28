@@ -57,14 +57,19 @@ describe('L2 guess bot: P(pass) < 1% over 1,000 runs', () => {
     expect(names.filter((n) => n.startsWith('return/')).length).toBeGreaterThanOrEqual(10)
   })
 
-  it.each(sources.map((s) => [s.name, s] as const))('%s', (_name, s) => {
-    const ctx: GateCtx = { key: s.key as GateCtx['key'], logic: s.logic, salt: `bot:${s.name}` }
-    let passes = 0
-    for (let run = 0; run < RUNS; run++) {
-      if (botPasses({ ...ctx, salt: `${ctx.salt}:${run}` }, run)) passes++
-    }
-    expect(passes / RUNS).toBeLessThan(0.01)
-  })
+  it.each(sources.map((s) => [s.name, s] as const))(
+    '%s',
+    (_name, s) => {
+      const ctx: GateCtx = { key: s.key as GateCtx['key'], logic: s.logic, salt: `bot:${s.name}` }
+      let passes = 0
+      for (let run = 0; run < RUNS; run++) {
+        if (botPasses({ ...ctx, salt: `${ctx.salt}:${run}` }, run)) passes++
+      }
+      expect(passes / RUNS).toBeLessThan(0.01)
+    },
+    // 1,000 bot runs of a capstone recall set take ~10 s alone and can pass 30 s on a loaded machine.
+    120_000,
+  )
 })
 
 describe('L3 CC learner', () => {

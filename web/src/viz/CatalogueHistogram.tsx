@@ -56,7 +56,7 @@ export function CatalogueHistogram(p: CatalogueHistogramProps): JSX.Element {
   const markBin = Number.isFinite(mark) ? bins.findIndex((b) => mark >= b.lo && mark <= b.hi) : -1
 
   return (
-    <figure className="m-0 flex flex-col gap-2" data-testid={testId} data-entries={stats.entries}
+    <figure className="m-0 flex min-w-0 flex-col gap-2" data-testid={testId} data-entries={stats.entries}
       data-distinct={stats.distinct} data-max-bucket={stats.maxBucket} data-unique={unique}
       data-highlight-bin={markBin >= 0 ? range(bins[markBin]!) : undefined}>
       <figcaption className="text-sm text-stone-300">
@@ -64,80 +64,87 @@ export function CatalogueHistogram(p: CatalogueHistogramProps): JSX.Element {
         <span className="font-semibold text-stone-100">{fmt(stats.distinct)}</span> characteristics.{' '}
         {fmt(unique)} characteristics name a single setting; the largest bucket holds {fmt(stats.maxBucket)}.
       </figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-xl" role="img"
-        aria-label={`Histogram: characteristics by bucket size, ${summary}`}>
-        {Array.from({ length: decades + 1 }, (_, d) => {
-          const v = 10 ** d
-          const yy = y(v)
-          return (
-            <g key={d}>
-              <line x1={M.left} x2={W - M.right} y1={yy} y2={yy} className="stroke-stone-800" strokeWidth={1} />
-              <text x={M.left - 6} y={yy} textAnchor="end" dominantBaseline="central" fontSize="11"
-                className="fill-stone-400 tabular-nums">{fmt(v)}</text>
-            </g>
-          )
-        })}
-        {bins.map((b, i) => {
-          const x = M.left + i * band + (band - barW) / 2
-          const top = b.characteristics > 0 ? y(b.characteristics) : M.top + plotH
-          const h = M.top + plotH - top
-          const marked = i === markBin
-          const fill = marked ? 'var(--sym-signal)' : 'var(--sym-U)'
-          const r = Math.min(4, h / 2, barW / 2)
-          return (
-            <g key={b.lo} data-bin={range(b)} data-count={b.characteristics}>
-              <title>
-                {`bucket size ${range(b)}: ${fmt(b.characteristics)} characteristics, ${fmt(b.settings)} settings`}
-              </title>
-              <rect x={M.left + i * band} y={M.top} width={band} height={plotH} fill="transparent" />
-              {h > 0 && (
-                <path fill={fill}
-                  d={`M ${x} ${M.top + plotH} V ${top + r} Q ${x} ${top} ${x + r} ${top} H ${x + barW - r} Q ${x + barW} ${top} ${
-                    x + barW
-                  } ${top + r} V ${M.top + plotH} Z`} />
-              )}
-              {marked && (
-                <text x={x + barW / 2} y={top - 8} textAnchor="middle" fontSize="11" className="fill-stone-100">
-                  {`${fmt(mark)}`}
+      <div role="region" tabIndex={0} aria-label="Catalogue histogram" data-testid={`${testId}-scroller`}
+        className="max-w-full overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        style={{ maxWidth: 576 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ minWidth: 420 }} role="img"
+          aria-label={`Histogram: characteristics by bucket size, ${summary}`}>
+          {Array.from({ length: decades + 1 }, (_, d) => {
+            const v = 10 ** d
+            const yy = y(v)
+            return (
+              <g key={d}>
+                <line x1={M.left} x2={W - M.right} y1={yy} y2={yy} className="stroke-stone-800" strokeWidth={1} />
+                <text x={M.left - 6} y={yy} textAnchor="end" dominantBaseline="central" fontSize="11"
+                  className="fill-stone-400 tabular-nums">{fmt(v)}</text>
+              </g>
+            )
+          })}
+          {bins.map((b, i) => {
+            const x = M.left + i * band + (band - barW) / 2
+            const top = b.characteristics > 0 ? y(b.characteristics) : M.top + plotH
+            const h = M.top + plotH - top
+            const marked = i === markBin
+            const fill = marked ? 'var(--sym-signal)' : 'var(--sym-U)'
+            const r = Math.min(4, h / 2, barW / 2)
+            return (
+              <g key={b.lo} data-bin={range(b)} data-count={b.characteristics}>
+                <title>
+                  {`bucket size ${range(b)}: ${fmt(b.characteristics)} characteristics, ${fmt(b.settings)} settings`}
+                </title>
+                <rect x={M.left + i * band} y={M.top} width={band} height={plotH} fill="transparent" />
+                {h > 0 && (
+                  <path fill={fill}
+                    d={`M ${x} ${M.top + plotH} V ${top + r} Q ${x} ${top} ${x + r} ${top} H ${x + barW - r} Q ${x + barW} ${top} ${
+                      x + barW
+                    } ${top + r} V ${M.top + plotH} Z`} />
+                )}
+                {marked && (
+                  <text x={x + barW / 2} y={top - 8} textAnchor="middle" fontSize="11" className="fill-stone-100">
+                    {`${fmt(mark)}`}
+                  </text>
+                )}
+                <text x={M.left + i * band + band / 2} y={M.top + plotH + 14} textAnchor="middle" fontSize="10"
+                  className="fill-stone-400 tabular-nums"
+                  transform={bins.length > 8 ? `rotate(-35 ${M.left + i * band + band / 2} ${M.top + plotH + 14})` : undefined}>
+                  {range(b)}
                 </text>
-              )}
-              <text x={M.left + i * band + band / 2} y={M.top + plotH + 14} textAnchor="middle" fontSize="10"
-                className="fill-stone-400 tabular-nums"
-                transform={bins.length > 8 ? `rotate(-35 ${M.left + i * band + band / 2} ${M.top + plotH + 14})` : undefined}>
-                {range(b)}
-              </text>
-            </g>
-          )
-        })}
-        <line x1={M.left} x2={W - M.right} y1={M.top + plotH} y2={M.top + plotH} className="stroke-stone-500" />
-        <text x={M.left + plotW / 2} y={H - 4} textAnchor="middle" fontSize="11" className="fill-stone-400">
-          settings sharing one characteristic
-        </text>
-        <text x={12} y={M.top + plotH / 2} textAnchor="middle" fontSize="11" className="fill-stone-400"
-          transform={`rotate(-90 12 ${M.top + plotH / 2})`}>
-          characteristics (log)
-        </text>
-      </svg>
+              </g>
+            )
+          })}
+          <line x1={M.left} x2={W - M.right} y1={M.top + plotH} y2={M.top + plotH} className="stroke-stone-500" />
+          <text x={M.left + plotW / 2} y={H - 4} textAnchor="middle" fontSize="11" className="fill-stone-400">
+            settings sharing one characteristic
+          </text>
+          <text x={12} y={M.top + plotH / 2} textAnchor="middle" fontSize="11" className="fill-stone-400"
+            transform={`rotate(-90 12 ${M.top + plotH / 2})`}>
+            characteristics (log)
+          </text>
+        </svg>
+      </div>
       <details className="text-sm text-stone-300">
         <summary className="cursor-pointer text-stone-200">Table view</summary>
-        <table className="mt-2 font-mono text-xs tabular-nums" data-testid={`${testId}-table`}>
-          <thead>
-            <tr className="text-left text-stone-400">
-              <th className="pr-4 font-normal">bucket size</th>
-              <th className="pr-4 font-normal">characteristics</th>
-              <th className="font-normal">settings</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bins.map((b) => (
-              <tr key={b.lo}>
-                <td className="pr-4">{range(b)}</td>
-                <td className="pr-4">{fmt(b.characteristics)}</td>
-                <td>{fmt(b.settings)}</td>
+        <div role="region" tabIndex={0} aria-label="Catalogue histogram table"
+          className="mt-2 max-w-full overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          <table className="font-mono text-xs tabular-nums" data-testid={`${testId}-table`}>
+            <thead>
+              <tr className="text-left text-stone-400">
+                <th className="pr-4 font-normal">bucket size</th>
+                <th className="pr-4 font-normal">characteristics</th>
+                <th className="font-normal">settings</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {bins.map((b) => (
+                <tr key={b.lo}>
+                  <td className="pr-4">{range(b)}</td>
+                  <td className="pr-4">{fmt(b.characteristics)}</td>
+                  <td>{fmt(b.settings)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </details>
     </figure>
   )

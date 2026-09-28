@@ -11,13 +11,33 @@ import type { MachineStoreHook } from '../contracts/machine'
 import { KEYBOARD_ROWS, isLetter, type Letter } from '../engine'
 import { useApi } from './hooks'
 
-/** Whether a key event's target is somewhere typing means text entry (or a spinbutton), not a key press. */
+/** <input> types that take typed characters. Sliders, checkboxes, radios and buttons do not. */
+const TEXT_INPUT_TYPES = new Set([
+  'text',
+  'search',
+  'number',
+  'email',
+  'url',
+  'tel',
+  'password',
+  'date',
+  'datetime-local',
+  'month',
+  'time',
+  'week',
+])
+
+/**
+ * Whether a key event's target is somewhere typing means text entry (or a spinbutton, which takes
+ * typed letters itself), not a key press. A focused slider, checkbox, radio, button or select does
+ * NOT swallow typing: after touching the speed select or the scrub bar, typing still presses keys
+ * (and the press cancels the select's type-ahead).
+ */
 export function isTextEntry(target: EventTarget | null): boolean {
   if (typeof Element === 'undefined' || !(target instanceof Element)) return false
   const el = target as HTMLElement
-  if (el.isContentEditable) return true
-  const tag = el.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true
+  if (el.tagName === 'INPUT') return TEXT_INPUT_TYPES.has(((el as HTMLInputElement).type || 'text').toLowerCase())
   return el.closest('[contenteditable]:not([contenteditable="false"]),[role="spinbutton"],[role="textbox"]') !== null
 }
 

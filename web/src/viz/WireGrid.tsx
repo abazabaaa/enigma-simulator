@@ -3,13 +3,15 @@ import { letterToIndex } from '../engine'
 import type { WireGridProps } from './types'
 
 const up = (i: number) => String.fromCharCode(65 + i)
+const CELL_BUTTON = 'min-h-0 min-w-0 bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-amber-300'
 
 /**
  * The bombe's wires: one row per bank (letter), one column per wire; a lit cell means "the row letter is steckered
  * to the column letter" follows from the hypothesis. Cells lit through a scrambler use the signal colour, through
  * the diagonal board the plugboard colour (S), and the hypothesis is ringed in gold. `step` replays the propagation
  * (the first `step` events of state.order). The test register's row is outlined. With onToggleWire every cell is a
- * button (one tab stop; arrow keys move, Enter or Space presses). data-live-total, data-test-live and data-step.
+ * button (one tab stop; arrow keys move, Enter or Space presses). The grid sits in a labelled region that scrolls
+ * sideways (and is focusable when read-only) on narrow screens. data-live-total, data-test-live and data-step.
  */
 export function WireGrid(p: WireGridProps): JSX.Element {
   const { n } = p.state
@@ -47,71 +49,78 @@ export function WireGrid(p: WireGridProps): JSX.Element {
   }
 
   return (
-    <figure className="m-0 flex flex-col gap-1" data-testid={testId} data-live-total={via.size}
+    <figure className="m-0 flex min-w-0 flex-col gap-1" data-testid={testId} data-live-total={via.size}
       data-test-live={rowLive[test]} data-step={events.length} data-diagonal={String(p.diagonal)}>
-      <div className="relative w-full" style={{ maxWidth: `${Math.max(W, 260)}px`, aspectRatio: `${W} / ${H}` }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img"
-          aria-label={gridLabel}>
-          {Array.from({ length: n }, (_, i) => (
-            <g key={i}>
-              <text x={left + i * cell + cell / 2} y={12} textAnchor="middle" fontSize={n <= 8 ? 12 : 9}
-                className="fill-stone-400 font-mono">{up(i).toLowerCase()}</text>
-              <text x={left - 6} y={topPad + i * cell + cell / 2} textAnchor="end" dominantBaseline="central"
-                fontSize={n <= 8 ? 13 : 10} className={`${i === test ? 'fill-stone-100' : 'fill-stone-400'} font-mono`}>
-                {up(i)}
-              </text>
-              <text x={left + n * cell + 6} y={topPad + i * cell + cell / 2} dominantBaseline="central"
-                fontSize={n <= 8 ? 12 : 9} className="fill-stone-400 tabular-nums">
-                {rowLive[i] || ''}
-              </text>
-            </g>
-          ))}
-          <rect x={left} y={topPad} width={n * cell} height={n * cell} className="fill-stone-900" />
-          {p.diagonal && (
-            <line x1={left} y1={topPad} x2={left + n * cell} y2={topPad + n * cell} stroke="var(--sym-S)"
-              strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
-          )}
-          {[...via].map(([k, v]) => {
-            const [b, w] = [Math.floor(k / n), k % n]
-            const fill = v === 'diagonal' ? 'var(--sym-S)' : 'var(--sym-signal)'
-            return (
-              <g key={k} data-cell={`${up(b)}${up(w)}`} data-via={String(v)}>
-                <rect x={left + w * cell + 1} y={topPad + b * cell + 1} width={cell - 2} height={cell - 2} rx={2}
-                  fill={fill} />
-                {v === 'hypothesis' && (
-                  <rect x={left + w * cell + 0.5} y={topPad + b * cell + 0.5} width={cell - 1} height={cell - 1} rx={2}
-                    fill="none" stroke="var(--sym-reference)" strokeWidth={2} />
-                )}
+      {/* a labelled, focusable scroller: at phone widths the grid keeps ≥ 90% of its size and scrolls sideways */}
+      <div role="region" aria-label={`Wire grid, test register ${p.testLetter}`} data-testid={`${testId}-scroller`}
+        tabIndex={p.onToggleWire ? undefined : 0}
+        className="max-w-full overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+        <div className="relative w-full"
+          style={{ maxWidth: `${Math.max(W, 260)}px`, minWidth: `${Math.round(W * 0.9)}px`, aspectRatio: `${W} / ${H}` }}>
+          <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img"
+            aria-label={gridLabel}>
+            {Array.from({ length: n }, (_, i) => (
+              <g key={i}>
+                <text x={left + i * cell + cell / 2} y={12} textAnchor="middle" fontSize={n <= 8 ? 12 : 9}
+                  className="fill-stone-400 font-mono">{up(i).toLowerCase()}</text>
+                <text x={left - 6} y={topPad + i * cell + cell / 2} textAnchor="end" dominantBaseline="central"
+                  fontSize={n <= 8 ? 13 : 10} className={`${i === test ? 'fill-stone-100' : 'fill-stone-400'} font-mono`}>
+                  {up(i)}
+                </text>
+                <text x={left + n * cell + 6} y={topPad + i * cell + cell / 2} dominantBaseline="central"
+                  fontSize={n <= 8 ? 12 : 9} className="fill-stone-400 tabular-nums">
+                  {rowLive[i] || ''}
+                </text>
               </g>
-            )
-          })}
-          <rect x={left - 0.5} y={topPad + test * cell - 0.5} width={n * cell + 1} height={cell + 1} fill="none"
-            stroke="var(--sym-reference)" strokeWidth={1.5} />
-        </svg>
-        {p.onToggleWire && (
-          <div role="group" aria-label={`Wires: ${n} banks by ${n} wires. Arrow keys move, Enter toggles.`}
-            onKeyDown={onKey} className="absolute grid"
-            style={{
-              left: `${(left / W) * 100}%`,
-              top: `${(topPad / H) * 100}%`,
-              width: `${((n * cell) / W) * 100}%`,
-              height: `${((n * cell) / H) * 100}%`,
-              gridTemplateColumns: `repeat(${n}, 1fr)`,
-              gridTemplateRows: `repeat(${n}, 1fr)`,
-            }}>
-            {Array.from({ length: n * n }, (_, k) => {
+            ))}
+            <rect x={left} y={topPad} width={n * cell} height={n * cell} className="fill-stone-900" />
+            {p.diagonal && (
+              <line x1={left} y1={topPad} x2={left + n * cell} y2={topPad + n * cell} stroke="var(--sym-S)"
+                strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
+            )}
+            {[...via].map(([k, v]) => {
               const [b, w] = [Math.floor(k / n), k % n]
-              const live = via.has(k)
+              const fill = v === 'diagonal' ? 'var(--sym-S)' : 'var(--sym-signal)'
               return (
-                <button key={k} type="button" ref={(el) => void (buttons.current[k] = el)} tabIndex={k === focus ? 0 : -1}
-                  aria-label={`Bank ${up(b)}, wire ${up(w).toLowerCase()}: ${live ? 'live' : 'dead'}`}
-                  aria-pressed={live} data-testid={`${testId}-cell-${up(b)}-${up(w)}`} data-live={String(live)}
-                  onFocus={() => setFocus(k)} onClick={() => p.onToggleWire?.(b, w)}
-                  className="min-h-0 min-w-0 bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-amber-300" />
+                <g key={k} data-cell={`${up(b)}${up(w)}`} data-via={String(v)}>
+                  <rect x={left + w * cell + 1} y={topPad + b * cell + 1} width={cell - 2} height={cell - 2} rx={2}
+                    fill={fill} />
+                  {v === 'hypothesis' && (
+                    <rect x={left + w * cell + 0.5} y={topPad + b * cell + 0.5} width={cell - 1} height={cell - 1} rx={2}
+                      fill="none" stroke="var(--sym-reference)" strokeWidth={2} />
+                  )}
+                </g>
               )
             })}
-          </div>
-        )}
+            <rect x={left - 0.5} y={topPad + test * cell - 0.5} width={n * cell + 1} height={cell + 1} fill="none"
+              stroke="var(--sym-reference)" strokeWidth={1.5} />
+          </svg>
+          {p.onToggleWire && (
+            <div role="group" aria-label={`Wires: ${n} banks by ${n} wires. Arrow keys move, Enter toggles.`}
+              onKeyDown={onKey} className="absolute grid"
+              style={{
+                left: `${(left / W) * 100}%`,
+                top: `${(topPad / H) * 100}%`,
+                width: `${((n * cell) / W) * 100}%`,
+                height: `${((n * cell) / H) * 100}%`,
+                gridTemplateColumns: `repeat(${n}, 1fr)`,
+                gridTemplateRows: `repeat(${n}, 1fr)`,
+              }}>
+              {Array.from({ length: n * n }, (_, k) => {
+                const [b, w] = [Math.floor(k / n), k % n]
+                const live = via.has(k)
+                return (
+                  <button key={k} type="button" ref={(el) => void (buttons.current[k] = el)}
+                    tabIndex={k === focus ? 0 : -1}
+                    aria-label={`Bank ${up(b)}, wire ${up(w).toLowerCase()}: ${live ? 'live' : 'dead'}`}
+                    aria-pressed={live} data-testid={`${testId}-cell-${up(b)}-${up(w)}`} data-live={String(live)}
+                    onFocus={() => setFocus(k)} onClick={() => p.onToggleWire?.(b, w)}
+                    className={CELL_BUTTON} />
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <figcaption className="text-xs text-stone-400">
         Row {p.testLetter} is the test register: {rowLive[test]} of {n} wires live.

@@ -20,6 +20,8 @@ const WAYS = ['click', 'keyboard', 'api'] as const
 
 test.describe('sync', { tag: '@sync' }, () => {
   test('five readings agree over 50 random presses on 3 random configurations', async ({ page, stage }) => {
+    // 150 presses, each read back in full: ~10 s on a quiet box, more on a loaded one (§7.1 budget 90 s).
+    test.setTimeout(90_000)
     await openSandbox(page, { stage })
     await setSpeed(page, 'instant')
     await page.getByRole('heading', { level: 1 }).click() // focus off the speed select

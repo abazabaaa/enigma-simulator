@@ -18,6 +18,8 @@ import type { LessonEvent } from '../../src/contracts/progress'
 import type { Focus } from '../../src/contracts/stage'
 import { dimmedParts } from '../../src/contracts/stage'
 import { createRng } from '../../src/lib/rng'
+import type { HighlightWithResult } from '../../src/lesson/gateEngine'
+import { partList } from '../../src/lesson/partNames'
 
 export type GateState = NonNullable<ReturnType<NonNullable<Window['__course']>['gate']>>
 
@@ -513,6 +515,10 @@ export async function assertNoAnswerLeak(page: Page): Promise<void> {
  * The hint ladder (rule 4) on the current item, through wrong answers via the API:
  * L1 (highlight on the stage), L2 (worked example on another instance), L3 (the reveal; "Got it" records
  * 'revealed' and draws a fresh instance). Puzzle gates give no hint before attempt 3.
+ *
+ * L1 runs the real path (review round 3): submit → ensureCurrent draws a fresh instance, and the hint panel and
+ * __stage.info().highlighted must show highlight(the ANSWERED instance, the wrong answer, its check), not
+ * anything computed from the fresh instance now on screen.
  */
 export async function assertLadder(page: Page, o: { puzzle?: boolean; highlights?: boolean } = {}): Promise<void> {
   const start = await current(page)
@@ -522,6 +528,9 @@ export async function assertLadder(page: Page, o: { puzzle?: boolean; highlights
   for (const want of levels) {
     const c = await current(page)
     const wrong = await wrongAnswer(page, c.attempt)
+    // The answered instance and its logic, captured before the submit moves the item on.
+    const answeredLogic = await logicFor(c.gateKey, c.itemId, c.fallback)
+    const answered = c.instance
     await answerViaApi(page, c.itemId, wrong)
     const now = await current(page)
     expect(now.hintLevel).toBe(want)
@@ -531,11 +540,16 @@ export async function assertLadder(page: Page, o: { puzzle?: boolean; highlights
     }
     await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', String(want))
     if (want === 1 && o.highlights !== false) {
-      const l = await logicFor(now.gateKey, now.itemId, now.fallback)
-      const parts = l.highlight(now.instance, wrong).map((h) => h.part)
+      const result = answeredLogic.check(answered, wrong)
+      expect(result.correct, 'the wrong answer was wrong on the answered instance').toBe(false)
+      const highlight = answeredLogic.highlight as HighlightWithResult
+      const parts = highlight.call(answeredLogic, answered, wrong, result).map((h) => h.part)
       await expect
-        .poll(() => page.evaluate(() => window.__stage!.info().highlighted))
-        .toEqual(expect.arrayContaining(parts))
+        .poll(() => page.evaluate(() => [...window.__stage!.info().highlighted].sort()))
+        .toEqual([...parts].sort())
+      await expect(page.getByTestId('hint-panel')).toContainText(
+        parts.length ? `look at the highlighted ${partList(parts)}` : 'take it one step at a time',
+      )
     }
     if (want === 2) {
       const seed = Number(await page.getByTestId('worked-example').getAttribute('data-seed'))
