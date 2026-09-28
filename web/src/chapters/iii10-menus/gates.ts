@@ -426,17 +426,21 @@ export function closuresInstance(r: Rng): ClosuresInstance {
     if (V < 2 * C) continue
     const sizes = Array.from({ length: C }, () => 2)
     for (let k = 0; k < V - 2 * C; k++) sizes[int(r, C)]!++
+    // Extra links go to pieces of three letters or more when there are any (fewer doubled links).
+    const roomy = range(C).filter((j) => sizes[j]! >= 3)
     const extras = Array.from({ length: C }, () => 0)
-    for (let k = 0; k < t; k++) extras[int(r, C)]!++
+    for (let k = 0; k < t; k++) extras[roomy.length ? pick(r, roomy) : int(r, C)]!++
     const letters = sample(r, LETTERS, V)
     const pairs: [Letter, Letter][] = []
+    const key = (a: Letter, b: Letter) => [a, b].sort().join('')
     let at = 0
     sizes.forEach((size, j) => {
       const own = letters.slice(at, (at += size))
       for (let k = 1; k < own.length; k++) pairs.push([own[k]!, own[int(r, k)]!])
       for (let x = 0; x < extras[j]!; x++) {
-        const [a, b] = sample(r, own, 2) as [Letter, Letter]
-        pairs.push([a, b])
+        const used = new Set(pairs.map(([a, b]) => key(a, b)))
+        const fresh = own.flatMap((a, i) => own.slice(i + 1).map((b) => [a, b] as [Letter, Letter])).filter(([a, b]) => !used.has(key(a, b)))
+        pairs.push(fresh.length ? pick(r, fresh) : (sample(r, own, 2) as [Letter, Letter]))
       }
     })
     const edges = shuffle(r, pairs).map(([a, b], k) => (r() < 0.5 ? { a, b, pos: k + 1 } : { a: b, b: a, pos: k + 1 }))

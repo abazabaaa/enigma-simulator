@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type JSX } from 'react'
 import type { Letter } from '../../../contracts/core'
 import type { SceneProps } from '../../../contracts/lesson'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
+import { menuFromEdges } from '../../../crypto/menu'
 import { MenuGraph } from '../../../viz'
 import { FACTS } from '../facts'
 import { LOOP_TOY, TOY_ALPHABET, TOY_BANKS, TOY_LINKS, V14_MENU, contradicts, loopWalk } from '../gates'
@@ -22,6 +23,9 @@ export const STOP_TABLE = (['stops-3', 'stops-1', 'stops-0'] as const).map((id, 
 }))
 
 export const formatStops = (n: number): string => n.toLocaleString('en-GB')
+
+/** The loop's four links alone, drawn solid over the rest of the menu (dashed). */
+const LOOP_MENU = menuFromEdges(V14_MENU.edges.filter((e) => TOY_LINKS.includes(e.pos)))
 
 const linkLabel = (j: number) => `Link ${TOY_LINKS[j]}, ${TOY_BANKS[j]}–${TOY_BANKS[(j + 1) % TOY_BANKS.length]}`
 
@@ -98,6 +102,8 @@ export function LoopView(p: SceneProps): JSX.Element {
   const played = useRevealFired('stops')
   const resolved = useRef(new Set<string>())
   const { completeTask, bet } = p
+  // Computed from the kit once the run reveal has fired (never before the bet).
+  const survivors = ran ? LOOP_TOY.options.filter((x) => !contradicts(x)) : []
 
   // The truths are computed when each reveal fires: bet 1 from the kit's propagation, bet 2 from Turing's table.
   useEffect(() => {
@@ -115,10 +121,10 @@ export function LoopView(p: SceneProps): JSX.Element {
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="loop-view">
       <p>
-        In the menu of <Mono>ATTACKATDAWN</Mono>, links 10, 8, 6 and 7 form the loop A–T–L–K. The bombe tests an assumption about
-        the plugboard by following such a loop.
+        In the menu of <Mono>ATTACKATDAWN</Mono>, links 10, 8, 6 and 7 form the loop A–T–L–K (solid below; the other links are
+        dashed). The bombe tests an assumption about the plugboard by following such a loop.
       </p>
-      <MenuGraph menu={V14_MENU} highlightLoop={TOY_BANKS} testId="loop-menu" />
+      <MenuGraph menu={LOOP_MENU} available={V14_MENU.edges} highlightLoop={TOY_BANKS} testId="loop-menu" />
       <p>
         To follow it by hand, shrink the machine to eight letters, <Mono>{TOY_ALPHABET.join(' ')}</Mono>. Each link’s scrambler pairs
         them; read a table downwards: a partner above becomes the partner below.
@@ -147,8 +153,9 @@ export function LoopView(p: SceneProps): JSX.Element {
             })}
           </ul>
           <p>
-            Two assumptions survive this one loop. At most one of them can be the true pair; the other is a false stop, and one loop
-            cannot tell them apart. Every further closure is one more test a wrong assumption has to pass.
+            {survivors.length === 2 ? 'Two assumptions' : `${survivors.length} assumptions`} survive this one loop. At most one of them
+            can be the true pair; the others are false stops, and one loop cannot tell them apart. Every further closure is one more
+            test a wrong assumption has to pass.
           </p>
           <FollowLoop onDone={() => completeTask('follow-loop')} />
         </section>

@@ -56,7 +56,7 @@ const scenes: readonly SceneDef[] = [
       },
     ],
     reveals: [{ bet: 'fits', trigger: 'toggle', label: 'Check the columns' }],
-    tasks: [{ id: 'slide', label: 'Slide the crib to an offset where no column crashes' }],
+    tasks: [{ id: 'slide', label: 'Slide the crib to an offset where it can sit' }],
     View: CrashesView,
   },
   {

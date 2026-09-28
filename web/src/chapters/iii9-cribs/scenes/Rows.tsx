@@ -30,7 +30,7 @@ export function AlignedRows(p: {
       data-testid={p.testId}
     >
       <pre className="font-mono text-sm leading-snug text-stone-200">
-        <span className="text-stone-500">{ruler(p.cipher.length)}</span>
+        <span className="text-stone-400">{ruler(p.cipher.length)}</span>
         {'\n'}
         {p.cipher}
         {p.crib !== undefined ? (

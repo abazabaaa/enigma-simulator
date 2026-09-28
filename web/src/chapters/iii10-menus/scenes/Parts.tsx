@@ -7,6 +7,7 @@
 import type { JSX } from 'react'
 import type { Letter } from '../../../contracts/core'
 import type { MenuEdge } from '../../../crypto/menu'
+import { pieces } from '../gates'
 
 const SCROLL = 'max-w-full overflow-x-auto rounded-md border border-stone-700 bg-stone-950/60 p-2'
 
@@ -15,14 +16,14 @@ export function CribColumns(p: { crib: string; cipher: string; turnover?: number
   const late = (k: number) => p.turnover !== undefined && k + 1 >= p.turnover
   return (
     <div className={SCROLL} role="group" aria-label="The crib's columns, numbered from 1" tabIndex={0} data-testid="crib-columns">
-      <table className="border-separate border-spacing-x-1 text-center font-mono text-sm">
+      <table className="table-fixed border-separate border-spacing-x-0.5 text-center font-mono text-sm">
         <tbody>
           <tr className="text-xs text-stone-400">
             <th scope="row" className="pr-2 text-left font-sans font-normal">
               Link
             </th>
             {[...p.crib].map((_, k) => (
-              <td key={k} data-late={late(k) ? 'true' : undefined} className={late(k) ? 'text-red-300' : ''}>
+              <td key={k} data-late={late(k) ? 'true' : undefined} className={`w-7 ${late(k) ? 'text-red-300' : ''}`}>
                 {k + 1}
                 {late(k) ? '!' : ''}
               </td>
@@ -33,7 +34,9 @@ export function CribColumns(p: { crib: string; cipher: string; turnover?: number
               Crib
             </th>
             {[...p.crib].map((c, k) => (
-              <td key={k}>{c}</td>
+              <td key={k} className="w-7">
+                {c}
+              </td>
             ))}
           </tr>
           <tr className="text-stone-100">
@@ -41,7 +44,9 @@ export function CribColumns(p: { crib: string; cipher: string; turnover?: number
               Cipher
             </th>
             {[...p.cipher].map((c, k) => (
-              <td key={k}>{c}</td>
+              <td key={k} className="w-7">
+                {c}
+              </td>
             ))}
           </tr>
         </tbody>
@@ -66,18 +71,45 @@ export function LinkList({ edges }: { edges: readonly MenuEdge[] }): JSX.Element
 }
 
 const W = 360
-const H = 300
-const R = 115
+const H = 320
 
-/** A menu drawn as a graph: letters on a circle, one line per link labelled with its position. No counts. */
+/**
+ * Where each letter goes: every piece of the menu on its own small circle, in a grid of cells (two per row), each in
+ * depth-first order from its busiest letter so its loops sit on the rim.
+ */
+function layout(edges: readonly MenuEdge[]): Map<Letter, readonly [number, number]> {
+  const parts = pieces(edges)
+  const cols = Math.min(2, parts.length)
+  const rows = Math.ceil(parts.length / cols)
+  const [cw, ch] = [W / cols, H / rows]
+  const at = new Map<Letter, readonly [number, number]>()
+  parts.forEach((piece, k) => {
+    const adj = new Map<Letter, Letter[]>()
+    for (const e of piece) {
+      adj.set(e.a, [...(adj.get(e.a) ?? []), e.b])
+      adj.set(e.b, [...(adj.get(e.b) ?? []), e.a])
+    }
+    const order: Letter[] = []
+    const visit = (l: Letter) => {
+      if (order.includes(l)) return
+      order.push(l)
+      for (const m of [...adj.get(l)!].sort()) visit(m)
+    }
+    visit([...adj.keys()].sort((x, y) => adj.get(y)!.length - adj.get(x)!.length || x.localeCompare(y))[0]!)
+    const [cx, cy] = [cw * (k % cols) + cw / 2, ch * Math.floor(k / cols) + ch / 2]
+    const r = Math.min(cw, ch) / 2 - 24
+    order.forEach((l, j) => {
+      const a = -Math.PI / 2 + (2 * Math.PI * j) / order.length
+      at.set(l, [cx + r * Math.cos(a), cy + r * Math.sin(a)])
+    })
+  })
+  return at
+}
+
+/** A menu drawn as a graph: each piece apart, one line per link labelled with its position. No counts. */
 export function LinkDrawing({ edges, label }: { edges: readonly MenuEdge[]; label: string }): JSX.Element {
-  const letters = [...new Set(edges.flatMap((e) => [e.a, e.b]))].sort() as Letter[]
-  const at = new Map(
-    letters.map((l, i) => {
-      const a = -Math.PI / 2 + (2 * Math.PI * i) / letters.length
-      return [l, [W / 2 + R * Math.cos(a), H / 2 + R * Math.sin(a)] as const]
-    }),
-  )
+  const at = layout(edges)
+  const letters = [...at.keys()]
   const seen = new Map<string, number>()
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-sm" role="img" aria-label={label} data-testid="link-drawing">
@@ -87,7 +119,7 @@ export function LinkDrawing({ edges, label }: { edges: readonly MenuEdge[]; labe
         const pair = [e.a, e.b].sort().join('')
         const n = seen.get(pair) ?? 0
         seen.set(pair, n + 1)
-        const bend = n === 0 ? 0 : (n % 2 ? 1 : -1) * 28 * Math.ceil(n / 2)
+        const bend = n === 0 ? 0 : (n % 2 ? 1 : -1) * 24 * Math.ceil(n / 2)
         const d = Math.hypot(x2 - x1, y2 - y1) || 1
         const flip = e.a < e.b ? 1 : -1
         const [nx, ny] = [(-(y2 - y1) / d) * flip, ((x2 - x1) / d) * flip]
@@ -107,7 +139,7 @@ export function LinkDrawing({ edges, label }: { edges: readonly MenuEdge[]; labe
         const [x, y] = at.get(l)!
         return (
           <g key={l} transform={`translate(${x} ${y})`}>
-            <circle r={15} className="fill-stone-900" stroke="var(--sym-reference)" strokeWidth={2} />
+            <circle r={14} className="fill-stone-900" stroke="var(--sym-reference)" strokeWidth={2} />
             <text textAnchor="middle" dominantBaseline="central" fontSize="14" className="fill-stone-100 font-mono">
               {l}
             </text>

@@ -97,7 +97,7 @@ export function CrashesView(p: SceneProps): JSX.Element {
       ) : (
         <section className="flex flex-col gap-3" data-testid="crashes-result" aria-live="polite">
           <p>
-            At offset {BET_OFFSET} letter {index + 1} of the crib, <Mono>{letter}</Mono>, sits under a cipher <Mono>{letter}</Mono>: a{' '}
+            At offset {BET_OFFSET}, letter {index + 1} of the crib, <Mono>{letter}</Mono>, sits under a cipher <Mono>{letter}</Mono>: a{' '}
             <strong>crash</strong>, shown in red. If the crib were there, the operator typed {letter} and the lamp showed {letter}. The
             reflector never sends a letter back to itself, so that cannot happen: one crash rules the offset out.
           </p>
