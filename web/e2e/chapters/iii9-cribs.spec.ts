@@ -11,6 +11,7 @@
  * Answers are computed in Node from the pure gates.ts.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -60,12 +61,30 @@ import { MACHINE_3D_READY } from '../../src/machine3d/ready'
 
 const CHAPTER = 'iii9-cribs'
 
+/** The read-only CribStrip's scroll box (viz/CribStrip.tsx, PR 08): role img, labelled "Crib … under …". */
+const PENDING_08 = /^<div role="img" aria-label="Crib [A-Z]+ under [A-Z]+ at offset/
+
+/**
+ * Serious or critical axe findings inside the current item (question, rollback and hint states). Until PR 08's viz
+ * fix lands, a read-only CribStrip whose letters overflow is a scroll region without a focusable element
+ * (scrollable-region-focusable, review MAJOR owned by 08): that one rule is reported on its own, not failed here.
+ */
+async function axeItem(page: Page, id: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(`[data-testid="item-${id}"]`).analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => ({ ...v, nodes: v.id === 'scrollable-region-focusable' ? v.nodes.filter((n) => !PENDING_08.test(n.html)) : v.nodes }))
+    .filter((v) => v.nodes.length)
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
+}
+
 /** PLAN §4.4: every item of gate `cribs` rolls back as `crib` (the strip at the offset in question). */
 const ROLLBACK: Record<string, string> = { 'crash-free': 'crib', 'crash-count': 'crib', 'is-consistent-crib': 'crib' }
 
-/** A code that forgets the range check (wrong on the out-of-range cases). */
-const SLOPPY =
-  'function isConsistentCrib(cipher, crib, offset) {\n  for (let i = 0; i < crib.length; i++) if (cipher[offset + i] === crib[i]) return false\n  return true\n}\n'
+/** An off-by-one range check: it rejects a crib that ends exactly on the last cipher letter (the textbook example). */
+const OFF_BY_ONE =
+  'function isConsistentCrib(cipher, crib, offset) {\n  if (offset < 0 || offset + crib.length >= cipher.length) return false\n' +
+  '  for (let i = 0; i < crib.length; i++) if (cipher[offset + i] === crib[i]) return false\n  return true\n}\n'
 
 /** __enigma.pressKey(key) throws (the keyboard is locked). */
 const pressThrows = (page: Page, key = 'A') =>
@@ -202,7 +221,8 @@ test.describe('chapter iii9-cribs', { tag: '@chapter:iii9-cribs' }, () => {
       await expect(item).toHaveAttribute('data-current', 'true')
       expect(await pressThrows(page)).toBe(true)
 
-      // a. One wrong answer through the UI, its rollback, then the L1 hint.
+      // a. One wrong answer through the UI, its rollback, then the L1 hint (axe on the rollback and on the hint state,
+      //    which shows the same prompt and widget as the question).
       await assertNoAnswerLeak(page)
       if (c.kind === 'custom') {
         // Offset 0 always crashes (the valid offsets keep away from the ends).
@@ -226,16 +246,27 @@ test.describe('chapter iii9-cribs', { tag: '@chapter:iii9-cribs' }, () => {
       }
       await assertRollback(page, ROLLBACK[id]!)
       await expect(page.getByTestId('crib-feedback')).toBeVisible()
+      if (c.kind === 'code') {
+        // Every case passed: the prediction was the wrong part, so its strip is drawn.
+        await expect(page.getByTestId('crib-feedback')).toHaveAttribute('data-case', 'prediction')
+        await expect(page.getByTestId('crib-rollback')).toHaveAttribute('data-offset', String((c.instance as CribCodeInstance).offset))
+      }
+      expect(await axeItem(page, id)).toEqual([])
       await continueGate(page)
       const l1 = await current(page)
       expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
       await expect(page.getByTestId('item-hint')).toBeVisible()
+      expect(await axeItem(page, id)).toEqual([])
 
       if (l1.kind === 'code') {
-        // Wrong code with the right prediction is wrong too.
-        await typeCodeAndRun(page, SLOPPY, String(firstCrash(l1.instance as CribCodeInstance)))
+        // Wrong code with the right prediction is wrong too; the rollback draws the case it failed on.
+        await typeCodeAndRun(page, OFF_BY_ONE, String(firstCrash(l1.instance as CribCodeInstance)))
         await assertRollback(page, 'crib')
+        await expect(page.getByTestId('crib-feedback')).toHaveAttribute('data-case', 'the textbook example')
+        await expect(page.getByTestId('crib-rollback')).toHaveAttribute('data-offset', '0')
+        await expect(page.getByTestId('crib-rollback')).toHaveAttribute('data-crash-count', '0')
+        await expect(page.getByTestId('crib-feedback')).toContainText(`${V14.cipher}", "${V14.crib}", 0`)
         await continueGate(page)
       }
 
@@ -342,7 +373,12 @@ test.describe('chapter iii9-cribs', { tag: '@chapter:iii9-cribs' }, () => {
     await expect(page.getByTestId('item-crash-free')).toHaveAttribute('data-passed', 'false')
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/crash-free'))
     expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
+    // L1 and L2 again (axe on the worked example), then a reload.
     await answerViaApi(page, 'crash-free', await wrongAnswer(page))
+    await answerViaApi(page, 'crash-free', await wrongAnswer(page))
+    await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '2')
+    await expect(page.getByTestId('worked-example')).toBeVisible()
+    expect(await axeItem(page, 'crash-free')).toEqual([])
     await reloadKeepsSeed(page)
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
     await answerViaApi(page, 'crash-free', await solveInNode(page))

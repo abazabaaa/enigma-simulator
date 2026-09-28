@@ -11,7 +11,7 @@
  */
 
 import type { Letter } from '../../contracts/core'
-import type { CodeCase } from '../../contracts/code'
+import type { CodeAnswer, CodeCase } from '../../contracts/code'
 import type { ChapterGates, CheckResult, ItemLogic, Rollback } from '../../contracts/lesson'
 import type { MachineLocks } from '../../contracts/machine'
 import { crashes, isConsistentCrib, zeroCrashOffsets } from '../../crypto/cribs'
@@ -422,6 +422,20 @@ export function cribCases(i: CribCodeInstance): CodeCase[] {
   return out
 }
 
+/** Whether a crib placed at `offset` lies inside the cipher text. */
+export const isInRange = (cipher: string, crib: string, offset: number): boolean =>
+  Number.isInteger(offset) && offset >= 0 && offset + crib.length <= cipher.length
+
+/**
+ * The case a wrong run failed on (its label is the run summary's firstFailure), or null when every case passed (the
+ * prediction was the wrong part) or the code did not run at all (a syntax error, a timeout, a missing function).
+ */
+export function failingCase(i: CribCodeInstance, a: CodeAnswer | null | undefined): CodeCase | null {
+  const run = a?.run
+  if (!run || run.status !== 'fail' || !run.firstFailure || run.instanceSeed !== i.seed) return null
+  return cribCases(i).find((c) => c.label === run.firstFailure!.label) ?? null
+}
+
 export const isConsistent = codeItem<CribCodeInstance>(
   {
     fnNames: [FN],
@@ -448,7 +462,14 @@ export const isConsistent = codeItem<CribCodeInstance>(
     same: (a, b) => a.cipher === b.cipher && a.crib === b.crib && a.offset === b.offset,
     setup: () => ({ stage: null }),
     highlight: () => [],
-    rollback: (i) => cribRollback(i.cipher, i.crib, i.offset),
+    rollback: (i, a) => {
+      const failing = failingCase(i, a)
+      if (!failing) return cribRollback(i.cipher, i.crib, i.offset)
+      const [cipher, crib, offset] = failing.args as [string, string, number]
+      return isInRange(cipher, crib, offset)
+        ? { kind: 'crib', offset, crashes: crashes(cipher, crib, offset) }
+        : { kind: 'crib', offset, crashes: [] }
+    },
   },
 )
 

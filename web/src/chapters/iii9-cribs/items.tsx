@@ -10,7 +10,7 @@ import type { AnswerProps, CheckResult, HintLevel, ItemUiMap } from '../../contr
 import { crashes } from '../../crypto/cribs'
 import { Mono, SubmitButton } from '../../lesson'
 import { CribStrip } from '../../viz'
-import { maxOffset, type CrashCountInstance, type CrashFreeInstance, type CribCodeInstance } from './gates'
+import { failingCase, isInRange, maxOffset, type CrashCountInstance, type CrashFreeInstance, type CribCodeInstance } from './gates'
 import { AlignedRows } from './scenes'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -149,6 +149,43 @@ const crashCount = {
 // is-consistent-crib (code)
 // ---------------------------------------------------------------------------
 
+/**
+ * The code item's rollback: the case the run failed on (its crib at its offset, or where it runs off the cipher
+ * text); the prediction's strip only when every case passed and the prediction was the wrong part.
+ */
+function CodeFeedback({ instance, answer, result }: { instance: CribCodeInstance; answer: CodeAnswer; result: CheckResult }) {
+  if (result.rollback.kind !== 'crib') return null
+  const failing = failingCase(instance, answer)
+  if (failing) {
+    const [cipher, crib, offset] = failing.args as [string, string, number]
+    return (
+      <div className="flex flex-col gap-2" data-testid="crib-feedback" data-case={failing.label}>
+        <p>
+          Your function failed the case “{failing.label}”: <Mono>isConsistentCrib(&quot;{cipher}&quot;, &quot;{crib}&quot;, {offset})</Mono>{' '}
+          should return <Mono>{String(failing.expect)}</Mono>, and returned <Mono>{answer.run.firstFailure?.actual ?? '?'}</Mono>.
+        </p>
+        {isInRange(cipher, crib, offset) ? (
+          <CribAt cipher={cipher} crib={crib} offset={offset} testId="crib-rollback" />
+        ) : (
+          <p data-testid="crib-off-end">
+            At offset {offset} the {crib.length}-letter crib runs off {offset < 0 ? 'the start' : 'the end'} of the{' '}
+            {cipher.length}-letter cipher text: it does not fit, so the answer is false.
+          </p>
+        )}
+      </div>
+    )
+  }
+  if (answer?.run?.status === 'pass') {
+    return (
+      <div className="flex flex-col gap-2" data-testid="crib-feedback" data-case="prediction">
+        <p>Every case passed; the prediction was the wrong part. The crib at offset {instance.offset}:</p>
+        <CribAt cipher={instance.cipher} crib={instance.crib} offset={instance.offset} testId="crib-rollback" />
+      </div>
+    )
+  }
+  return null
+}
+
 const isConsistent = {
   Prompt: ({ instance, hintLevel }: { instance: CribCodeInstance; hintLevel: HintLevel }) => (
     <div className="flex flex-col gap-2">
@@ -183,7 +220,7 @@ const isConsistent = {
       </p>
     </div>
   ),
-  Feedback: CribFeedback,
+  Feedback: CodeFeedback,
 }
 
 export const ITEM_UI: ItemUiMap = {

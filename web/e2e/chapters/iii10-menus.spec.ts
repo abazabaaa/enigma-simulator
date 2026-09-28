@@ -11,6 +11,7 @@
  * Answers are computed in Node from the pure gates.ts.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -43,6 +44,23 @@ import { closures, menuFromEdges } from '../../src/crypto/menu'
 import { LOOP_TOY, V14_MENU, contradicts, menuSolution, type MenuInstance } from '../../src/chapters/iii10-menus/gates'
 
 const CHAPTER = 'iii10-menus'
+
+/** The read-only CribStrip's scroll box (viz/CribStrip.tsx, PR 08): role img, labelled "Crib … under …". */
+const PENDING_08 = /^<div role="img" aria-label="Crib [A-Z]+ under [A-Z]+ at offset/
+
+/**
+ * Serious or critical axe findings inside the current item (question, rollback and hint states). Until PR 08's viz
+ * fix lands, a read-only CribStrip whose letters overflow is a scroll region without a focusable element
+ * (scrollable-region-focusable, review MAJOR owned by 08): that one rule is reported on its own, not failed here.
+ */
+async function axeItem(page: Page, id: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(`[data-testid="item-${id}"]`).analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => ({ ...v, nodes: v.id === 'scrollable-region-focusable' ? v.nodes.filter((n) => !PENDING_08.test(n.html)) : v.nodes }))
+    .filter((v) => v.nodes.length)
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
+}
 
 /** PLAN §4.4: every item of gate `menus` rolls back as `menu` (the MenuGraph with the loop in question). */
 const ROLLBACK: Record<string, string> = { 'build-menu': 'menu', closures: 'menu', 'loop-return': 'menu' }
@@ -143,6 +161,13 @@ test.describe('chapter iii10-menus', { tag: '@chapter:iii10-menus' }, () => {
     for (let k = 0; k < 4; k++) await page.getByTestId('follow-next').click()
     await expect(page.getByTestId('follow-verdict')).toBeVisible()
     await expect(page.getByTestId('task-follow-loop')).toHaveAttribute('data-done', 'true')
+    // The second closure T–N–S: of the two survivors of the first loop, only one survives both.
+    const survivors = LOOP_TOY.options.filter((x) => !contradicts(x))
+    expect(survivors).toHaveLength(2)
+    for (const x of survivors) {
+      await expect(page.getByTestId(`loop2-option-${x}`)).toHaveAttribute('data-contradicts', String(contradicts(x, true)))
+    }
+    await expect(page.getByTestId('second-loop-result')).toContainText('2 survivors of one loop, 1 of two')
     await expectNextDisabled(page)
     // … and Turing's table after the stop bet.
     await assertRevealGated(page, reveals[1]!)
@@ -177,23 +202,28 @@ test.describe('chapter iii10-menus', { tag: '@chapter:iii10-menus' }, () => {
       const item = page.getByTestId(`item-${id}`)
       await expect(item).toHaveAttribute('data-current', 'true')
 
-      // a. One wrong answer through the UI, its rollback, then the L1 hint.
+      // a. One wrong answer through the UI, its rollback, then the L1 hint (axe on the rollback and on the hint state,
+      //    which shows the same prompt and widget as the question).
       await assertNoAnswerLeak(page)
       if (c.kind === 'custom') {
         // A working menu plus the link at the turnover: wrong.
         const i = c.instance as MenuInstance
         await expect(page.getByTestId(`build-menu-graph-add-${i.turnover}`)).toContainText('!')
+        await expect(page.getByTestId('build-menu-windows')).toContainText(`${i.windows[0]}`)
+        await expect(page.getByTestId('build-menu-windows')).toContainText(`${i.windows[1]}`)
         await answerBuildMenu(page, [...menuSolution(i), i.turnover])
       } else {
         await answerViaUi(page, c.kind, await wrongAnswer(page))
       }
       await assertRollback(page, ROLLBACK[id]!)
       await expect(page.getByTestId('menu-feedback')).toBeVisible()
+      expect(await axeItem(page, id)).toEqual([])
       await continueGate(page)
       const l1 = await current(page)
       expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
       await expect(page.getByTestId('item-hint')).toBeVisible()
+      expect(await axeItem(page, id)).toEqual([])
 
       // b. A correct instance through the real widget.
       await assertNoAnswerLeak(page)
@@ -230,7 +260,12 @@ test.describe('chapter iii10-menus', { tag: '@chapter:iii10-menus' }, () => {
     await expect(page.getByTestId('item-build-menu')).toHaveAttribute('data-passed', 'false')
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/build-menu'))
     expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
+    // L1 and L2 again (axe on the worked example), then a reload.
     await answerViaApi(page, 'build-menu', await wrongAnswer(page))
+    await answerViaApi(page, 'build-menu', await wrongAnswer(page))
+    await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '2')
+    await expect(page.getByTestId('worked-example')).toBeVisible()
+    expect(await axeItem(page, 'build-menu')).toEqual([])
     await reloadKeepsSeed(page)
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
     await answerViaApi(page, 'build-menu', await solveInNode(page))

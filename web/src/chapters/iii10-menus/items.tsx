@@ -45,6 +45,11 @@ function BuildMenuPrompt({ instance, hintLevel }: { instance: MenuInstance; hint
         key press of position {instance.turnover}: the links from {instance.turnover} on (marked !) were made with a different middle
         rotor.
       </p>
+      <p data-testid="build-menu-windows">
+        Rotors <Mono>{instance.rotors.join(' ')}</Mono> (left to right). Just before the key press of position {instance.turnover} the
+        windows show <Mono>{instance.windows[0]}</Mono>: the right rotor, {instance.rotors[2]}, is on its turnover letter{' '}
+        <Mono>{instance.windows[0][2]}</Mono>, so that press moves the middle rotor as well: <Mono>{instance.windows[1]}</Mono>.
+      </p>
       <CribColumns crib={instance.crib} cipher={instance.cipher} turnover={instance.turnover} />
       <p>
         Build a menu for the bombe: at least 2 closures, all in one connected piece, at most {MAX_LINKS} links, and no link from

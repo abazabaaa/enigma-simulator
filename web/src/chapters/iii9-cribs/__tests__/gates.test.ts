@@ -15,6 +15,7 @@ import { createRng, seedFor } from '../../../lib/rng'
 import { EMPTY_GATE, currentItem, ensureCurrent, shownInstance, submitAnswer, type GateCtx } from '../../../lesson/gateEngine'
 import { codeTaskOf, passingRun } from '../../../lesson/kinds'
 import { executeRequest } from '../../../code/runnerCore'
+import { summarizeRun } from '../../../code/summary'
 import {
   BET_CRASH,
   BET_OFFSET,
@@ -30,8 +31,10 @@ import {
   crashCount,
   crashFree,
   crashFreeMessage,
+  failingCase,
   firstCrash,
   isConsistent,
+  isInRange,
   maxOffset,
   type CrashCountInstance,
   type CrashFreeInstance,
@@ -201,6 +204,38 @@ describe('is-consistent-crib', () => {
     const sloppy = run('function isConsistentCrib(cipher, crib, offset) {\n  for (let i = 0; i < crib.length; i++) if (cipher[offset + i] === crib[i]) return false\n  return true\n}\n')
     expect(sloppy.ok).toBe(true)
     if (sloppy.ok) expect(sloppy.results.some((r, k) => 'value' in r && r.value !== cases[k]!.expect)).toBe(true)
+  })
+
+  it('case labels are unique (a failing run names its case)', () => {
+    for (let s = 0; s < 50; s++) {
+      const labels = task.cases(gen(isConsistent, s) as CribCodeInstance).map((c) => c.label)
+      expect(new Set(labels).size).toBe(labels.length)
+    }
+  })
+
+  it('a failing run rolls back to the case it failed on: the textbook example for an off-by-one range check', () => {
+    const i = gen(isConsistent, 11) as CribCodeInstance
+    const cases = task.cases(i)
+    const offByOne =
+      'function isConsistentCrib(cipher, crib, offset) {\n  if (offset < 0 || offset + crib.length >= cipher.length) return false\n' +
+      '  for (let i = 0; i < crib.length; i++) if (cipher[offset + i] === crib[i]) return false\n  return true\n}\n'
+    const res = executeRequest({ id: 1, source: offByOne, provided: '', fnNames: task.fnNames, calls: cases.map((c) => ({ fn: c.fn, args: c.args })), timeoutMs: 1500 })
+    const run = summarizeRun(cases, res, i.seed)
+    expect(run.firstFailure?.label).toBe('the textbook example')
+    const a = { probe: String(firstCrash(i)), run }
+    expect(failingCase(i, a)?.args).toEqual([V14.cipher, V14.crib, 0])
+    expect(isConsistent.check(i, a).rollback).toEqual({ kind: 'crib', offset: 0, crashes: [] })
+    // A case whose crib runs off the end: no strip offset inside the text, no crashes.
+    const past = { ...run, firstFailure: { label: 'past the end', expected: 'false', actual: 'true' } }
+    expect(isInRange('KLMNOPQ', 'XYOZ', 4)).toBe(false)
+    expect(isConsistent.check(i, { probe: '0', run: past }).rollback).toEqual({ kind: 'crib', offset: 4, crashes: [] })
+    // Every case passed: the prediction was wrong, so the rollback is the prediction's strip.
+    const passing = passingRun(cases.length, i.seed)
+    expect(failingCase(i, { probe: '99', run: passing })).toBeNull()
+    expect(isConsistent.check(i, { probe: '99', run: passing }).rollback).toMatchObject({ kind: 'crib', offset: i.offset })
+    // Code that did not run (a syntax error) names no case.
+    const broken = summarizeRun(cases, executeRequest({ id: 2, source: 'function isConsistentCrib(', provided: '', fnNames: task.fnNames, calls: [], timeoutMs: 1500 }), i.seed)
+    expect(failingCase(i, { probe: '0', run: broken })).toBeNull()
   })
 
   it('a wrong answer rolls back to the strip at the probe offset', () => {

@@ -12,7 +12,7 @@ import type { Letter } from '../../../contracts/core'
 import type { GateRecord, GenCtx, ItemLogic } from '../../../contracts/lesson'
 import { liveCount, propagate } from '../../../crypto/bombe'
 import { closures, loops, menuFromCrib, menuFromEdges } from '../../../crypto/menu'
-import { LETTERS, createMachine, encipher, pressKey, positionsToString } from '../../../engine'
+import { LETTERS, ROTORS, createMachine, encipher, pressKey, positionsToString } from '../../../engine'
 import { createRng, seedFor } from '../../../lib/rng'
 import { EMPTY_GATE, currentItem, ensureCurrent, shownInstance, submitAnswer, type GateCtx } from '../../../lesson/gateEngine'
 import { dayKey } from '../../../crypto/generators'
@@ -36,6 +36,7 @@ import {
   loopReturn,
   loopReturnItem,
   loopWalk,
+  loopWalk2,
   menuCheck,
   pieces,
   startFor,
@@ -79,8 +80,18 @@ describe('the toy loop A–T–L–K', () => {
     expect(contradicts('A')).toBe(true)
   })
 
+  it('the second loop T–N–S keeps only the true pair: propagate through both loops agrees with the walks', () => {
+    const survivors = LOOP_TOY.options.filter((x) => !contradicts(x))
+    expect(survivors).toHaveLength(2)
+    const both = survivors.filter((x) => !contradicts(x, true))
+    expect(both).toHaveLength(1)
+    for (const x of survivors) expect(contradicts(x, true), x).toBe(loopWalk2(x)[3] !== loopWalk2(x)[0])
+    for (const x of TOY_ALPHABET) if (contradicts(x)) expect(contradicts(x, true), x).toBe(true)
+    expect(LOOP_TOY.tables2).toHaveLength(3)
+  })
+
   it('every scrambler is a fixed-point-free involution on the eight letters; a survivor is a consistent plugboard', () => {
-    for (const t of LOOP_TOY.tables) {
+    for (const t of [...LOOP_TOY.tables, ...LOOP_TOY.tables2]) {
       expect([...t].sort().join('')).toBe([...TOY_ALPHABET].sort().join(''))
       ;[...t].forEach((y, k) => {
         expect(y).not.toBe(TOY_ALPHABET[k])
@@ -118,7 +129,12 @@ describe('build-menu', () => {
       expect(edges.every((e) => e.pos < i.turnover)).toBe(true)
       expect(pieces(edges)).toHaveLength(1)
       expect(closures(menuFromEdges(edges))).toBeGreaterThanOrEqual(2)
-      expect(Object.keys(i).sort()).toEqual(['cipher', 'crib', 'turnover'])
+      expect(Object.keys(i).sort()).toEqual(['cipher', 'crib', 'rotors', 'turnover', 'windows'])
+      // Before the turnover's press the right rotor shows its turnover letter; the press moves the middle rotor too.
+      const [before, after] = i.windows
+      expect(ROTORS[i.rotors[2]!].turnovers).toContain(before[2])
+      expect(after[1]).not.toBe(before[1])
+      expect(after[0]).toBe(before[0])
     }
     expect(turnovers.size).toBeGreaterThan(2)
   })

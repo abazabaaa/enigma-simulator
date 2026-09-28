@@ -16,7 +16,18 @@ import { liveCount, propagate, toyBombe } from '../../crypto/bombe'
 import { dayKey } from '../../crypto/generators'
 import { scramblerTables } from '../../crypto/tables'
 import { closures, loops, menuFromCrib, menuFromEdges, turnoverWithin, type MenuEdge } from '../../crypto/menu'
-import { LETTERS, ROTORS, createMachine, encipher, mod, normalizeConfig, type MachineConfig, type RotorName } from '../../engine'
+import {
+  LETTERS,
+  ROTORS,
+  createMachine,
+  encipher,
+  mod,
+  normalizeConfig,
+  positionsToString,
+  step,
+  type MachineConfig,
+  type RotorName,
+} from '../../engine'
 import { createRng, int, pick, randLetter, randomInvolution, sample, seedFor, shuffle, type Rng } from '../../lib/rng'
 import { letterItem, numbersItem, numbersMatch, verdict } from '../../lesson/kinds'
 
@@ -130,11 +141,13 @@ interface LoopToy {
   readonly tables: readonly string[]
   /** The three hypotheses for A's partner the bet offers, in alphabetical order. */
   readonly options: readonly Letter[]
+  /** The second loop T–N–S's scramblers (links 3, 12, 2), as the images of TOY_ALPHABET. */
+  readonly tables2: readonly string[]
 }
 
-function toyWalk(t: Pick<LoopToy, 'tables'>, x: Letter): Letter[] {
+function toyWalk(tables: readonly string[], x: Letter): Letter[] {
   const out = [x]
-  for (const table of t.tables) out.push(table[TOY_ALPHABET.indexOf(out.at(-1)!)] as Letter)
+  for (const table of tables) out.push(table[TOY_ALPHABET.indexOf(out.at(-1)!)] as Letter)
   return out
 }
 
@@ -154,44 +167,72 @@ function scramblerWith(r: Rng, n: number, x: number, y: number): number[] {
   return z
 }
 
+/** The second loop, T → N → S → T, and its links in vector 14 (T–N is 3, N–S 12, S–T 2). */
+export const TOY_BANKS2: readonly Letter[] = ['T', 'N', 'S']
+export const TOY_LINKS2: readonly number[] = [3, 12, 2]
+
 /** The toy's letters as the kit's internal letters A–H (TOY_ALPHABET[i] is LETTERS[i]), for propagate. */
 const internalOf = (l: Letter): Letter => LETTERS[TOY_ALPHABET.indexOf(l)]!
-const TOY_MENU = menuFromEdges(
-  TOY_BANKS.map((b, j) => ({ a: internalOf(b), b: internalOf(TOY_BANKS[(j + 1) % TOY_BANKS.length]!), pos: j + 1 })),
-)
+const loopEdges = (banks: readonly Letter[], first: number) =>
+  banks.map((b, j) => ({ a: internalOf(b), b: internalOf(banks[(j + 1) % banks.length]!), pos: first + j }))
+const TOY_MENU = menuFromEdges(loopEdges(TOY_BANKS, 1))
+/** Both loops as one menu (ATLK at internal positions 1–4, TNS at 5–7). */
+const TOY_MENU2 = menuFromEdges([...loopEdges(TOY_BANKS, 1), ...loopEdges(TOY_BANKS2, 5)])
 
 /**
  * The loop scene's toy: a hidden plugboard on the eight letters (A steckered), and for each link a scrambler that
- * pairs the partners of its two letters, so the true assumption survives the loop (as toyBombe builds its toys).
- * Chosen deterministically so that exactly one false assumption survives too, and A is not its own partner. The
- * three bet options are both survivors and one assumption that does not survive.
+ * pairs the partners of its two letters, so the true assumption survives every loop (as toyBombe builds its toys).
+ * Chosen deterministically so that exactly one false assumption survives the loop A–T–L–K too, the second loop
+ * T–N–S throws it out, and A is not its own partner. The three bet options are both survivors of the first loop and
+ * one assumption that does not survive it.
  */
 export const LOOP_TOY: LoopToy & { readonly scramblers: readonly (readonly number[])[] } = (() => {
-  const banks = TOY_BANKS.map((b) => TOY_ALPHABET.indexOf(b))
+  const index = (banks: readonly Letter[]) => banks.map((b) => TOY_ALPHABET.indexOf(b))
+  const tablesOf = (zs: readonly (readonly number[])[]) => zs.map((z) => z.map((i) => TOY_ALPHABET[i]!).join(''))
   for (let seed = 1; ; seed++) {
     const r = createRng(seedFor('iii10-loop-toy', seed))
     const S = randomInvolution(r, 8, 1 + int(r, 3))
     if (S[0] === 0) continue
-    const scramblers = banks.map((b, j) => scramblerWith(r, 8, S[b]!, S[banks[(j + 1) % banks.length]!]!))
-    const tables = scramblers.map((z) => z.map((i) => TOY_ALPHABET[i]!).join(''))
-    const survivors = TOY_ALPHABET.filter((x) => toyWalk({ tables }, x).at(-1) === x)
-    if (survivors.length !== 2 || survivors.includes('A') || !survivors.includes(TOY_ALPHABET[S[0]!]!)) continue
+    const loopScramblers = (banks: number[]) =>
+      banks.map((b, j) => scramblerWith(r, 8, S[b]!, S[banks[(j + 1) % banks.length]!]!))
+    const first = loopScramblers(index(TOY_BANKS))
+    const second = loopScramblers(index(TOY_BANKS2))
+    const tables = tablesOf(first)
+    const tables2 = tablesOf(second)
+    const truth = TOY_ALPHABET[S[0]!]!
+    const survivors = TOY_ALPHABET.filter((x) => toyWalk(tables, x).at(-1) === x)
+    if (survivors.length !== 2 || survivors.includes('A') || !survivors.includes(truth)) continue
+    // T's partner under each survivor, taken round T–N–S: only the true one comes back.
+    const back = (x: Letter) => {
+      const t = toyWalk(tables, x)[1]!
+      return toyWalk(tables2, t).at(-1) === t
+    }
+    if (!back(truth) || survivors.some((x) => x !== truth && back(x))) continue
     const moved = TOY_ALPHABET.filter((x) => x !== 'A' && !survivors.includes(x))
-    return { tables, options: [...survivors, pick(r, moved)].sort(), scramblers }
+    return { tables, tables2, options: [...survivors, pick(r, moved)].sort(), scramblers: [...first, ...second] }
   }
 })()
 
 /** The partners of A, T, L, K and A again, going round the toy loop from "A ↔ x" (direct table look-ups). */
-export const loopWalk = (x: Letter): Letter[] => toyWalk(LOOP_TOY, x)
+export const loopWalk = (x: Letter): Letter[] => toyWalk(LOOP_TOY.tables, x)
+
+/** The partners of T, N, S and T again round the second loop, starting from T's partner under "A ↔ x". */
+export const loopWalk2 = (x: Letter): Letter[] => toyWalk(LOOP_TOY.tables2, loopWalk(x)[1]!)
+
+/** A's live wires after propagating "A ↔ x" through the kit (one loop, or both). */
+function aWires(x: Letter, both: boolean): number {
+  const bank = internalOf('A')
+  const menu = both ? TOY_MENU2 : TOY_MENU
+  const scramblers = both ? LOOP_TOY.scramblers : LOOP_TOY.scramblers.slice(0, TOY_BANKS.length)
+  return liveCount(propagate(menu, scramblers, { bank, wire: internalOf(x) }, { n: 8, diagonal: false }), bank)
+}
 
 /**
- * Whether "A ↔ x" contradicts itself, from the bombe kit: propagate the assumption through the toy's menu; if the
- * loop comes back with a different partner, A's bank holds more than one live wire.
+ * Whether "A ↔ x" contradicts itself, from the bombe kit: propagate the assumption through the toy's menu (the loop
+ * A–T–L–K, or with `both` the two loops); a contradiction anywhere leaves A's bank with more than one live wire.
  */
-export function contradicts(x: Letter): boolean {
-  const bank = internalOf('A')
-  const ws = propagate(TOY_MENU, LOOP_TOY.scramblers, { bank, wire: internalOf(x) }, { n: 8, diagonal: false })
-  return liveCount(ws, bank) > 1
+export function contradicts(x: Letter, both = false): boolean {
+  return aWires(x, both) > 1
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +262,9 @@ export interface MenuInstance {
   readonly cipher: string
   /** The crib position (1-based) at whose key press the middle rotor steps: links from here on are flagged. */
   readonly turnover: number
+  /** The rotor order (left to right), and the windows just before and just after the turnover's key press. */
+  readonly rotors: readonly RotorName[]
+  readonly windows: readonly [string, string]
 }
 
 /** Rotor windows before the crib such that the middle rotor steps exactly at crib position t (rotors I–V). */
@@ -320,7 +364,10 @@ export function menuInstance(r: Rng): MenuInstance {
       if (!goodExercise(plain.slice(0, early.length), early)) continue
       if (turnoverWithin(day.rotors, start, 1, crib.length) !== t) continue
       const cipher = encipher(createMachine({ ...day, positions: start }), crib).output
-      const i = { crib, cipher, turnover: t }
+      let state = createMachine({ ...day, positions: start })
+      for (let k = 1; k < t; k++) state = step(state).state
+      const windows = [positionsToString(state), positionsToString(step(state).state)] as const
+      const i: MenuInstance = { crib, cipher, turnover: t, rotors: [...day.rotors], windows }
       const parts = pieces(usableLinks(i))
       if (cipher.startsWith(early.map(L).join('')) && parts.length >= 2 && parts.some((p) => closuresOf(p) >= 2)) return i
     }
@@ -386,7 +433,7 @@ export function buildMenuItem(id: string): ItemLogic<MenuInstance, number[]> {
     compute: false,
     inPage: true,
     generate: menuGenerate,
-    same: (a, b) => a.crib === b.crib && a.cipher === b.cipher && a.turnover === b.turnover,
+    same: (a, b) => a.crib === b.crib && a.cipher === b.cipher && a.turnover === b.turnover && a.windows[0] === b.windows[0],
     solve: menuSolution,
     check: menuCheck,
     sampleAnswer(i, r) {

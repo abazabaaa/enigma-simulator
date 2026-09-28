@@ -5,14 +5,25 @@
  * (play): Turing's expected stops for an 8-letter menu with 3 closures; the reveal shows his table from the facts.
  */
 
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import type { Letter } from '../../../contracts/core'
 import type { SceneProps } from '../../../contracts/lesson'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
 import { menuFromEdges } from '../../../crypto/menu'
 import { MenuGraph } from '../../../viz'
 import { FACTS } from '../facts'
-import { LOOP_TOY, TOY_ALPHABET, TOY_BANKS, TOY_LINKS, V14_MENU, contradicts, loopWalk } from '../gates'
+import {
+  LOOP_TOY,
+  TOY_ALPHABET,
+  TOY_BANKS,
+  TOY_BANKS2,
+  TOY_LINKS,
+  TOY_LINKS2,
+  V14_MENU,
+  contradicts,
+  loopWalk,
+  loopWalk2,
+} from '../gates'
 import { ToyTable } from './Parts'
 
 /** Turing's table (F18): expected stops per wheel order for an 8-letter menu, by closures. */
@@ -97,11 +108,57 @@ function FollowLoop({ onDone }: { onDone(): void }): JSX.Element {
   )
 }
 
+const link2Label = (j: number) =>
+  `Link ${TOY_LINKS2[j]}, ${TOY_BANKS2[j]}–${TOY_BANKS2[(j + 1) % TOY_BANKS2.length]}`
+
+/** The second loop T–N–S (links 3, 12, 2) run on the survivors of the first: only the true pair comes back. */
+function SecondLoop({ survivors }: { survivors: readonly Letter[] }): JSX.Element {
+  const left = survivors.filter((x) => !contradicts(x, true))
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3" data-testid="second-loop" aria-live="polite">
+      <h3 className="font-semibold text-stone-100">A second closure</h3>
+      <p>
+        The menu has another loop through T: T–N–S (links 3, 12 and 2). Each survivor above also fixed T’s partner, so take that
+        partner round the second loop.
+      </p>
+      <div className="flex flex-col gap-2">
+        {LOOP_TOY.tables2.map((t, j) => (
+          <ToyTable key={j} alphabet={TOY_ALPHABET} images={t} label={link2Label(j)} testId={`loop2-table-${TOY_LINKS2[j]}`} />
+        ))}
+      </div>
+      <ul className="flex flex-col gap-1">
+        {survivors.map((x) => {
+          const w = loopWalk2(x)
+          const ok = !contradicts(x, true)
+          return (
+            <li key={x} data-testid={`loop2-option-${x}`} data-contradicts={String(!ok)}>
+              A ↔ {x} gave T ↔ {w[0]}:{' '}
+              <span className="font-mono">
+                {w.map((q, j) => `${TOY_BANKS2[j % TOY_BANKS2.length]}↔${q}`).join(' → ')}
+              </span>
+              : {ok ? `T comes back with ${w[0]}: it survives.` : `T comes back with ${w[3]}, not ${w[0]}: a contradiction.`}
+            </li>
+          )
+        })}
+      </ul>
+      <p data-testid="second-loop-result">
+        {survivors.length} survivors of one loop, {left.length} of two
+        {left.length === 1 ? `: only A ↔ ${left[0]} is left, the stop worth checking.` : '.'} That is what closures buy.
+      </p>
+    </section>
+  )
+}
+
 export function LoopView(p: SceneProps): JSX.Element {
   const ran = useRevealFired('contradicts')
   const played = useRevealFired('stops')
   const resolved = useRef(new Set<string>())
+  const [followed, setFollowed] = useState(false)
   const { completeTask, bet } = p
+  const onFollowed = useCallback(() => {
+    completeTask('follow-loop')
+    setFollowed(true)
+  }, [completeTask])
   // Computed from the kit once the run reveal has fired (never before the bet).
   const survivors = ran ? LOOP_TOY.options.filter((x) => !contradicts(x)) : []
 
@@ -157,9 +214,10 @@ export function LoopView(p: SceneProps): JSX.Element {
             can be the true pair; the others are false stops, and one loop cannot tell them apart. Every further closure is one more
             test a wrong assumption has to pass.
           </p>
-          <FollowLoop onDone={() => completeTask('follow-loop')} />
+          <FollowLoop onDone={onFollowed} />
         </section>
       ) : null}
+      {ran && followed ? <SecondLoop survivors={survivors} /> : null}
       {played ? (
         <section className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3" data-testid="stop-table" aria-live="polite">
           <h3 className="font-semibold text-stone-100">Turing’s table: expected stops per wheel order, 8-letter menu</h3>
