@@ -181,7 +181,7 @@ export function CyclometerView(p: SceneProps): JSX.Element {
                     ? cycleSet.has(l)
                       ? 'border-amber-300 bg-amber-300 text-stone-950'
                       : 'border-sky-300 bg-sky-300 text-stone-950'
-                    : 'border-stone-700 text-stone-500'
+                    : 'border-stone-700 text-stone-400'
                 }`}
               >
                 {l}

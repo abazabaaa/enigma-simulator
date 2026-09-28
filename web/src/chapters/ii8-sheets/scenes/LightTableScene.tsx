@@ -57,7 +57,7 @@ export function LightTableView(p: SceneProps): JSX.Element {
       </p>
       <ol className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4" data-testid="light-table-females">
         {d.females.map((m, k) => (
-          <li key={k} className={`flex gap-2 ${k < shown ? 'text-stone-100' : 'text-stone-500'}`}>
+          <li key={k} className={`flex gap-2 ${k < shown ? 'text-amber-100' : 'text-stone-400'}`}>
             <span className="w-5 text-right text-xs text-stone-400">{k + 1}.</span>
             <Mono>{m.setting}</Mono>
             <Indicator m={m} />

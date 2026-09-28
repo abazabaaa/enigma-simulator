@@ -358,7 +358,7 @@ function PlugsPreview({ instance }: { instance: PlugsInstance }): JSX.Element {
         {blocks.map((b) => (
           <table key={b} className="font-mono text-sm leading-tight">
             <tbody>
-              <tr className="text-stone-500">
+              <tr className="text-stone-400">
                 <th scope="row" className="pr-1 text-left text-[10px] font-normal">
                   cipher
                 </th>
