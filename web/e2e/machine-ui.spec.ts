@@ -1,5 +1,15 @@
 import AxeBuilder from '@axe-core/playwright'
-import { createMachine, encipher, normalizeConfig, positionsToString, pressKey, type MachineConfigInput } from '../src/engine'
+import {
+  createMachine,
+  encipher,
+  machinePermutation,
+  normalizeConfig,
+  positionsToString,
+  pressKey,
+  step,
+  withPositions,
+  type MachineConfigInput,
+} from '../src/engine'
 import { encodeConfig } from '../src/machine-ui/urlCodec'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
@@ -17,7 +27,7 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     await expect(page.getByTestId(`lamp-${expected.output}`)).toHaveAttribute('data-lit', 'true')
     const r = await readings(page)
     expect(r.litLamps).toEqual([expected.output])
-    expect(r.announcer).toBe(`A lights ${expected.output}. Rotors now A A B.`)
+    expect(r.announcer).toBe(`Rotors stepped to A A B; A lit ${expected.output}.`)
     // Space works too, and the focus stays on the key.
     await page.keyboard.press('Space')
     await expect.poll(() => enigma(page).then((s) => s.input)).toBe('AA')
@@ -38,14 +48,28 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     expect((await enigma(page)).input).toBe('HELLO')
   })
 
-  test('the announcer reads "Q lights E. Rotors now A E W." exactly', async ({ page, stage }) => {
+  test('after touching a slider or a select, physical typing still presses keys', async ({ page, stage }) => {
+    await openSandbox(page, { stage })
+    await page.getByTestId('key-Q').click()
+    await page.getByTestId('playback-scrub').focus()
+    await page.keyboard.type('abc')
+    await expect.poll(() => enigma(page).then((s) => s.input)).toBe('QABC')
+    const speed = page.getByTestId('playback-speed')
+    await speed.focus()
+    await page.keyboard.type('id') // 'i' would jump the select to "Instant" by type-ahead
+    await expect.poll(() => enigma(page).then((s) => s.input)).toBe('QABCID')
+    await expect(speed).toHaveValue('1')
+    await expect(page.getByTestId('tape-input')).toHaveText('QABCI D')
+  })
+
+  test('the announcer reads "Rotors stepped to A E W; Q lit E." exactly', async ({ page, stage }) => {
     await openSandbox(page, { stage })
     await setConfig(page, ADV)
     const expected = pressKey(createMachine(ADV), 'Q')
     expect(positionsToString(expected.state)).toBe('AEW')
     await page.getByTestId('key-Q').click()
     const announcer = page.getByTestId('announcer')
-    await expect(announcer).toHaveText(`Q lights ${expected.output}. Rotors now A E W.`)
+    await expect(announcer).toHaveText(`Rotors stepped to A E W; Q lit ${expected.output}.`)
     await expect(announcer).toHaveAttribute('role', 'status')
     await expect(announcer).toHaveAttribute('aria-live', 'polite')
 
@@ -53,7 +77,7 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     await gotoApp(page, '/lab/stage?preset=wire&locks=lampsHidden', { stage })
     await setConfig(page, ADV)
     await page.getByTestId('key-Q').click()
-    await expect(announcer).toHaveText('Q pressed. Rotors now A E W.')
+    await expect(announcer).toHaveText('Rotors stepped to A E W; Q pressed.')
     await expect(page.locator('[data-testid^="lamp-"][data-lit="true"]')).toHaveCount(0)
     await expect(page.getByTestId('trace-row-10')).toHaveAttribute('data-output', '?')
   })
@@ -219,9 +243,22 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     o = await pageOverflow(page)
     expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
 
-    // The sideways-scrolling stage stays accessible at this width.
+    // The sideways-scrolling stage and the next-press PermTable stay accessible at this width.
     await openSandbox(page, { stage })
     await page.getByTestId('key-Q').click()
+    await page.getByTestId('next-press').locator('summary').click()
+    const table = page.getByTestId('next-perm-scroll')
+    await expect(table).toHaveAttribute('data-scrollable', 'true')
+    await expect(table).toHaveAttribute('tabindex', '0')
+    await expect(table).toHaveAttribute('role', 'region')
+    const s = await enigma(page)
+    const next = machinePermutation(step(withPositions(createMachine(s.config), s.positions)).state)
+    const cells = await page.locator('[data-testid^="next-perm-cell-"]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.value))
+    expect(cells).toEqual(next.map((v) => String.fromCharCode(65 + v)))
+    const minCell = await page.locator('[data-testid="next-perm-cell-0"]').evaluate((e) => e.getBoundingClientRect().width)
+    expect(minCell).toBeGreaterThanOrEqual(27.5) // 1.75rem: scrolls rather than shrinks
+    o = await pageOverflow(page)
+    expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
     const results = await new AxeBuilder({ page }).analyze()
     const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)
     expect(bad).toEqual([])
