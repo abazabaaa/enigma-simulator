@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore, type ComponentType, t
 import type { GateKey } from '../../contracts/core'
 import type { GateBinding, ItemRuntimeView, Rollback } from '../../contracts/lesson'
 import type { Highlight, PartId } from '../../contracts/stage'
+import { ANSWER_CONTROL, firstUsable, focusSettled } from './focus'
 import { createMachine, step } from '../../engine'
 import { useMachineApi } from '../../state/activeMachine'
 import { useStageStore } from '../../state/stageStore'
@@ -168,13 +169,14 @@ export function GateRunner(p: {
     const item = sectionRef.current?.querySelector('[data-current="true"]')
     if (!item) return
     moveFocus.current = false
-    const control =
-      feedback || level === 3
-        ? item.querySelector<HTMLElement>('[data-testid="gate-continue"]')
-        : item.querySelector<HTMLElement>(
-            '[data-role="answer"] :is(input, textarea, select, button, [tabindex="0"]):not([disabled]):not([tabindex="-1"])',
-          )
-    ;(control ?? item.querySelector<HTMLElement>('[data-testid="item-prompt"]'))?.focus()
+    // The first control that can take the focus: a locked keyboard before a set-machine item's own controls is
+    // skipped (aria-disabled / inert keys), and the focus is put back if a lock lands just after this render.
+    const onContinue = !!feedback || level === 3
+    focusSettled(
+      () =>
+        (onContinue ? firstUsable(item, '[data-testid="gate-continue"]') : firstUsable(item, ANSWER_CONTROL)) ??
+        item.querySelector<HTMLElement>('[data-testid="item-prompt"]'),
+    )
   }, [displayedKey, feedback, level])
 
   // One persistent polite live region for the gate's news.

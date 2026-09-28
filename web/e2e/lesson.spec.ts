@@ -205,6 +205,13 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
       await continueGate(page)
       const l1 = await current(page)
       expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
+      if (c.kind === 'set-machine') {
+        // Round 3 (from PR 10): the locked keyboard comes first; the focus skips its keys for a working control.
+        const focused = page.locator('[data-role="answer"] :focus')
+        await expect(focused).toHaveCount(1)
+        expect((await focused.getAttribute('data-testid')) ?? '').not.toMatch(/^key-/)
+        expect(await focused.evaluate((el) => el.matches(':disabled') || el.closest('[inert]') !== null)).toBe(false)
+      }
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
       // Round 3: L1 comes from the ANSWERED instance (c), the wrong answer and its check, not from the fresh
       // instance (l1) the learner now sees. (The code item's answer is the runner's; its highlight ignores it.)
