@@ -4,8 +4,8 @@
  * Before 15 Sept 1938 every operator typed his 3-letter message key TWICE at the day's Grundstellung, so the first
  * six cipher letters of every message came from the same six machine permutations A…F (the machine at presses
  * 1…6 from the Grundstellung). Each is an involution, so the indicator s₁…s₆ of key k₁k₂k₃ gives
- * AD: s₁ ↦ s₄ (A sends s₁ to k₁, D sends k₁ to s₄), BE: s₂ ↦ s₅ and CF: s₃ ↦ s₆. The cycle type of each product is
- * unchanged by the plugboard (conjugation), and its cycles come in equal-length pairs.
+ * AD: s₁ ↦ s₄ (A sends s₁ to k₁, D sends k₁ to s₄), BE: s₂ ↦ s₅ and CF: s₃ ↦ s₆.
+ * The cycle type of each product is unchanged by the plugboard (conjugation), and its cycles come in equal-length pairs.
  */
 
 import {

@@ -52,6 +52,7 @@ export function CatalogueHistogram(p: CatalogueHistogramProps): JSX.Element {
   const band = plotW / Math.max(1, bins.length)
   const barW = Math.min(24, band - 2)
   const mark = p.highlight !== undefined ? Number(p.highlight) : NaN
+  const summary = bins.map((b) => `${range(b)}: ${b.characteristics}`).join('; ')
   const markBin = Number.isFinite(mark) ? bins.findIndex((b) => mark >= b.lo && mark <= b.hi) : -1
 
   return (
@@ -64,7 +65,7 @@ export function CatalogueHistogram(p: CatalogueHistogramProps): JSX.Element {
         {fmt(unique)} characteristics name a single setting; the largest bucket holds {fmt(stats.maxBucket)}.
       </figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-xl" role="img"
-        aria-label={`Histogram: characteristics by bucket size, ${bins.map((b) => `${range(b)}: ${b.characteristics}`).join('; ')}`}>
+        aria-label={`Histogram: characteristics by bucket size, ${summary}`}>
         {Array.from({ length: decades + 1 }, (_, d) => {
           const v = 10 ** d
           const yy = y(v)
@@ -85,7 +86,9 @@ export function CatalogueHistogram(p: CatalogueHistogramProps): JSX.Element {
           const r = Math.min(4, h / 2, barW / 2)
           return (
             <g key={b.lo} data-bin={range(b)} data-count={b.characteristics}>
-              <title>{`bucket size ${range(b)}: ${fmt(b.characteristics)} characteristics, ${fmt(b.settings)} settings`}</title>
+              <title>
+                {`bucket size ${range(b)}: ${fmt(b.characteristics)} characteristics, ${fmt(b.settings)} settings`}
+              </title>
               <rect x={M.left + i * band} y={M.top} width={band} height={plotH} fill="transparent" />
               {h > 0 && (
                 <path fill={fill}

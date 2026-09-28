@@ -178,7 +178,8 @@ export function unpackCatalogue(p: PackedCatalogue): Catalogue {
     const list: CatalogueEntry[] = []
     for (let i = p.starts[k]!; i < p.starts[k + 1]!; i++) {
       const code = p.codes[i]!
-      list.push({ rotors: orders[Math.floor(code / POSITIONS_PER_ORDER)]!, positions: POSITION_STRINGS[code % POSITIONS_PER_ORDER]! })
+      const rotors = orders[Math.floor(code / POSITIONS_PER_ORDER)]!
+      list.push({ rotors, positions: POSITION_STRINGS[code % POSITIONS_PER_ORDER]! })
     }
     map.set(key, list)
   })

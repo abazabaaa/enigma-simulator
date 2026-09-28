@@ -35,7 +35,11 @@ export interface WireState {
   readonly n: number
   readonly live: readonly (readonly boolean[])[]
   /** Every wire in the order it went live; `via` is the menu edge's pos, the diagonal board, or the hypothesis. */
-  readonly order: readonly { readonly bank: number; readonly wire: number; readonly via: number | 'hypothesis' | 'diagonal' }[]
+  readonly order: readonly {
+    readonly bank: number
+    readonly wire: number
+    readonly via: number | 'hypothesis' | 'diagonal'
+  }[]
 }
 
 /**

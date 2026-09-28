@@ -309,7 +309,8 @@ function Bombe26Demo(): JSX.Element {
           Run the whole wheel order, board off and on
         </button>
         <span aria-live="polite">
-          {runs.busy ? 'running…' : runs.on ? `${stopsText(runs.off!.length)} without the board, ${runs.on.length} with it` : ''}
+          {runs.busy ? 'running…' : runs.on ? `${stopsText(runs.off!.length)} without the board, ${runs.on.length} with it`
+            : ''}
         </span>
       </div>
     </>
@@ -330,7 +331,8 @@ export function VizLabPage(): JSX.Element {
       <Section id="cycles" title="CycleDiagram" note="AD from the 65 indicators. Pick a letter to highlight its cycle.">
         <CyclesDemo />
       </Section>
-      <Section id="align" title="CycleAlign" note="AD’s two 10-cycles; written backwards, one of the ten shifts is Rejewski’s A.">
+      <Section id="align" title="CycleAlign"
+        note="AD’s two 10-cycles; written backwards, one of the ten shifts is Rejewski’s A.">
         <AlignDemo />
       </Section>
       <Section id="catalogue" title="CatalogueHistogram"

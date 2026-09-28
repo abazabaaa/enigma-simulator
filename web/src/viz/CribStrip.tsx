@@ -1,4 +1,4 @@
-import type { JSX, KeyboardEvent } from 'react'
+import { useEffect, useRef, type JSX, type KeyboardEvent } from 'react'
 import { crashes } from '../crypto/cribs'
 import type { CribStripProps } from './types'
 
@@ -29,8 +29,18 @@ export function CribStrip(p: CribStripProps): JSX.Element {
       move(keys[e.key]!)
     }
   }
-  const valueText = `offset ${offset}: ${hits.length === 0 ? 'no crash' : `${hits.length} crash${hits.length > 1 ? 'es' : ''}`}`
+  const crashText = hits.length === 0 ? 'no crash' : `${hits.length} crash${hits.length > 1 ? 'es' : ''}`
+  const valueText = `offset ${offset}: ${crashText}`
   const width = cipher.length * CELL + 2 * PAD
+  const scroller = useRef<HTMLDivElement>(null)
+  // keep the crib in view when it moves along a long cipher
+  useEffect(() => {
+    const el = scroller.current
+    if (!el || el.clientWidth === 0) return
+    const x = PAD + offset * CELL
+    const end = x + crib.length * CELL
+    if (x < el.scrollLeft || end > el.scrollLeft + el.clientWidth) el.scrollLeft = Math.max(0, x - PAD)
+  }, [offset, crib.length])
   const strip = (
     <svg viewBox={`0 0 ${width} 86`} width={width} height={86} aria-hidden="true" className="block">
       {cipher.split('').map((c, k) => {
@@ -68,12 +78,12 @@ export function CribStrip(p: CribStripProps): JSX.Element {
       {interactive ? (
         <div role="slider" tabIndex={0} aria-label="Crib position under the cipher text" aria-valuemin={0}
           aria-valuemax={max} aria-valuenow={offset} aria-valuetext={valueText} onKeyDown={onKey}
-          data-testid={`${testId}-slider`}
+          data-testid={`${testId}-slider`} ref={scroller}
           className="max-w-full overflow-x-auto rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
           {strip}
         </div>
       ) : (
-        <div role="img" aria-label={`Crib ${crib} under ${cipher} at ${valueText}`}
+        <div role="img" aria-label={`Crib ${crib} under ${cipher} at ${valueText}`} ref={scroller}
           className="max-w-full overflow-x-auto">
           {strip}
         </div>

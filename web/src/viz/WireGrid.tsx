@@ -29,6 +29,8 @@ export function WireGrid(p: WireGridProps): JSX.Element {
   const right = 30
   const W = left + n * cell + right
   const H = topPad + n * cell + 4
+  const registerText = `test register ${p.testLetter}: ${rowLive[test]} live`
+  const gridLabel = `Wire grid, ${n} banks by ${n} wires: ${via.size} live; ${registerText}`
   const [focus, setFocus] = useState(test * n)
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
 
@@ -49,7 +51,7 @@ export function WireGrid(p: WireGridProps): JSX.Element {
       data-test-live={rowLive[test]} data-step={events.length} data-diagonal={String(p.diagonal)}>
       <div className="relative w-full" style={{ maxWidth: `${Math.max(W, 260)}px`, aspectRatio: `${W} / ${H}` }}>
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img"
-          aria-label={`Wire grid, ${n} banks by ${n} wires: ${via.size} live; test register ${p.testLetter} has ${rowLive[test]} live`}>
+          aria-label={gridLabel}>
           {Array.from({ length: n }, (_, i) => (
             <g key={i}>
               <text x={left + i * cell + cell / 2} y={12} textAnchor="middle" fontSize={n <= 8 ? 12 : 9}

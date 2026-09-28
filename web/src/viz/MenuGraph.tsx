@@ -62,6 +62,7 @@ export function MenuGraph(p: MenuGraphProps): JSX.Element {
   for (const e of all) groups.set(key(e), [...(groups.get(key(e)) ?? []), e])
 
   const letterCount = p.menu.letters.length
+  const edgeList = menuEdges.map((e) => `${e.a}–${e.b} at ${e.pos}`).join(', ') || 'no edges'
   const onRemoveKey = (pos: number) => (e: KeyboardEvent) => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault()
@@ -73,7 +74,7 @@ export function MenuGraph(p: MenuGraphProps): JSX.Element {
     <div className="flex flex-col gap-3" data-testid={testId} data-closures={count} data-edges={menuEdges.length}
       data-letters={letterCount} data-loops={found.map((l) => l.join('')).join(' ')}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-xl" role="img"
-        aria-label={`Menu: ${menuEdges.map((e) => `${e.a}–${e.b} at ${e.pos}`).join(', ') || 'no edges'}; ${count} closures`}>
+        aria-label={`Menu: ${edgeList}; ${count} closures`}>
         {all.map((e) => {
           const [x1, y1] = place.get(e.a)!
           const [x2, y2] = place.get(e.b)!
