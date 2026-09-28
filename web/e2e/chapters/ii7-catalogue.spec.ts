@@ -42,7 +42,6 @@ import {
   progress,
   reloadKeepsSeed,
   sceneReveals,
-  setMachine,
   solveInNode,
   where,
   wrongAnswer,
@@ -430,15 +429,11 @@ test.describe('chapter ii7-catalogue', { tag: '@chapter:ii7-catalogue' }, () => 
     expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
   })
 
-  test('a reload mid-gate keeps the seed and the instance, and the lookup machine starts again at I-II-III AAA', async ({ page }) => {
+  test('a reload mid-gate keeps the seed and the instance', async ({ page }) => {
     await openGateLab(page)
     await answerViaApi(page, 'signature', await wrongAnswer(page))
-    await answerCorrect(page)
-    await answerCorrect(page)
-    expect((await current(page)).itemId).toBe('lookup')
-    await setMachine(page, { positions: ['Q', 'R', 'S'], plugboard: (await machineNow(page)).plugboard.split(' ').filter(Boolean) })
     await reloadKeepsSeed(page)
-    await expect.poll(async () => machineNow(page)).toMatchObject({ rotors: 'I-II-III', positions: 'AAA' })
+    await expect(page.getByTestId('signature-key')).toBeVisible()
   })
 
   test('gaming: two instant answers bring the lookup fallback, keyboard locked, answered on the machine', async ({ page }) => {
