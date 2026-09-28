@@ -13,22 +13,34 @@ npm ci
 npm run dev        # http://localhost:5173/enigma-simulator/
 ```
 
-The home page is a placeholder. The hidden engine dev page is at
-`http://localhost:5173/enigma-simulator/#/engine`: type A–Z to press keys and watch the rotor windows,
-the lampboard, the tape and the signal trace.
+The course, the machine and the 3D view arrive PR by PR; `docs/PLAN.md` (repository root) is the
+build plan and its §3 holds the interface contracts in `src/contracts/`. Useful pages today:
+`#/lab/stage` (every stage preset on a demo machine) and `#/engine` (the engine as text: type A–Z).
 
 ## Scripts
 
-| Script               | What it does                                                      |
-| -------------------- | ----------------------------------------------------------------- |
-| `npm run dev`        | Vite dev server                                                   |
-| `npm run build`      | Production build into `dist/`                                     |
-| `npm run preview`    | Serve `dist/` (same base path as GitHub Pages)                    |
-| `npm run typecheck`  | `tsc -b` over the app, tests, configs and e2e specs               |
-| `npm test`           | Vitest unit tests, run once (`src/**/*.test.ts`)                  |
-| `npm run test:watch` | Vitest in watch mode                                              |
-| `npm run e2e`        | Playwright end-to-end tests (builds, then runs `vite preview`)    |
-| `npm run check`      | `typecheck` + `test` + `build`: run this before every commit      |
+| Script               | What it does                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `npm run dev`        | Vite dev server                                                               |
+| `npm run build`      | `vite build` into `dist/`, then `scripts/postbuild.mjs` copies `index.html` to `404.html` |
+| `npm run preview`    | Serve `dist/` (same base path as GitHub Pages)                                |
+| `npm run typecheck`  | `tsc -b`: app, unit tests (`tsconfig.test.json`), configs and e2e specs       |
+| `npm test`           | Vitest, run once: `src/**/*.test.{ts,tsx}`, at most 2 workers                 |
+| `npm run test:watch` | Vitest in watch mode                                                          |
+| `npm run check`      | typecheck, test, build, `scripts/budget.mjs`, `scripts/ownership-check.mjs`: run before every push |
+| `npm run e2e`        | Playwright, projects `2d` and `3d` (builds, then runs `vite preview`)         |
+| `npm run e2e:pr`     | Playwright, project `2d` only                                                 |
+| `npm run e2e:3d`     | Playwright, project `3d` only                                                 |
+| `npm run e2e:walk`   | Playwright, the course walk (`@walk`)                                         |
+| `npm run review`     | The headless review walk (`playwright.review.config.ts`, specs in `e2e/review/`, output in `review-artifacts/`) |
+
+Every Playwright command needs **`E2E_PORT`** outside CI (the config refuses to start without it):
+builders use `41NN` and reviewers `51NN`, where NN is the PR number, so agents sharing the machine
+never collide. CI defaults to 4173. Example: `E2E_PORT=4102 npm run e2e:pr -- --grep "@smoke|@platform"`.
+
+**Budgets** (`scripts/budget.mjs`, from `dist/.vite/manifest.json`, gzip): entry chunk ≤ 170 kB;
+the 3D view (`src/machine3d/index.tsx` and its static imports) ≤ 400 kB and never in the entry;
+effects ≤ 130 kB; each chapter chunk ≤ 80 kB; the code editor ≤ 150 kB.
 
 Python helpers (run them from the repository root, no dependencies needed):
 
@@ -40,22 +52,58 @@ python3 tools/export_vectors.py --check    # CI: fail if the committed JSON is s
 
 The JSON fixture is committed, so the TypeScript tests never need Python. Never edit it by hand.
 
+## Flags
+
+URL flags go **before** the hash, so they survive navigation between routes
+(`/enigma-simulator/?e2e=1&stage=2d#/lab/stage?preset=pawls`). They are parsed by `src/lib/flags.ts`.
+
+| Flag                  | Effect                                                                            |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `?e2e=1`              | Enables the e2e-only hooks (`__course.completeTasks`, `unlockAll`, …); remembered for the tab in sessionStorage; `?e2e=0` clears it |
+| `?stage=2d` / `3d`    | Forces the 2D view, or asks for 3D (used only when the 3D view exists and WebGL 2 works) |
+| `?motion=reduce`/`full` | Overrides reduced motion (beats the stored preference and `prefers-reduced-motion`) |
+| `?seed=<salt>`        | Fixes the progress salt                                                           |
+
+Routes (PLAN §2.3): `#/`, `#/course`, `#/c/:chapter[/:scene]`, `#/machine?k=<codec>`, `#/engine`,
+`#/lab/stage?preset=<id>&locks=<csv>&model=<I|M3|M4>&ghost=demo&toy=6|8`, `#/lab/fixture[/:scene]`,
+`#/lab/gate/:chapter/:gate` and `#/lab/viz`. A path-style link (`/enigma-simulator/course`, served
+by `404.html` on GitHub Pages) is rewritten to the hash route at startup.
+
 ## Testing
 
-- **Unit tests (Vitest)** in `src/engine/__tests__/` cover every published vector in
-  `vectors.json`, the stepping and ring rules, the trace, config validation, and property tests
-  (involution, no self-encryption, fixed-point-free involutive machine permutations, M4 ≡ M3
-  equivalence) over hundreds of configurations from a seeded PRNG.
-- **End-to-end tests (Playwright)** in `e2e/` drive the production build through `window.__enigma`
-  and real keyboard events, asserting state and DOM text, never pixels. Wait for the page to render
-  (for example `await expect(page.getByRole('heading')).toBeVisible()`) before typing: the keyboard
-  listener is attached when the page first renders.
+- **Unit tests (Vitest)** live next to the code as `*.test.ts`, or `*.test.tsx` whose first line is
+  `// @vitest-environment happy-dom`. The engine suites cover every published vector, the stepping
+  and ring rules, the trace, validation and property tests; the platform suites cover the contracts'
+  pure helpers, the stores (locks, hold, setters, isolation), playback, toys, key-space figures,
+  StageHost, the ownership check and the bans below.
+- **End-to-end tests (Playwright)** in `e2e/` drive the production build through `window.__enigma`,
+  `window.__stage` and `window.__course`, asserting state, never pixels. Every spec
+  `import { test, expect } from './fixtures'`, which fails the test on any console error, page error,
+  failed same-origin request or unexpected WebGL context loss (`allowContextLoss()` opts out), and
+  opens pages with `gotoApp(page, '/route', { stage })` from `e2e/helpers/app.ts`.
+- **Projects and tags.** Each spec carries a tag: `@smoke`, `@platform`, `@area:<x>`, `@chapter:<id>`,
+  `@3d`, `@sync` or `@walk`. Project `2d` runs everything but `@3d` and `@walk`, with the 2D stage and
+  reduced motion; project `3d` runs `@3d` and `@sync`; project `walk` runs `@walk`. Locally use one
+  worker (the default) and run only your own tags plus `@smoke|@platform`; CI runs everything.
+- **Bans** (`src/lint/bans.test.ts`): no `waitForTimeout`, `test.only`, `page.pause` or
+  `toHaveScreenshot` in `e2e/`; no `console.log` in `src/` outside `src/debug`; no `.solve(` and no
+  1900–1949 years in chapter scenes or `items.tsx`.
 - `@playwright/test` is pinned to exactly **1.56.0**, which matches the Chromium 141 build installed
   in the dev container at `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH`). In that container never run
   `npx playwright install`. CI runners install their own browser with
   `npx playwright install --with-deps chromium`.
-- Chromium runs headless with `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`, so
-  WebGL 2 works without a GPU. A smoke test checks that WebGL 2 is available.
+- Chromium runs headless with SwiftShader (`--use-gl=angle --use-angle=swiftshader
+  --enable-unsafe-swiftshader --ignore-gpu-blocklist`), so WebGL 2 works without a GPU.
+
+## Ownership
+
+`ownership.json` maps every PR of the build plan to the files it may change (repository-root globs:
+`owns`, `stubs` it creates for another PR, and `amend` paths allowed only in a commit whose message
+carries the tag, e.g. PR 07's `[contracts-v2]`). `scripts/ownership-check.mjs` runs inside
+`npm run check`: on a branch `claude/enigma/NN-*` every file touched by a non-merge commit since the
+base must belong to PR NN. The rules are read from the base, so a PR cannot grant itself files.
+For a stacked PR set `OWNERSHIP_BASE=origin/<base branch>` (the default is the integration branch);
+other branches print `ownership: skipped`. Only the coordinator edits `ownership.json` after PR 02.
 
 ## Base path and deployment
 
@@ -64,24 +112,51 @@ The JSON fixture is committed, so the TypeScript tests never need Python. Never 
 reads the same variable, so the e2e tests always match the build. Routing uses the URL hash
 (`#/engine`) because GitHub Pages has no SPA fallback.
 
-`.github/workflows/web.yml` runs on pushes to `master` and on every pull request: the Python oracle,
-the fixture freshness check, `npm ci`, `npm run check` and the Playwright tests. On pushes to `master`
-it then deploys `web/dist` to GitHub Pages. This needs a one-off repository setting:
-**Settings → Pages → Source: GitHub Actions**.
+`.github/workflows/web.yml` runs on pushes to `master` and the integration branch, on every pull
+request and on demand. Jobs: `check` (Python oracle, `tools/export_*.py --check`, `npm run check`
+with the ownership base of the PR), `e2e` (project `2d` in two shards), `e2e-3d`, `walk` (pushes
+only), `pages-artifact` (pushes to the integration branch or `master`: builds with
+`VITE_BASE=/enigma-simulator/` and uploads the Pages artifact) and `deploy` (`master` only). Deploying
+needs a one-off repository setting: **Settings → Pages → Source: GitHub Actions**.
 
 ## Source layout
 
 ```
-src/
-  engine/            pure TypeScript Enigma engine: no dependencies, no React (public API: index.ts)
-    __fixtures__/    vectors.json, generated by tools/export_vectors.py
-    __tests__/       Vitest suites + seeded-PRNG helpers
-  state/             Zustand store holding the current MachineState (the single source of truth)
-  debug/             window.__enigma
-  pages/             HomePage (placeholder) and EngineDevPage (#/engine)
-  router.ts          tiny hash router; App.tsx holds the route table
-e2e/                 Playwright specs
+docs/PLAN.md         the build plan (repository root)
+web/
+  ownership.json     which PR owns which files; scripts/ownership-check.mjs enforces it
+  scripts/           ownership-check.mjs, budget.mjs, postbuild.mjs
+  src/
+    engine/          pure TypeScript Enigma engine: no dependencies, no React (public API: index.ts)
+    contracts/       the interface contracts (PLAN §3): types plus pure helpers (STAGE_PRESETS,
+                     resolveStage, dimmedParts, hopAt, …). Frozen at [contracts-v1]
+    lib/             rng (seeded), toy (6/8-letter machines), keyspace (BigInt figures), symbols
+                     (slot colours) and Sym, storage, flags, reducedMotion
+    state/           machineStore (createMachineStore, locks), activeMachine (MachineProvider),
+                     playbackStore (the only animation clock), stageStore, toyStore, uiStore, sync
+    stage/           StageHost (3D or 2D), StagePlaceholder, stageApi (window.__stage)
+    stage2d/         the SVG stage (PR 04)
+    machine3d/       the 3D machine (PRs 06, 11); ready.ts gates it
+    machine-ui/      the DOM machine: keyboard, lamps, rotors, plugboard, trace, tape (PR 04)
+    lesson/, code/   the lesson runtime and code runner (PR 05)
+    crypto/, viz/    Rejewski and bombe kits and their views (PR 08)
+    content/         registry.ts: the 14 chapters, each loaded lazily
+    chapters/<id>/   one folder per chapter (placeholders until each chapter PR)
+    pages/           one lazily loaded page per route; App.tsx maps routes to pages
+    debug/           window.__enigma
+    lint/            bans and ownership-check tests
+    router.ts        hash router: useRoute() → { path, pattern, params, query }
+  e2e/               Playwright specs, fixtures.ts, helpers/
 ```
+
+## `window.__stage` (e2e contract)
+
+Installed in every build by `src/stage/stageApi.ts` (types in `src/contracts/hooks.ts`):
+`info()` returns the latest `StageReport` of the mounted view (renderer, focus, dimmed, highlighted,
+litLamp, windows, hop, pathPoints, ghost) plus the resolved `directive` and the playback `seq` and
+`t`; `playback()` returns `{ t, hops, seq, playing, gated }`; `stats()` returns the 3D renderer stats,
+or `null` when no 3D view is mounted. `dimmed` always equals `dimmedParts(focus, model)` from
+`src/contracts/stage.ts`, which e2e specs import in Node to compare.
 
 ## Engine conventions
 
@@ -144,7 +219,8 @@ drives the same Zustand store as the UI.
 window.__enigma: {
   version: 1                                        // bumped on breaking changes
   getState(): EnigmaSnapshot                        // plain JSON
-  pressKey(letter: string): Letter                  // one key press; returns the lamp
+  pressKey(letter: string): Letter                  // one key press; returns the lamp. Throws
+                                                    // MachineLockedError while locks.keyboard is set
   setConfig(cfg: Partial<MachineConfigInput>): EnigmaSnapshot
                                                     // merged into the current config, validated
                                                     // (throws EnigmaConfigError), then reset
