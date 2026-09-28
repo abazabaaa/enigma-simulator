@@ -391,6 +391,26 @@ export function stopInstance(r: Rng, ctx: Pick<GenCtx, 'attempt'>): StopInstance
   }
 }
 
+/** Scenarios per class in the pool. */
+export const STOP_POOL_SIZE = 96
+const stopPools = new Map<boolean, readonly StopInstance[]>()
+
+/**
+ * The stop-verdict scenarios of one class (false stops or true ones), each made by stopInstance from its own fixed
+ * seed: built once, on first use (about a tenth of a second), so drawing an instance is a pick. The pool is the same
+ * for every learner; which scenario comes up depends on the instance seed.
+ */
+export function stopPool(wantFalse: boolean): readonly StopInstance[] {
+  let pool = stopPools.get(wantFalse)
+  if (!pool) {
+    pool = Array.from({ length: STOP_POOL_SIZE }, (_, k) =>
+      stopInstance(createRng(seedFor('iii12-stop-pool', String(wantFalse), k)), { attempt: wantFalse ? 1 : 3 }),
+    )
+    stopPools.set(wantFalse, pool)
+  }
+  return pool
+}
+
 export function stopSolution(i: StopInstance): StopAnswer {
   const c = canonicalLog(i)
   if (c.conflict) return { verdict: 'contradiction', letter: c.conflict.letters[0]!, log: c.log }
@@ -449,8 +469,7 @@ export function stopVerdictItem(id: string): ItemLogic<StopInstance, StopAnswer>
     rule: WINDOW,
     compute: true,
     inPage: true,
-    lintSeeds: 150,
-    generate: (r, ctx) => stopInstance(r, ctx),
+    generate: (r, ctx) => pick(r, stopPool(falseStopAttempt(ctx.attempt))),
     same: (a, b) => sameJson(a, b),
     solve: stopSolution,
     check: stopCheck,

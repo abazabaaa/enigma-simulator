@@ -22,7 +22,9 @@ import {
   keyScenario,
   replay,
   sceneCheckData,
+  STOP_POOL_SIZE,
   setKey,
+  stopPool,
   stopVerdict,
   trueStopsTruth,
   windowsAfter,
@@ -142,6 +144,17 @@ describe('the checking machine (replay)', () => {
 })
 
 describe('stop-verdict', () => {
+  it('the pools: 96 distinct scenarios per class, each the first qualifying stop of its own scan, varied', () => {
+    for (const wantFalse of [true, false]) {
+      const pool = stopPool(wantFalse)
+      expect(pool).toHaveLength(STOP_POOL_SIZE)
+      expect(new Set(pool.map((x) => JSON.stringify(x))).size).toBe(STOP_POOL_SIZE)
+      expect(new Set(pool.map((x) => x.rotors.join(' '))).size).toBeGreaterThan(20)
+      expect(new Set(pool.map((x) => x.crib)).size).toBeGreaterThan(5)
+      for (const x of pool) expect(canonicalLog(x).conflict === null).toBe(!wantFalse)
+    }
+  })
+
   it('the true stop on every third attempt, false stops otherwise; nothing in the instance says which', () => {
     for (let s = 0; s < SEEDS; s++) {
       for (const attempt of [1, 2, 3, 4, 5, 6]) {
