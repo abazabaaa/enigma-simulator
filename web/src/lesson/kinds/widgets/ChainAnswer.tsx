@@ -43,7 +43,8 @@ export function ChainAnswer({
           <li key={s.id} className="flex flex-col items-center gap-1 rounded-md border border-stone-700 p-2">
             <label className="flex flex-col items-center gap-1 text-xs text-stone-400">
               <span>
-                {STAGES.has(s.id) ? <Sym s={symForStage(s.id as TraceStage)} inv={s.id.endsWith('-bwd')} /> : null} {s.label}
+                {STAGES.has(s.id) ? <Sym s={symForStage(s.id as TraceStage)} inv={s.id.endsWith('-bwd')} /> : null}{' '}
+                {s.label}
               </span>
               <input
                 data-testid={`answer-chain-${s.id}`}
@@ -52,7 +53,10 @@ export function ChainAnswer({
                 disabled={disabled}
                 autoComplete="off"
                 onChange={(e) => {
-                  const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(-1)
+                  const v = e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z]/g, '')
+                    .slice(-1)
                   setTokens((t) => t.map((x, j) => (j === k ? v : x)))
                 }}
               />

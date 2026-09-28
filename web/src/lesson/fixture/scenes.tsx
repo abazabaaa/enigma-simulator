@@ -49,10 +49,13 @@ export function BetsPressView(p: SceneProps): JSX.Element {
       {lampFired && last ? <p data-testid="lamp-result">That press lit {last.output}.</p> : null}
       {stepFired && last ? (
         <p>
-          On that press the {(['right', 'middle', 'left'] as const).filter((k) => last.stepping.stepped[k]).join(' and ')} rotor moved.
+          On that press the{' '}
+          {(['right', 'middle', 'left'] as const).filter((k) => last.stepping.stepped[k]).join(' and ')} rotor moved.
         </p>
       ) : null}
-      {countFired ? <p data-testid="hop-count">One key press sends the current through {last?.trace.length ?? 11} stages.</p> : null}
+      {countFired ? (
+        <p data-testid="hop-count">One key press sends the current through {last?.trace.length ?? 11} stages.</p>
+      ) : null}
       {all ? <p>Now press two more keys of your choice.</p> : null}
     </div>
   )
@@ -66,7 +69,10 @@ export function BetsToggleView(p: SceneProps): JSX.Element {
   const [lamps, setLamps] = useState<{ b: string; c: string } | null>(null)
   useEffect(() => {
     if (!searched || hits !== null) return
-    const out = encipher(createMachine({ model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'AAA' }), 'A'.repeat(26)).output
+    const out = encipher(
+      createMachine({ model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'AAA' }),
+      'A'.repeat(26),
+    ).output
     const n = [...out].filter((c) => c === 'A').length
     setHits(n)
     p.bet('search').resolve(n === 0 ? 'never' : 'sometimes')
@@ -74,7 +80,10 @@ export function BetsToggleView(p: SceneProps): JSX.Element {
   useEffect(() => {
     if (!toggled || lamps) return
     const lamp = (reflector: 'B' | 'C') =>
-      pressKey(createMachine({ model: 'I', reflector, rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'AAA' }), 'A').output
+      pressKey(
+        createMachine({ model: 'I', reflector, rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'AAA' }),
+        'A',
+      ).output
     const next = { b: lamp('B'), c: lamp('C') }
     setLamps(next)
     p.bet('flip').resolve(next.b === next.c ? 'same' : 'changes')

@@ -25,7 +25,11 @@ function hopsMatch(expect: unknown, hops: readonly PathHop[] | undefined): boole
   if (!Array.isArray(expect) || !hops || hops.length !== expect.length) return false
   return expect.every((e: { stage?: string; input?: string; output?: string }, k) => {
     const h = hops[k]!
-    return (e.stage === undefined || e.stage === h.stage) && (e.input === undefined || e.input === h.input) && e.output === h.output
+    return (
+      (e.stage === undefined || e.stage === h.stage) &&
+      (e.input === undefined || e.input === h.input) &&
+      e.output === h.output
+    )
   })
 }
 
@@ -60,11 +64,15 @@ export function summarizeRun(cases: readonly CodeCase[], res: RunResponse, insta
       }
     }
     if (ok) passed++
-    else firstFailure ??= {
-      label: c.label,
-      expected: c.compare === 'hops' ? display((c.expect as { output: string }[]).map((h) => h.output).join('')) : display(c.expect),
-      actual,
-    }
+    else
+      firstFailure ??= {
+        label: c.label,
+        expected:
+          c.compare === 'hops'
+            ? display((c.expect as { output: string }[]).map((h) => h.output).join(''))
+            : display(c.expect),
+        actual,
+      }
   })
   return {
     status: passed === total && total > 0 ? 'pass' : 'fail',

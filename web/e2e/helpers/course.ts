@@ -25,9 +25,17 @@ export type GateState = NonNullable<ReturnType<NonNullable<Window['__course']>['
 // Page state
 // ---------------------------------------------------------------------------
 
-export const where = (page: Page) => page.evaluate(() => window.__course!.where())
-export const gate = (page: Page) => page.evaluate(() => window.__course!.gate())
-export const events = (page: Page) => page.evaluate(() => window.__course!.events()) as Promise<LessonEvent[]>
+/**
+ * Chapters, and the lesson runtime itself, load lazily after the route: until they have, where() reads as
+ * nowhere and gate() as null (never a thrown error), so callers poll instead of racing the chunk.
+ */
+export const where = (page: Page) =>
+  page.evaluate(
+    () =>
+      window.__course?.where() ?? { chapter: null, scene: null, index: -1, kind: null, canNext: false, locked: false },
+  )
+export const gate = (page: Page) => page.evaluate(() => window.__course?.gate() ?? null)
+export const events = (page: Page) => page.evaluate(() => window.__course?.events() ?? []) as Promise<LessonEvent[]>
 export const progress = (page: Page) => page.evaluate(() => window.__course!.progress())
 
 /** The event variant(s) whose `type` can be T ('scene.enter' and 'scene.complete' share one variant). */
@@ -45,12 +53,17 @@ export async function eventsOf<T extends LessonEvent['type']>(page: Page, type: 
 
 /** The current item of the page's active gate (throws when there is none). */
 export async function current(page: Page): Promise<ItemRuntimeView & { gateKey: string }> {
-  await expect.poll(async () => (await gate(page))?.current?.attempt ?? 0, { message: 'the current item is shown' }).toBeGreaterThan(0)
+  await expect
+    .poll(async () => (await gate(page))?.current?.attempt ?? 0, { message: 'the current item is shown' })
+    .toBeGreaterThan(0)
   const g = (await gate(page))!
   return { ...g.current!, gateKey: g.key }
 }
 
-export async function configure(page: Page, o: Parameters<NonNullable<Window['__course']>['configure']>[0]): Promise<void> {
+export async function configure(
+  page: Page,
+  o: Parameters<NonNullable<Window['__course']>['configure']>[0],
+): Promise<void> {
   await page.evaluate((opts) => window.__course!.configure(opts), o)
 }
 
@@ -77,6 +90,7 @@ export async function enter(
   if (o.configure !== false) await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
   if (o.unlock ?? chapter !== 'prologue') await page.evaluate(() => window.__course!.unlockAll())
   await expect.poll(async () => (await where(page)).scene, { message: `${chapter} opened` }).not.toBeNull()
+  await settled(page)
 }
 
 /** Jump to a scene already reached (through the URL), and wait until it shows. */
@@ -84,6 +98,29 @@ export async function sceneTo(page: Page, scene: string): Promise<void> {
   const w = await where(page)
   await page.evaluate((hash) => (location.hash = hash), `#${chapterPath(w.chapter!)}/${scene}`)
   await expect.poll(async () => (await where(page)).scene).toBe(scene)
+  await settled(page)
+}
+
+/**
+ * The page has settled after a navigation: the (lazily loaded) chapter shows its scene, or a gate page its
+ * gate; a gate or recall scene also shows its gate with a current item (or has passed).
+ */
+export async function settled(page: Page): Promise<void> {
+  await expect
+    .poll(async () => (await where(page)).scene !== null || (await gate(page)) !== null, {
+      message: 'the page has loaded',
+    })
+    .toBe(true)
+  const w = await where(page)
+  if (w.scene === null || w.kind === 'gate' || w.kind === 'recall') {
+    await expect(page.getByTestId('gate').first()).toBeVisible()
+    await expect
+      .poll(async () => {
+        const g = await gate(page)
+        return !!g && (g.passed || (g.current?.attempt ?? 0) > 0)
+      })
+      .toBe(true)
+  }
 }
 
 /** Click scene-next (asserting it is enabled first) and wait for the next scene or the chapter's completion. */
@@ -99,6 +136,7 @@ export async function nextScene(page: Page): Promise<void> {
       return w.index > before.index || (await eventsOf(page, 'chapter.complete')).length > completions
     })
     .toBe(true)
+  await settled(page)
 }
 
 /** scene-next is aria-disabled until the scene can advance. */
@@ -177,13 +215,17 @@ export async function fireReveal(page: Page, reveal: RevealSpec): Promise<void> 
   } else {
     await page.getByTestId(`reveal-${reveal.bet}`).click()
   }
-  await expect.poll(async () => (await eventsOf(page, 'reveal')).length, { message: `reveal ${reveal.bet} fired` }).toBe(before + 1)
+  await expect
+    .poll(async () => (await eventsOf(page, 'reveal')).length, { message: `reveal ${reveal.bet} fired` })
+    .toBe(before + 1)
   if (reveal.trigger === 'press' || reveal.trigger === 'step') {
     await expect
-      .poll(() => page.evaluate(() => {
-        const p = window.__stage!.playback()
-        return !p.gated && !p.playing && p.hops > 0 && p.t === 1 + p.hops
-      }))
+      .poll(() =>
+        page.evaluate(() => {
+          const p = window.__stage!.playback()
+          return !p.gated && !p.playing && p.hops > 0 && p.t === 1 + p.hops
+        }),
+      )
       .toBe(true)
   }
 }
@@ -207,7 +249,9 @@ export async function logicFor(gateKey: string, itemId: string, fallback: boolea
     return l
   }
   const mod: GatesModule =
-    chapter === 'lab-fixture' ? await import('../../src/lesson/fixture/gates.ts') : await import(`../../src/chapters/${chapter}/gates.ts`)
+    chapter === 'lab-fixture'
+      ? await import('../../src/lesson/fixture/gates.ts')
+      : await import(`../../src/chapters/${chapter}/gates.ts`)
   const g = mod.GATES[gateId]
   if (!g) throw new Error(`No gate ${gateId} in ${chapter}`)
   const l = fallback ? g.fallback : g.items.find((i) => i.id === itemId)
@@ -235,7 +279,12 @@ export async function wrongAnswer(page: Page, seed = 1): Promise<unknown> {
 }
 
 /** Submit through __course.answer (the UI's path), then continue past the feedback. */
-export async function answerViaApi(page: Page, itemId: string, answer: unknown, o: { continue?: boolean } = {}): Promise<CheckResult> {
+export async function answerViaApi(
+  page: Page,
+  itemId: string,
+  answer: unknown,
+  o: { continue?: boolean } = {},
+): Promise<CheckResult> {
   const res = await page.evaluate(([id, a]) => window.__course!.answer(id as string, a), [itemId, answer] as const)
   await expect(page.getByTestId('rollback')).toBeVisible()
   if (o.continue !== false) await continueGate(page)
@@ -276,7 +325,10 @@ export async function passGate(page: Page, o: { max?: number } = {}): Promise<vo
 // ---------------------------------------------------------------------------
 
 /** Set a machine config through the controls when they exist (04's RotorControls), else through __enigma. */
-export async function setMachine(page: Page, cfg: { positions: readonly string[]; plugboard: readonly string[] } & Record<string, unknown>): Promise<'ui' | 'api'> {
+export async function setMachine(
+  page: Page,
+  cfg: { positions: readonly string[]; plugboard: readonly string[] } & Record<string, unknown>,
+): Promise<'ui' | 'api'> {
   const slots = cfg.positions.length === 4 ? ['greek', 'left', 'middle', 'right'] : ['left', 'middle', 'right']
   const hasSpin = await page.getByTestId(`rotor-pos-${slots.at(-1)}`).count()
   const plugsNow = await page.evaluate(() => window.__enigma!.getState().config.plugboard.join(' '))
@@ -322,7 +374,7 @@ export async function answerViaUi(page: Page, kind: ItemRuntimeView['kind'], ans
         const item = page.getByTestId(`answer-order-${id}`)
         const at = Number(await item.getAttribute('data-index'))
         for (let n = at; n > k; n--) {
-          await page.getByTestId(`answer-order-${id}`).focus()
+          await page.getByTestId(`answer-order-grab-${id}`).focus()
           await page.keyboard.press('Alt+ArrowUp')
         }
         await expect(page.getByTestId(`answer-order-${id}`)).toHaveAttribute('data-index', String(k))
@@ -332,7 +384,8 @@ export async function answerViaUi(page: Page, kind: ItemRuntimeView['kind'], ans
     case 'chain': {
       const c = await current(page)
       const stages = (c.instance as { stages: { id: string }[] }).stages
-      for (const [k, s] of stages.entries()) await page.getByTestId(`answer-chain-${s.id}`).fill(String((answer as string[])[k]))
+      for (const [k, s] of stages.entries())
+        await page.getByTestId(`answer-chain-${s.id}`).fill(String((answer as string[])[k]))
       break
     }
     case 'set-machine':
@@ -402,7 +455,8 @@ function serialisations(solution: unknown): string[] {
   if (typeof solution === 'string' && solution.length >= 4) out.push(solution)
   if (Array.isArray(solution) && solution.length >= 3) {
     if (solution.every((x) => typeof x === 'string' && x.length === 1)) out.push(solution.join(''))
-    if (solution.every((x) => typeof x === 'number')) out.push(solution.join(' '), solution.join(', '), solution.join(','))
+    if (solution.every((x) => typeof x === 'number'))
+      out.push(solution.join(' '), solution.join(', '), solution.join(','))
   }
   return out.filter((s) => s.length >= 4)
 }
@@ -416,13 +470,22 @@ export async function assertNoAnswerLeak(page: Page): Promise<void> {
   const c = await current(page)
   const l = await logicFor(c.gateKey, c.itemId, c.fallback)
   const solution = l.solve(c.instance)
+  // Nothing answer-bearing on the stage during a question: no ghost, no reference, no divergence marker.
+  await expect
+    .poll(() => page.evaluate(() => window.__stage!.info().ghost), { message: 'a ghost is drawn during the question' })
+    .toBe(false)
+  if (l.kind === 'ghost-pick') {
+    const divergeAt = (c.instance as { ghost?: { divergeAt?: number } }).ghost?.divergeAt ?? -1
+    expect(divergeAt, 'the ghost-pick question carries its divergence').toBeLessThan(0)
+  }
   const scan = await page.evaluate(() => {
     const root = document.body.cloneNode(true) as HTMLElement
     // Worked examples show other instances; the editor and inputs hold the learner's own text.
     root.querySelectorAll('[data-testid="worked-example"], textarea, input').forEach((e) => e.remove())
     const attrs: string[] = []
     root.querySelectorAll('*').forEach((el) => {
-      for (const a of el.getAttributeNames()) if (/^data-(answer|solution|expected|correct-answer)$/.test(a)) attrs.push(a)
+      for (const a of el.getAttributeNames())
+        if (/^data-(answer|solution|expected|correct-answer)$/.test(a)) attrs.push(a)
     })
     const hidden = [...document.querySelectorAll('input[type="hidden"]')].map((i) => (i as HTMLInputElement).value)
     return { html: root.innerHTML, text: root.innerText ?? root.textContent ?? '', attrs, hidden }
@@ -438,7 +501,10 @@ export async function assertNoAnswerLeak(page: Page): Promise<void> {
   if (l.kind === 'code') {
     const { codeTaskOf } = await import('../../src/lesson/kinds/index.ts')
     const ref = codeTaskOf(l)?.reference ?? ''
-    const body = ref.split('\n').map((x) => x.trim()).filter((x) => x && !/^function|^}$|^\/\//.test(x))
+    const body = ref
+      .split('\n')
+      .map((x) => x.trim())
+      .filter((x) => x && !/^function|^}$|^\/\//.test(x))
     for (const line of body) expect(scan.html.includes(line), `the reference line "${line}" is rendered`).toBe(false)
   }
 }
@@ -467,7 +533,9 @@ export async function assertLadder(page: Page, o: { puzzle?: boolean; highlights
     if (want === 1 && o.highlights !== false) {
       const l = await logicFor(now.gateKey, now.itemId, now.fallback)
       const parts = l.highlight(now.instance, wrong).map((h) => h.part)
-      await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toEqual(expect.arrayContaining(parts))
+      await expect
+        .poll(() => page.evaluate(() => window.__stage!.info().highlighted))
+        .toEqual(expect.arrayContaining(parts))
     }
     if (want === 2) {
       const seed = Number(await page.getByTestId('worked-example').getAttribute('data-seed'))
@@ -499,6 +567,7 @@ export async function reloadKeepsSeed(page: Page): Promise<void> {
   const before = await current(page)
   await page.reload()
   await waitForApp(page)
+  await settled(page)
   const after = await current(page)
   expect(after.seed).toBe(before.seed)
   expect(after.attempt).toBe(before.attempt)
@@ -537,6 +606,7 @@ export async function completeTasks(page: Page): Promise<void> {
  * trigger, then completeTasks for free exploration; gate/recall → every item via the API. Then Next.
  */
 export async function completeScene(page: Page, o: { onScene?: (scene: string) => Promise<void> } = {}): Promise<void> {
+  await settled(page)
   const w = await where(page)
   await o.onScene?.(w.scene!)
   if (w.kind === 'explore') {

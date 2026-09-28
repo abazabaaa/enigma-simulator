@@ -9,9 +9,15 @@ function parseList(s: string): number[] | null {
 }
 
 /** `count` number fields, or a free list ('any'). */
-export function NumbersAnswer({ instance, disabled, submit }: WidgetProps<{ count: number | 'any' }, number[]>): JSX.Element {
+export function NumbersAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<{ count: number | 'any' }, number[]>): JSX.Element {
   const count = instance.count
-  const [fields, setFields] = useState<string[]>(() => (count === 'any' ? [''] : Array.from({ length: count }, () => '')))
+  const [fields, setFields] = useState<string[]>(() =>
+    count === 'any' ? [''] : Array.from({ length: count }, () => ''),
+  )
   const values = count === 'any' ? parseList(fields[0] ?? '') : fields.map((f) => (f.trim() === '' ? NaN : Number(f)))
   const valid = values !== null && values.every((x) => Number.isFinite(x)) && (count !== 'any' || true)
   const go = () => {

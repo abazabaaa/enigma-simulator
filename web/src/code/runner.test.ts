@@ -29,7 +29,8 @@ describe('countLines', () => {
   })
 
   it('counts each function separately', () => {
-    const src = 'function compose(p, q) {\n  return p.map((x) => q[x])\n}\nfunction inverse(p) {\n  const out = []\n  p.forEach((x, i) => (out[x] = i))\n  return out\n}'
+    const src =
+      'function compose(p, q) {\n  return p.map((x) => q[x])\n}\nfunction inverse(p) {\n  const out = []\n  p.forEach((x, i) => (out[x] = i))\n  return out\n}'
     expect(countLines(src, 'compose')).toBe(1)
     expect(countLines(src, 'inverse')).toBe(3)
   })
@@ -38,12 +39,14 @@ describe('countLines', () => {
 describe('executeRequest (the worker core, run in Node)', () => {
   it('runs the calls and captures console output instead of printing it', () => {
     const log = vi.spyOn(console, 'info')
-    const res = executeRequest(req('function double(x) {\n  console.info("hi", x)\n  return x * 2\n}', {
-      calls: [
-        { fn: 'double', args: [21] },
-        { fn: 'double', args: [-3] },
-      ],
-    }))
+    const res = executeRequest(
+      req('function double(x) {\n  console.info("hi", x)\n  return x * 2\n}', {
+        calls: [
+          { fn: 'double', args: [21] },
+          { fn: 'double', args: [-3] },
+        ],
+      }),
+    )
     expect(res).toEqual({ id: 1, ok: true, results: [{ value: 42 }, { value: -6 }], logs: ['hi 21', 'hi -3'] })
     expect(log).not.toHaveBeenCalled()
     log.mockRestore()
@@ -62,14 +65,20 @@ describe('executeRequest (the worker core, run in Node)', () => {
     expect(executeRequest(req('const double = 42'))).toMatchObject({ ok: false, error: 'missing-fn' })
   })
 
-  it.each(['fetch("https://example.com")', 'importScripts("x.js")', 'new XMLHttpRequest()', 'new WebSocket("wss://x")', 'indexedDB.open("x")'])(
-    'the shim for %s throws',
-    (call) => {
-      const res = executeRequest(req(`function double(x) {\n  ${call}\n  return x * 2\n}`))
-      expect(res.ok).toBe(true)
-      if (res.ok) expect(res.results[0]).toMatchObject({ error: expect.stringMatching(/not available in the code runner|is not a function|undefined/) })
-    },
-  )
+  it.each([
+    'fetch("https://example.com")',
+    'importScripts("x.js")',
+    'new XMLHttpRequest()',
+    'new WebSocket("wss://x")',
+    'indexedDB.open("x")',
+  ])('the shim for %s throws', (call) => {
+    const res = executeRequest(req(`function double(x) {\n  ${call}\n  return x * 2\n}`))
+    expect(res.ok).toBe(true)
+    if (res.ok)
+      expect(res.results[0]).toMatchObject({
+        error: expect.stringMatching(/not available in the code runner|is not a function|undefined/),
+      })
+  })
 
   it('turns runtime errors and top-level errors into per-call errors', () => {
     const res = executeRequest(req('function double(x) { return x.nope.deeper }'))
@@ -86,7 +95,13 @@ describe('executeRequest (the worker core, run in Node)', () => {
         instrument: 'keypress-parts',
       }),
     )
-    expect(res.ok && res.results[0]).toMatchObject({ value: 'Q', hops: [{ stage: 'rotor-right-fwd', output: 'B' }, { stage: 'reflector', output: 'Q' }] })
+    expect(res.ok && res.results[0]).toMatchObject({
+      value: 'Q',
+      hops: [
+        { stage: 'rotor-right-fwd', output: 'B' },
+        { stage: 'reflector', output: 'Q' },
+      ],
+    })
     const plain = executeRequest(req('function double(x) { parts.hop("reflector", "B", "Q"); return 1 }', { provided }))
     expect(plain.ok && plain.results[0]).toEqual({ value: 1 })
   })
@@ -129,7 +144,13 @@ describe('runner (fake worker adapter)', () => {
     vi.useFakeTimers()
     let n = 0
     const runner = createRunner(() => new FakeWorker(n++ === 0 ? 'hang' : 'echo'))
-    const pending = runner.run({ source: 'while (true) {}', provided: '', fnNames: ['double'], calls: [], timeoutMs: 1500 })
+    const pending = runner.run({
+      source: 'while (true) {}',
+      provided: '',
+      fnNames: ['double'],
+      calls: [],
+      timeoutMs: 1500,
+    })
     await vi.advanceTimersByTimeAsync(1499)
     expect(FakeWorker.all[0]!.terminated).toBe(false)
     await vi.advanceTimersByTimeAsync(2)
@@ -138,7 +159,13 @@ describe('runner (fake worker adapter)', () => {
     expect(FakeWorker.all[0]!.terminated).toBe(true)
     expect(runner.spawned()).toBe(2)
     vi.useRealTimers()
-    const next = await runner.run({ source: 'function double(x) { return 2 * x }', provided: '', fnNames: ['double'], calls: [{ fn: 'double', args: [4] }], timeoutMs: 1500 })
+    const next = await runner.run({
+      source: 'function double(x) { return 2 * x }',
+      provided: '',
+      fnNames: ['double'],
+      calls: [{ fn: 'double', args: [4] }],
+      timeoutMs: 1500,
+    })
     expect(next).toMatchObject({ ok: true, results: [{ value: 8 }] })
   })
 
@@ -161,7 +188,12 @@ describe('summarizeRun', () => {
     { label: 'a', fn: 'double', args: [1], expect: 2 },
     { label: 'b', fn: 'double', args: [2], expect: 4 },
   ]
-  const ok = (values: unknown[]): RunResponse => ({ id: 1, ok: true, results: values.map((value) => ({ value })), logs: [] })
+  const ok = (values: unknown[]): RunResponse => ({
+    id: 1,
+    ok: true,
+    results: values.map((value) => ({ value })),
+    logs: [],
+  })
 
   it('passes when every case matches, and fails on the first mismatch', () => {
     expect(summarizeRun(cases, ok([2, 4]), 9)).toEqual({ status: 'pass', passed: 2, total: 2, instanceSeed: 9 })
@@ -175,7 +207,10 @@ describe('summarizeRun', () => {
   })
 
   it('maps runner errors', () => {
-    expect(summarizeRun(cases, { id: 1, ok: false, error: 'timeout', message: 'x' }, 9)).toMatchObject({ status: 'timeout', passed: 0 })
+    expect(summarizeRun(cases, { id: 1, ok: false, error: 'timeout', message: 'x' }, 9)).toMatchObject({
+      status: 'timeout',
+      passed: 0,
+    })
     expect(summarizeRun(cases, { id: 1, ok: false, error: 'syntax', message: 'bad', line: 3 }, 9)).toMatchObject({
       status: 'error',
       firstFailure: { actual: 'bad (line 3)' },

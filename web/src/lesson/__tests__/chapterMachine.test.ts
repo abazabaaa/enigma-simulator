@@ -4,7 +4,13 @@ import { chapterContext, startChapter } from '../chapterMachine'
 function make(o: { count?: number; start?: number; reached?: number; can?: (i: number) => boolean } = {}) {
   const onComplete = vi.fn()
   const canAdvance = vi.fn(o.can ?? (() => true))
-  const actor = startChapter({ count: o.count ?? 4, start: o.start ?? 0, reached: o.reached ?? 0, canAdvance, onComplete })
+  const actor = startChapter({
+    count: o.count ?? 4,
+    start: o.start ?? 0,
+    reached: o.reached ?? 0,
+    canAdvance,
+    onComplete,
+  })
   return { actor, onComplete, canAdvance, ctx: () => chapterContext(actor) }
 }
 

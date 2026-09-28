@@ -5,7 +5,7 @@
  * window.__course drives the same controller (registered while mounted).
  */
 
-import { useEffect, useMemo, useSyncExternalStore, type ComponentType, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore, type ComponentType, type JSX } from 'react'
 import type { GateKey } from '../../contracts/core'
 import type { GateBinding, ItemRuntimeView, Rollback } from '../../contracts/lesson'
 import type { Highlight, PartId } from '../../contracts/stage'
@@ -98,7 +98,9 @@ export function GateRunner(p: {
   const current = view.current
   const currentLogic = current ? logic.items.find((it) => it.id === current.itemId)! : null
   const currentShown: Shown | null =
-    current && currentLogic && rec?.items[current.itemId] ? shownInstance(controller.ctx(), currentLogic, rec.items[current.itemId]!) : null
+    current && currentLogic && rec?.items[current.itemId]
+      ? shownInstance(controller.ctx(), currentLogic, rec.items[current.itemId]!)
+      : null
   const feedback = state.phase === 'feedback' ? state.last : null
   const displayed: Shown | null = feedback ? feedback.shown : currentShown
   const displayedKey = feedback
@@ -158,8 +160,49 @@ export function GateRunner(p: {
     return () => setGhost(null)
   }, [feedback, setGhost])
 
+  // After Submit, Continue or "Got it", focus follows: the Continue / "Got it" button, else the new instance's
+  // first control (or its prompt). Nothing moves focus on the first render.
+  const sectionRef = useRef<HTMLElement>(null)
+  const moveFocus = useRef(false)
+  useEffect(() => controller.subscribe(() => (moveFocus.current = true)), [controller])
+  const level = current?.hintLevel ?? 0
+  useEffect(() => {
+    if (!moveFocus.current) return
+    const item = sectionRef.current?.querySelector('[data-current="true"]')
+    if (!item) return
+    moveFocus.current = false
+    const control =
+      feedback || level === 3
+        ? item.querySelector<HTMLElement>('[data-testid="gate-continue"]')
+        : item.querySelector<HTMLElement>(
+            '[data-role="answer"] :is(input, textarea, select, button, [tabindex="0"]):not([disabled]):not([tabindex="-1"])',
+          )
+    ;(control ?? item.querySelector<HTMLElement>('[data-testid="item-prompt"]'))?.focus()
+  }, [displayedKey, feedback, level])
+
+  // One persistent polite live region for the gate's news.
+  const position = current ? view.items.findIndex((i) => i.itemId === current.itemId) + 1 : 0
+  const status = feedback
+    ? feedback.result.correct
+      ? `Correct.${feedback.passed ? ' Item passed.' : ''}`
+      : `Not quite. ${feedback.result.feedback ?? 'Look at the rollback.'}`
+    : view.passed
+      ? 'Gate passed.'
+      : current && current.attempt > 0
+        ? `Item ${position} of ${view.items.length}, attempt ${current.attempt}.${level === 3 ? ' Here is the solution for this instance.' : level > 0 ? ` Hint level ${level}.` : ''}`
+        : ''
+
   return (
-    <section data-testid="gate" data-gate={p.gateKey} data-passed={String(view.passed)} className="flex flex-col gap-3">
+    <section
+      ref={sectionRef}
+      data-testid="gate"
+      data-gate={p.gateKey}
+      data-passed={String(view.passed)}
+      className="flex flex-col gap-3"
+    >
+      <div role="status" aria-live="polite" className="sr-only" data-testid="gate-status">
+        {status}
+      </div>
       {p.title ? <h3 className="text-base font-semibold text-stone-200">{p.title}</h3> : null}
       <ol className="flex flex-col gap-2">
         {view.items.map((v, k) => {
@@ -182,7 +225,11 @@ export function GateRunner(p: {
                   {live.fallback ? ' · a hands-on variant' : ''}
                 </span>
                 <span>
-                  {v.passed ? 'passed' : v.rule.kind === 'window' ? '2 of your last 3 right to pass' : 'one right answer passes'}
+                  {v.passed
+                    ? 'passed'
+                    : v.rule.kind === 'window'
+                      ? '2 of your last 3 right to pass'
+                      : 'one right answer passes'}
                   {v.attempt > 0 ? ` · attempt ${v.attempt}` : ''}
                 </span>
               </div>
@@ -202,7 +249,10 @@ export function GateRunner(p: {
         })}
       </ol>
       {view.passed && !feedback ? (
-        <p data-testid="gate-passed" className="rounded-md border border-emerald-700 bg-emerald-950/30 p-2 text-sm text-emerald-200">
+        <p
+          data-testid="gate-passed"
+          className="rounded-md border border-emerald-700 bg-emerald-950/30 p-2 text-sm text-emerald-200"
+        >
           Gate passed.
         </p>
       ) : null}
@@ -233,10 +283,11 @@ function ItemBody(p: {
       // A second click while the first answer's feedback is showing: one outcome only.
     }
   }
-  const Widget = (itemUi.Answer ?? (displayed.logic.kind === 'custom' ? null : WIDGETS[displayed.logic.kind])) as ComponentType<WidgetProps> | null
+  const Widget = (itemUi.Answer ??
+    (displayed.logic.kind === 'custom' ? null : WIDGETS[displayed.logic.kind])) as ComponentType<WidgetProps> | null
   return (
     <div className="mt-2 flex flex-col gap-3">
-      <div className="text-sm text-stone-200" data-testid="item-prompt">
+      <div className="text-sm text-stone-200 focus:outline-none" data-testid="item-prompt" tabIndex={-1}>
         <Prompt instance={displayed.instance} hintLevel={level} />
       </div>
       {feedback ? (
@@ -262,15 +313,17 @@ function ItemBody(p: {
             onGotIt={() => controller.continue()}
           />
           {level < 3 && Widget ? (
-            <Widget
-              key={`${p.view.attempt}|${p.view.seed}`}
-              instance={displayed.instance}
-              disabled={false}
-              hintLevel={level}
-              submit={submit}
-              logic={displayed.logic}
-              itemKey={itemKeyOf(p.gateKey, p.view.itemId)}
-            />
+            <div data-role="answer">
+              <Widget
+                key={`${p.view.attempt}|${p.view.seed}`}
+                instance={displayed.instance}
+                disabled={false}
+                hintLevel={level}
+                submit={submit}
+                logic={displayed.logic}
+                itemKey={itemKeyOf(p.gateKey, p.view.itemId)}
+              />
+            </div>
           ) : null}
         </>
       )}
