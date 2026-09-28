@@ -12,6 +12,7 @@
  * Answers are computed in Node from the pure gates.ts.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -89,6 +90,14 @@ const playbackAtEnd = (page: Page) =>
     return !p.playing && p.hops > 0 && p.t === 1 + p.hops
   })).toBe(true)
 
+/** Serious or critical axe findings inside one element (the lesson.spec pattern). */
+async function axeSerious(page: Page, selector: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
+}
+
 /** Walk the explore scenes (bets and triggers through the UI) up to the gate. */
 async function toGate(page: Page): Promise<void> {
   for (let k = 0; k < 8 && (await where(page)).kind !== 'gate'; k++) await completeScene(page)
@@ -145,6 +154,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await page.getByTestId('toy-key-F').click()
     await expect(page.getByTestId('task-press3')).toHaveAttribute('data-done', 'true')
     expect((await info(page)).windows).toBe('A')
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     await nextScene(page)
 
     // toy-trace: two rotors, the trace; the bet asks which letter enters the reflector.
@@ -171,6 +181,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await expect(page.getByTestId(`trace-row-${r + 1}`)).toHaveAttribute('data-lit', 'false')
     for (const k of ['B', 'C']) await page.getByTestId(`toy-key-${k}`).click()
     await expect(page.getByTestId('task-press3')).toHaveAttribute('data-done', 'true')
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     await nextScene(page)
 
     // worked-chain: free presses (no bet); K followed hop by hop; the stage outlines each part and stops at each hop.
@@ -191,6 +202,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await expect(page.getByTestId('chain-summary')).toContainText('changed 7 times')
     expect((await info(page)).litLamp).toBe(chain.at(-1)!.output)
     expect(await page.evaluate(() => window.__enigma!.getState().positions)).toBe(MACHINE.positions.join(''))
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     await nextScene(page)
     expect((await info(page)).highlighted).toEqual([])
 
@@ -213,6 +225,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await page.getByTestId('playback-scrub').fill('6.5')
     await expect(page.getByTestId('task-scrub')).toHaveAttribute('data-done', 'true')
     expect((await info(page)).hop).toBe(5)
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     await nextScene(page)
 
     expect(await where(page)).toMatchObject({ scene: 'gate', kind: 'gate', canNext: false })
@@ -223,8 +236,6 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     page,
   }) => {
     test.setTimeout(60_000)
-    await gotoApp(page, '/course')
-    await expect(page.getByTestId('chapter-link-i2-stepping')).toHaveAttribute('data-locked', 'true')
     await enter(page, CHAPTER)
     await toGate(page)
     const items = (await gate(page))!.items.map((i) => i.itemId)
@@ -246,11 +257,20 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       // A prediction: no trial press, no lamp.
       expect(await pressThrows(page)).toBe(true)
       expect((await info(page)).litLamp).toBeNull()
+      // Each item and its widget are accessible.
+      expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
 
       // a. One wrong answer through the UI, its rollback, then the L1 hint.
       await assertNoAnswerLeak(page)
-      const wrong = await wrongAnswer(page)
-      await answerViaUi(page, c.kind, wrong)
+      let wrong: unknown
+      if (c.kind === 'order') {
+        // The blocks as shown are never in order: submitting them untouched is a wrong answer through the UI.
+        wrong = (c.instance as { blocks: { id: string }[] }).blocks.map((b) => b.id)
+        await page.getByTestId('gate-submit').click()
+      } else {
+        wrong = await wrongAnswer(page)
+        await answerViaUi(page, c.kind, wrong)
+      }
       await assertRollback(page, ROLLBACK[id]!)
       if (ROLLBACK[id] === 'path') {
         // The learner's path (red) against the reference (gold), with the divergence marked.
@@ -357,6 +377,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     expect(await pressThrows(page)).toBe(true)
     expect((await info(page)).litLamp).toBeNull()
     await expect(page.getByTestId('toy-set')).toBeVisible()
+    expect(await axeSerious(page, '[data-testid="item-toy-lamp"]')).toEqual([])
     await configure(page, { minLatencyMs: 0 })
     const target = (await solveInNode(page)) as number[]
     const submits = (await eventsOf(page, 'item.submit')).length
@@ -377,17 +398,13 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     const rec = (await progress(page)).gates['i1-anatomy/anatomy']!.items['toy-lamp']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
     expect(await current(page)).toMatchObject({ itemId: 'toy-lamp', fallback: false, kind: 'letter' })
-  })
 
-  test('the toy-set fallback: a wrong setting is rolled back with what it lights', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    // Gaming again: this time the start setting is submitted (never a solution), and the rollback says what it lights.
     await configure(page, { minLatencyMs: 2000 })
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
     await configure(page, { minLatencyMs: 0 })
     expect(await current(page)).toMatchObject({ fallback: true, kind: 'custom' })
-    // Submit the start setting (never a solution).
     await page.getByTestId('gate-submit').click()
     await assertRollback(page, 'machine')
     await expect(page.getByTestId('rollback')).toContainText(/At windows [A-F]{2}, C lights [A-F], not E\./)

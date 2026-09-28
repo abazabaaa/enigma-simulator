@@ -8,11 +8,7 @@ import type { ChapterDef, SceneDef } from '../../contracts/lesson'
 import { bindGates } from '../../lesson/bind'
 import { FACTS } from './facts'
 import { GATES, GATE_MACHINE, HELD, MACHINE, PATH_KEY, READ_ONLY, TOY_ONE, TOY_TRACE_KEY, TOY_TWO, TOY_WIRE_KEY } from './gates'
-// The e2e typecheck (tsconfig.node.json, no `jsx` yet in this base) reaches this file through content/registry.ts:
-// it must not follow the .tsx imports (TS6142). Remove these directives once "jsx" is enabled there (02).
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { ITEM_UI } from './items'
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { Path26View, ToyTraceView, ToyWireView, WorkedChainView } from './scenes'
 
 const STORY =

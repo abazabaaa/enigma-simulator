@@ -4,6 +4,7 @@
  * ciphertext), Begin to the Prologue, resume where the learner left off, the sandbox link and the course map.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
@@ -52,6 +53,9 @@ test.describe('home', { tag: '@area:home' }, () => {
     await expect(page.getByTestId('chapter-link-prologue')).toHaveAttribute('data-locked', 'false')
     await expect(page.getByTestId('home-sandbox')).toHaveAttribute('href', '#/machine')
     await expect(page.getByTestId('home-resume')).toHaveCount(0)
+    // axe: no serious or critical findings on the page.
+    const axe = await new AxeBuilder({ page }).analyze()
+    expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
     await page.getByTestId('home-begin').click()
     await expect.poll(async () => (await where(page)).chapter).toBe('prologue')
     expect(await where(page)).toMatchObject({ scene: 'scherbius', index: 0 })

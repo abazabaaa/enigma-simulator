@@ -10,6 +10,7 @@
  *  - @3d: the first mechanism scene reports focus overview and dimmedParts in the 3D view, and typing lights a lamp.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -39,6 +40,14 @@ const betResults = async (page: Page) =>
   Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
 
 const tape = async (page: Page, id: 'tape-input' | 'tape-output') => ((await page.getByTestId(id).textContent()) ?? '').replace(/\s/g, '')
+
+/** Serious or critical axe findings inside one element (the lesson.spec pattern). */
+async function axeSerious(page: Page, selector: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
+}
 
 /** Type `word` with the DOM keys, one click per letter. */
 async function typeKeys(page: Page, word: string): Promise<void> {
@@ -102,6 +111,7 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await expect.poll(() => tape(page, 'tape-output')).toBe('HELLO')
     await expect(page.getByTestId('roundtrip')).toHaveAttribute('data-done', 'true')
     await expect(page.getByTestId('task-roundtrip')).toHaveAttribute('data-done', 'true')
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     await nextScene(page)
 
     // brute-force: the Play button waits for the bet; the figure is computed by lib/keyspace.
@@ -125,6 +135,7 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await page.getByTestId('rate-slider').fill('0')
     await expect(years).not.toHaveText(before ?? '')
     expect(await betResults(page)).toEqual({ 'own-letter': false, brute: true })
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
 
     // 8. chapter.complete, and I.1 unlocks.
     await nextScene(page)
