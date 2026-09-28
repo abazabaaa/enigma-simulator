@@ -37,8 +37,8 @@ describe('countLines', () => {
 
 describe('executeRequest (the worker core, run in Node)', () => {
   it('runs the calls and captures console output instead of printing it', () => {
-    const log = vi.spyOn(console, 'log')
-    const res = executeRequest(req('function double(x) {\n  console.log("hi", x)\n  return x * 2\n}', {
+    const log = vi.spyOn(console, 'info')
+    const res = executeRequest(req('function double(x) {\n  console.info("hi", x)\n  return x * 2\n}', {
       calls: [
         { fn: 'double', args: [21] },
         { fn: 'double', args: [-3] },
