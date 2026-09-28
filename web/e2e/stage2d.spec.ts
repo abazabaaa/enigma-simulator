@@ -127,6 +127,53 @@ test.describe('Stage2D', { tag: '@area:machine-ui' }, () => {
     }
   })
 
+  test('◀ hop / hop ▶ step the clock through every hop; hop and pathPoints follow at each stop', async ({ page, stage }) => {
+    await gotoApp(page, '/lab/stage?preset=wire', { stage })
+    await page.getByTestId('key-A').click()
+    const s = await enigma(page)
+    await expect.poll(() => stageInfo(page).then((i) => i.litLamp)).toBe(s.lamp)
+    const stop = async (hop: number) => {
+      await expect.poll(() => stageInfo(page).then((i) => [i.hop, i.pathPoints])).toEqual([hop, 2 + 2 * (hop + 1)])
+      const info = await stageInfo(page)
+      expect(info.litLamp).toBeNull()
+      expect(info.windows).toBe(hop < 0 ? s.lastStepping!.before : s.positions)
+      if (hop >= 0) await expect(page.getByTestId(`trace-row-${hop}`)).toHaveAttribute('data-live', 'true')
+      expect((await playback(page)).playing).toBe(false)
+    }
+    for (let hop = 10; hop >= -1; hop--) {
+      await page.getByTestId('playback-prev-hop').click()
+      await stop(hop)
+    }
+    await expect(page.getByTestId('playback-prev-hop')).toBeDisabled()
+    await page.getByRole('heading', { level: 1 }).click()
+    for (let hop = 0; hop <= 10; hop++) {
+      await page.keyboard.press(']')
+      await stop(hop)
+    }
+    await page.getByTestId('playback-next-hop').click()
+    await expect.poll(() => stageInfo(page).then((i) => [i.litLamp, i.pathPoints])).toEqual([s.lamp, 24])
+    await expect(page.getByTestId('playback-next-hop')).toBeDisabled()
+  })
+
+  test('at 390×844 a ghost divergence marker is scrolled into view', async ({ page, stage }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    // The plugboard focus centres the scroller far right; the divergence (hop 4) is on the left rotor.
+    await gotoApp(page, '/lab/stage?preset=plugboard&ghost=demo', { stage })
+    await expect(page.getByTestId('stage2d-scroll')).toHaveAttribute('data-scrollable', 'true')
+    await expect(page.getByTestId('stage2d-diverge')).toHaveCount(1)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const marker = document.querySelector('[data-testid="stage2d-diverge"]')!.getBoundingClientRect()
+          const view = document.querySelector('[data-testid="stage2d-scroll"]')!.getBoundingClientRect()
+          return marker.left >= view.left && marker.right <= view.right
+        }),
+      )
+      .toBe(true)
+    const o = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
+    expect(o[0]).toBeLessThanOrEqual(o[1]!)
+  })
+
   test('reduced motion makes t jump to the end; full motion animates', async ({ page, stage }) => {
     await gotoApp(page, '/lab/stage?preset=wire', { stage, motion: 'reduce' })
     await page.getByTestId('playback-speed').selectOption('0.25')

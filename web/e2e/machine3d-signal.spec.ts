@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { hopAt } from '../src/contracts/machine'
 import { LETTERS, createMachine, normalizeConfig, pressKey, type Letter, type MachineConfigInput } from '../src/engine'
-import { SYMBOL_COLORS } from '../src/lib/symbols'
+import { SYMBOL_COLORS, symForStage } from '../src/lib/symbols'
 import { createRng, int, randomConfig } from '../src/lib/rng'
 import { randomToy, toyPress } from '../src/lib/toy'
 import type { Machine3DDebugApi } from '../src/machine3d/debugApi'
@@ -102,6 +102,9 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
 
     const xs: number[] = []
     let prev = -1
+    const trace = (await enigma(page)).lastTrace!
+    const changes = trace.filter((h) => h.input !== h.output).length
+    let changed = 0
     for (let k = 0; k < 11; k++) {
       await scrub(page, 1.5 + k)
       await expect.poll(async () => (await info(page)).hop, { message: `hop ${k}` }).toBe(k)
@@ -117,6 +120,19 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
       expect(live.head, `hop ${k}: the head shows`).not.toBeNull()
       expect(i.litLamp).toBeNull()
       xs.push(live.head![0])
+      // the tag: the part (⁻¹ on the way back), its letters, and the count of letter changes
+      const h = trace[k]!
+      if (h.input !== h.output) changed++
+      const back = h.stage === 'plugboard-out' || h.stage === 'etw-out' || h.stage.endsWith('-bwd')
+      expect(live.tag, `hop ${k}: the tag`).toMatchObject({
+        sym: symForStage(h.stage),
+        inverse: back,
+        input: h.input,
+        output: h.output,
+        changes,
+        detail: h.input !== h.output ? `change ${changed} of ${changes}` : 'no change',
+        color: SYMBOL_COLORS[symForStage(h.stage)].dark,
+      })
     }
     // forward through the right, middle and left rotors the head moves left; back, it moves right
     expect(xs[3]!).toBeLessThan(xs[2]!)
@@ -134,6 +150,7 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     expect(live.pathPoints).toBe(24)
     expect(live.segments).toBe(live.totalSegments)
     expect(live.head).toBeNull()
+    expect(live.tag).toBeNull()
     expect(live.glow).toBe(true)
     expect(live.color).toBe(SYMBOL_COLORS.signal.dark)
   })
@@ -456,5 +473,55 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     // the 2D view shows the same press by the same rule
     await expect.poll(async () => (await info(page)).pathPoints).toBe(24)
     expect(await page.evaluate(() => window.__machine3dSignal)).toBeUndefined()
+  })
+})
+
+test.describe('machine3d signal: review round 1', { tag: ['@3d', '@area:machine3d-signal'] }, () => {
+  test('one part in focus: no see-through path; plugboard hidden: the crossed cable is drawn faintly', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000)
+    for (const [preset, xray] of [
+      ['wire', true],
+      ['reflector', false],
+      ['plugboard', false],
+    ] as const) {
+      await gotoApp(page, `/lab/stage?preset=${preset}`, { stage: '3d', motion: 'reduce' })
+      await ready3d(page)
+      await press(page, 'A')
+      await expect.poll(async () => (await sig(page, 'live')).segments > 0, { message: preset }).toBe(true)
+      expect((await sig(page, 'live')).xray, preset).toBe(xray)
+    }
+    // wire-noplug: the demo plugs stay set; A runs along the AV cable, which is drawn faintly
+    await gotoApp(page, '/lab/stage?preset=wire-noplug', { stage: '3d', motion: 'reduce' })
+    await ready3d(page)
+    expect(await sig(page, 'cables')).toBeNull()
+    await expect.poll(async () => (await sig(page, 'faintCables'))?.pairs).toEqual(['AV', 'BS', 'CG'])
+    await press(page, 'A')
+    await expect.poll(async () => (await sig(page, 'faintCables'))?.shown).toContain('AV')
+  })
+})
+
+test.describe('machine3d signal on a phone (390 × 844)', { tag: ['@3d', '@area:machine3d-signal'] }, () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('the head stays at least 12 px across and carries its tag while the path is drawn', async ({ page }) => {
+    test.setTimeout(90_000)
+    await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'full' })
+    await ready3d(page)
+    await setControl(page, 'playback-speed', 'instant')
+    await press(page, 'Q')
+    const trace = (await enigma(page)).lastTrace!
+    const canvas = await m3d(page, 'canvas')
+    for (const k of [2, 5, 8]) {
+      await setControl(page, 'playback-scrub', String(1.5 + k))
+      await expect.poll(async () => (await info(page)).hop).toBe(k)
+      await expect.poll(async () => (await sig(page, 'live')).headPx, { message: `hop ${k}` }).toBeGreaterThan(0)
+      const live = await sig(page, 'live')
+      expect(live.headPx, `hop ${k}: head diameter`).toBeGreaterThanOrEqual(12)
+      expect(live.tag, `hop ${k}: tag`).toMatchObject({ input: trace[k]!.input, output: trace[k]!.output })
+      expect(live.tag!.px, `hop ${k}: tag height`).toBeGreaterThanOrEqual(30)
+      expect(canvas.w).toBeLessThanOrEqual(390)
+    }
   })
 })

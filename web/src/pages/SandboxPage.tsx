@@ -4,14 +4,16 @@
  *    lamps, keys, plugboard, playback, trace and the paper tape;
  *  - share-link copies a URL whose k= is encodeConfig of the setting where the tape began, so the
  *    recipient can read the tape back (share-url shows the same link);
- *  - k is loaded on entry; an invalid k loads the default machine and says so.
+ *  - k is loaded on entry; an invalid k loads the default machine and says so;
+ *  - next-press: the whole machine's substitution for the next key press (after its step) as a
+ *    PermTable, collapsed by default.
  */
 
-import { useId, useLayoutEffect, useState } from 'react'
+import { useId, useLayoutEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { SceneDef } from '../contracts/lesson'
-import { DEFAULT_CONFIG } from '../engine'
-import { MachinePanel, decodeConfig, encodeConfig } from '../machine-ui'
+import { DEFAULT_CONFIG, machinePermutation, positionsToString, step } from '../engine'
+import { MachinePanel, PermTable, decodeConfig, encodeConfig } from '../machine-ui'
 import { tapeStartConfig } from '../machine-ui/tape'
 import { hrefFor, useRoute } from '../router'
 import { StageHost } from '../stage/StageHost'
@@ -85,6 +87,23 @@ function ShareLink() {
   )
 }
 
+/** The next key press as a table: the rotors step first, then every key lights the letter below it. */
+function NextPress() {
+  const machine = useMachine((s) => s.machine)
+  const next = useMemo(() => step(machine).state, [machine])
+  const perm = useMemo(() => machinePermutation(next), [next])
+  return (
+    <details data-testid="next-press" className="rounded-xl border border-stone-800 bg-stone-900/40 p-3">
+      <summary className="cursor-pointer text-sm text-stone-200">The next key press as a table</summary>
+      <p className="mt-2 mb-2 text-sm text-stone-300">
+        The rotors step to {positionsToString(next).split('').join(' ')} first; then each key lights the letter below it.
+        Every pair swaps both ways, and no letter ever lights itself.
+      </p>
+      <PermTable perm={perm} label="Key → lamp" testId="next-perm" />
+    </details>
+  )
+}
+
 export function SandboxPage() {
   const { query } = useRoute()
   const k = query.k
@@ -127,6 +146,7 @@ export function SandboxPage() {
       </header>
       <StageHost stage="wire" className="min-w-0 rounded-xl border border-stone-800 bg-stone-950 p-2" />
       <MachinePanel show={EVERY_PANEL} />
+      <NextPress />
     </main>
   )
 }

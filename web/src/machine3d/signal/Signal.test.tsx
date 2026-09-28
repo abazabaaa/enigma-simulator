@@ -347,6 +347,78 @@ describe('the cables', () => {
   })
 })
 
+describe('review round 1', () => {
+  it('N1: the see-through copy of the path is drawn for a group focus, not for a single part', async () => {
+    for (const [preset, xray] of [
+      ['wire', true],
+      ['overview', true],
+      ['reflector', false],
+      ['plugboard', false],
+    ] as const) {
+      const scene = await mount(STAGE_PRESETS[preset])
+      await pressAt('A', 12)
+      expect(meshNamed(scene, 'signal-live').visible, preset).toBe(true)
+      expect(meshNamed(scene, 'signal-live-xray').visible, preset).toBe(xray)
+      expect(meshNamed(scene, 'signal-live').userData.xray, preset).toBe(xray)
+      await renderer!.unmount()
+      renderer = null
+    }
+  })
+
+  it('N3: with the plugboard hidden, the cables the path runs along are drawn faintly', async () => {
+    let scene = await mount(STAGE_PRESETS.wire) // plugboard shown: the real cables
+    expect(scene.getObjectByName('signal-faint-cables')).toBeUndefined()
+    await renderer!.unmount()
+    scene = await mount(STAGE_PRESETS['wire-noplug'])
+    const faint = meshNamed(scene, 'signal-faint-cables')
+    expect(faint.userData.pairs).toEqual([
+      [0, 21],
+      [1, 18],
+      [2, 6],
+    ])
+    const drawn = () => faint.geometry.groups.map((g) => g.materialIndex === 0)
+    expect(drawn()).toEqual([false, false, false])
+    await pressAt('A', 0.5)
+    expect(drawn()).toEqual([false, false, false])
+    await at(1.5) // A → V along the AV cable
+    expect(faint.userData.shown).toEqual([[0, 21]])
+    expect(drawn()).toEqual([true, false, false])
+    await act(() => useMachineStore.getState().setConfig({ ...I, plugboard: '' }))
+    expect(scene.getObjectByName('signal-faint-cables')).toBeUndefined()
+  })
+
+  it('the tag names the part and its letters with the change count, and hides with the head', async () => {
+    const scene = await mount(STAGE_PRESETS.wire)
+    await pressAt('A', 0.5)
+    const tag = named(scene, 'signal-tag')
+    expect(tag.userData.tag).toBeNull()
+    const trace = useMachineStore.getState().last!.trace
+    await at(3.5) // hop 2: the right rotor, forward
+    expect(tag.visible).toBe(true)
+    expect(tag.userData.tag).toMatchObject({
+      sym: 'N',
+      inverse: false,
+      input: trace[2]!.input,
+      output: trace[2]!.output,
+    })
+    expect(tag.userData.tag.detail).toMatch(/^change \d+ of \d+$/)
+    await at(2.5) // hop 1: the entry wheel
+    expect(tag.userData.tag).toMatchObject({ sym: 'H', detail: 'no change' })
+    const info = (named(scene, 'signal-head-group').userData.info as () => { tag: { title: string } | null })()
+    expect(info.tag!.title).toBe(`H  ${trace[1]!.input} → ${trace[1]!.output}`)
+    await at(12)
+    expect(tag.visible).toBe(false)
+    expect(tag.userData.tag).toBeNull()
+    // lampsHidden conceals the path, its head and its tag
+    await act(() => useMachineStore.getState().setLocks({ lampsHidden: true }))
+    await pressAt('B', 4.5)
+    expect(named(scene, 'signal-head').visible).toBe(false)
+    expect(tag.visible).toBe(false)
+    expect(tag.userData.tag).toBeNull()
+    await act(() => useMachineStore.getState().setLocks({}))
+  })
+})
+
 describe('the ghost', () => {
   it('draws the learner’s path dashed in red against the reference in gold, with a marker at divergeAt', async () => {
     const scene = await mount(STAGE_PRESETS.wire)

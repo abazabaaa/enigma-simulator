@@ -8,6 +8,7 @@
  *  - The lamp is lit when isLit(t); lampsHidden conceals it.
  */
 
+import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { hopAt, isLit, type MachineStoreHook } from '../contracts/machine'
@@ -147,6 +148,27 @@ export function usePressView(source: Source, api: MachineStoreHook, mode: ClockM
 /** Letters in 5-letter groups, as on a message form: 'HELLOWORLD' → 'HELLO WORLD'. */
 export function groups5(text: string): string {
   return text.match(/.{1,5}/g)?.join(' ') ?? ''
+}
+
+/**
+ * Whether a sideways scroller actually scrolls (its content is wider than its box). The 2D stage
+ * and PermTable become a focusable, labelled region only then, so a keyboard can scroll them and
+ * nothing adds a useless tab stop when it fits. Watches the box and its content.
+ */
+export function useScrollable(ref: RefObject<HTMLElement | null>): boolean {
+  const [scrollable, setScrollable] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => observer.disconnect()
+  }, [ref])
+  return scrollable
 }
 
 /** Human names of the rotor slots. */

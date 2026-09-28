@@ -23,7 +23,7 @@ beforeAll(() => {
   catalogue = buildCatalogue({ reflector: 'A' })
   buildMs = performance.now() - t
   console.info(`[timing] buildCatalogue (UKW-A, 6 orders, 105,456 settings) in Node: ${buildMs.toFixed(0)} ms`)
-})
+}, 60_000) // generous for a shared, loaded box; the 10 s budget is asserted below
 
 describe('buildCatalogue', () => {
   it('files 105,456 settings (6 orders × 17,576) within the time budget', () => {

@@ -71,7 +71,7 @@ export function CycleDiagram(p: CycleDiagramProps): JSX.Element {
   }
 
   return (
-    <figure className="m-0 flex flex-col gap-2" data-testid={testId} data-cycles={notation} data-lengths={lengths}>
+    <figure className="m-0 flex min-w-0 flex-col gap-2" data-testid={testId} data-cycles={notation} data-lengths={lengths}>
       <svg
         viewBox={`0 0 ${WIDTH} ${height}`}
         className="w-full max-w-2xl"

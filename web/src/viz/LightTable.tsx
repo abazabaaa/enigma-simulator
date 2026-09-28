@@ -40,7 +40,7 @@ export function LightTable(p: LightTableProps): JSX.Element {
   const side = size * CELL
   const label = `Light table: ${shown} of ${sheets.length} sheets stacked, ${count} apertures let light through.`
   return (
-    <figure className="m-0 flex flex-col gap-2" data-testid={testId} data-shown={shown} data-apertures={count}>
+    <figure className="m-0 flex min-w-0 flex-col gap-2" data-testid={testId} data-shown={shown} data-apertures={count}>
       <div role="group" tabIndex={0} onKeyDown={onKey} data-testid={`${testId}-table`}
         aria-label={`${label} Arrow keys add or remove sheets.`}
         className="w-full max-w-md rounded outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
