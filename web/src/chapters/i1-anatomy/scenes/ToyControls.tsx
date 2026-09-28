@@ -103,7 +103,7 @@ export function ToyMachine({
 }): JSX.Element {
   return (
     <div
-      className="flex flex-col items-center gap-2 rounded-xl border border-stone-800 bg-stone-900/40 p-3"
+      className="flex flex-col items-center gap-2 self-start rounded-xl border border-stone-800 bg-stone-900/40 p-3"
       data-testid="toy-machine"
     >
       <ToyLampboard />

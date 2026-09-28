@@ -85,6 +85,8 @@ export interface KeyspaceLine {
   readonly label: string
   /** The factors, as shown (each computed). */
   readonly factors: readonly string[]
+  /** Between the factors and the value: '=' when exact, '≈' when a factor is already rounded. */
+  readonly equals: '=' | '≈'
   readonly value: bigint
   /** The value as shown: grouped digits, or scientific notation for the two totals. */
   readonly shown: string
@@ -111,6 +113,7 @@ export function keyspaceLines(): KeyspaceLine[] {
       id: 'orders',
       label: 'Rotor orders: three of the five rotors, in order',
       factors: ['5', '4', '3'],
+      equals: '=',
       value: ROTOR_ORDERS,
       shown: grouped(ROTOR_ORDERS),
     },
@@ -118,6 +121,7 @@ export function keyspaceLines(): KeyspaceLine[] {
       id: 'positions',
       label: 'Start positions: a letter in each window',
       factors: ['26', '26', '26'],
+      equals: '=',
       value: START_POSITIONS,
       shown: grouped(START_POSITIONS),
     },
@@ -125,6 +129,7 @@ export function keyspaceLines(): KeyspaceLine[] {
       id: 'plugboard',
       label: `Plugboard: ${CABLES} cables, each pairing two of the 26 letters`,
       factors: [],
+      equals: '=',
       value: plugs,
       shown: grouped(plugs),
     },
@@ -132,6 +137,7 @@ export function keyspaceLines(): KeyspaceLine[] {
       id: 'total',
       label: 'Together',
       factors: [grouped(ROTOR_ORDERS), grouped(START_POSITIONS), grouped(plugs)],
+      equals: '=',
       value: total,
       shown: `${grouped(total)} ≈ ${formatSci(total)}`,
     },
@@ -139,8 +145,9 @@ export function keyspaceLines(): KeyspaceLine[] {
       id: 'rings',
       label: 'With the ring settings that matter',
       factors: [formatSci(total), grouped(RING_SETTINGS)],
+      equals: '≈',
       value: withRings,
-      shown: `≈ ${formatSci(withRings)}`,
+      shown: formatSci(withRings),
     },
   ]
 }

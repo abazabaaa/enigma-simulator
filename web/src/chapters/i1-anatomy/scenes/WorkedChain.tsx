@@ -95,7 +95,9 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
                 </span>
                 <span className="min-w-36 font-sans">{STAGE_LABEL[h.stage]}</span>
                 <span>{k < shown ? `${h.input} → ${h.output}` : '· → ·'}</span>
-                {k < shown ? <span className="font-sans text-xs text-stone-400">{howRead(h.stage)}</span> : null}
+                {k < shown ? (
+                  <span className="basis-full pl-8 font-sans text-xs text-stone-400">{howRead(h.stage)}</span>
+                ) : null}
               </li>
             ))}
           </ol>

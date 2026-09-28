@@ -12,12 +12,12 @@ import { BRUTE_TRUTH, RING_SETTINGS, formatYears, grouped, keyspaceLines, yearsT
 /** Milliseconds between two lines of the figure (reduced motion: all at once). */
 export const LINE_MS = 700
 
-const RATES = [3, 6, 9, 12] as const
+/** Settings tried per second, as powers of ten: one (a person at a machine), a thousand, a million. */
+const RATES = [0, 3, 6] as const
 const RATE_TEXT: Readonly<Record<(typeof RATES)[number], string>> = {
+  0: 'one',
   3: 'a thousand',
   6: 'a million',
-  9: 'a billion',
-  12: 'a trillion',
 }
 
 function KeyspaceFigure({ shown }: { shown: number }): JSX.Element {
@@ -34,7 +34,7 @@ function KeyspaceFigure({ shown }: { shown: number }): JSX.Element {
         >
           <span className="block text-xs text-stone-400">{l.label}</span>
           <span className="font-mono text-stone-100">
-            {l.factors.length ? `${l.factors.join(' × ')} = ` : ''}
+            {l.factors.length ? `${l.factors.join(' × ')} ${l.equals} ` : ''}
             <span className={l.id === 'total' || l.id === 'rings' ? 'text-amber-200' : ''}>{l.shown}</span>
           </span>
         </li>
@@ -47,7 +47,7 @@ export function BruteForceView(p: SceneProps): JSX.Element {
   const fired = useRevealFired('brute')
   const lines = useMemo(keyspaceLines, [])
   const [shown, setShown] = useState(0)
-  const [rate, setRate] = useState<(typeof RATES)[number]>(9)
+  const [rate, setRate] = useState<(typeof RATES)[number]>(3)
   const resolved = useRef(false)
   const rateId = useId()
   const { completeTask, bet, reducedMotion } = p
@@ -105,13 +105,13 @@ export function BruteForceView(p: SceneProps): JSX.Element {
                 value={RATES.indexOf(rate)}
                 data-testid="rate-slider"
                 aria-valuetext={`${RATE_TEXT[rate]} per second`}
-                onChange={(e) => setRate(RATES[Number(e.target.value)] ?? 9)}
+                onChange={(e) => setRate(RATES[Number(e.target.value)] ?? 3)}
                 className="w-40 accent-amber-300"
               />
               <Mono>{RATE_TEXT[rate]}</Mono>
             </div>
             <p data-testid="brute-force-years">
-              At {RATE_TEXT[rate]} settings a second, trying them all takes{' '}
+              At {RATE_TEXT[rate]} setting{rate === 0 ? '' : 's'} a second, trying them all takes{' '}
               <strong>{formatYears(yearsToTry(total, perSecond))}</strong>, and{' '}
               <strong>{formatYears(yearsToTry(withRings, perSecond))}</strong> once the ring settings count.
             </p>
