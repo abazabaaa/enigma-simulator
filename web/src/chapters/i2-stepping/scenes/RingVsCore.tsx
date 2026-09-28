@@ -59,7 +59,9 @@ export function RingVsCoreView(p: SceneProps): JSX.Element {
 
   const right = START.rotors[2]!
   const ringR = ringNumber(rings[2] ?? 'A')
-  const offset = (((windows.charCodeAt(2) - rings.charCodeAt(2)) % 26) + 26) % 26
+  // Signed, so it agrees with the prose: ring 05 at window A turns the core 4 places back (−4, not 22).
+  const raw = (((windows.charCodeAt(2) - rings.charCodeAt(2)) % 26) + 26) % 26
+  const offset = raw > 13 ? raw - 26 : raw
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="ring-view">
       <p>
@@ -68,15 +70,15 @@ export function RingVsCoreView(p: SceneProps): JSX.Element {
         against the ring. The rotors are held still in this scene, so a key press never steps them: only the ring changes.
       </p>
       <p data-testid="ring-now">
-        Right rotor {right}: window <Mono>{windows[2]}</Mono>, ring <Mono>{ringR}</Mono>, core offset (window − ring){' '}
-        <Mono>{offset}</Mono>.
+        Right rotor {right}: window <Mono>{windows[2]}</Mono>, ring <Mono>{ringR}</Mono>, core turned against the letters by (window −
+        ring) <Mono>{offset < 0 ? `−${-offset}` : String(offset)}</Mono> {Math.abs(offset) === 1 ? 'place' : 'places'}.
       </p>
       {fired ? (
         <section data-testid="ring-result" className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3">
           <p>
             The right ring went from <Mono>01</Mono> to <Mono>05</Mono> and the window still shows <Mono>{windows[2]}</Mono>. The core
-            turned four places against the letters, so the current meets different wires at the same window: the same key lights a
-            different lamp.
+            turned four places back against the letters (−4), so the current meets different wires at the same window: the same key
+            can light a different lamp.
           </p>
           <p>
             The notch rides on the ring, so rotor {right} still carries the middle rotor from <Mono>{turnoversOf(right)}</Mono>. Positions

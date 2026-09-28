@@ -9,16 +9,27 @@ export const QUIET_BUTTON =
 export const INPUT =
   'rounded-md border border-stone-600 bg-stone-900 px-2 py-1 font-mono text-stone-100 focus:border-amber-400 focus:outline-none disabled:opacity-50'
 
-/** The gate's Submit button (test id gate-submit). Custom Answer components use it too. */
+/**
+ * The gate's Submit button (test id gate-submit). Custom Answer components use it too. Inside a <form>, pass
+ * `form` and no onClick: it becomes the form's submit button, so Enter in any single-line input submits and a
+ * click goes through the same onSubmit (one path, one outcome).
+ */
 export function SubmitButton(
-  p: { disabled?: boolean; onClick(): void; children?: ReactNode } & Omit<
+  p: { disabled?: boolean; onClick?(): void; form?: true; children?: ReactNode } & Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
-    'onClick'
+    'onClick' | 'form' | 'type'
   >,
 ): JSX.Element {
-  const { disabled, onClick, children, ...rest } = p
+  const { disabled, onClick, form, children, ...rest } = p
   return (
-    <button type="button" data-testid="gate-submit" className={BUTTON} disabled={disabled} onClick={onClick} {...rest}>
+    <button
+      type={form ? 'submit' : 'button'}
+      data-testid="gate-submit"
+      className={BUTTON}
+      disabled={disabled}
+      onClick={form ? undefined : onClick}
+      {...rest}
+    >
       {children ?? 'Submit'}
     </button>
   )

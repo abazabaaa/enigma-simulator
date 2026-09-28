@@ -23,6 +23,7 @@ import {
   assertRollback,
   commitBet,
   completeScene,
+  completeTasks,
   configure,
   continueGate,
   current,
@@ -51,7 +52,13 @@ import { MACHINE_3D_READY } from '../../src/machine3d/ready'
 const CHAPTER = 'i2-stepping'
 
 /** §4.1 G5 table: the rollback kind of each item. */
-const ROLLBACK: Record<string, string> = { windows: 'windows', 'middle-steps': 'machine', 'ring-probe': 'none', 'windows-m3': 'windows' }
+const ROLLBACK: Record<string, string> = {
+  windows: 'windows',
+  'middle-steps': 'machine',
+  'first-letter': 'none',
+  'ring-probe': 'none',
+  'windows-m3': 'windows',
+}
 
 const windowsNow = (page: Page) => page.evaluate(() => window.__enigma!.getState().positions)
 
@@ -68,6 +75,13 @@ const pressThrows = (page: Page, key = 'A') =>
 
 const betResults = async (page: Page) => Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
 
+/** Gate `stepping` alone (#/lab/gate), with the e2e configuration: the ladder, reload and gaming tests. */
+async function openGateLab(page: Page): Promise<void> {
+  await gotoApp(page, '/lab/gate/i2-stepping/stepping', { stage: '2d' })
+  await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+  await current(page)
+}
+
 /** Walk the explore scenes (bets and triggers through the UI) up to the gate. */
 async function toGate(page: Page): Promise<void> {
   for (let k = 0; k < 6 && (await where(page)).kind !== 'gate'; k++) await completeScene(page)
@@ -82,17 +96,21 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await expect(page.getByTestId('story-card')).toContainText('Marian Rejewski')
     await nextScene(page)
 
-    // step-first: the bet gates the press of A; the right rotor steps before the current flows.
+    // step-first: the bet gates the first key press; any key fires the reveal (review m2).
     expect(await where(page)).toMatchObject({ scene: 'step-first', kind: 'explore' })
     await assertFocus(page, 'pawls')
     await expectNextDisabled(page)
     const [press] = await sceneReveals(page)
-    expect(press).toMatchObject({ trigger: 'press', key: 'A' })
+    expect(press).toEqual({ bet: 'first-press', trigger: 'press' })
     await assertRevealGated(page, press!)
+    expect(await pressThrows(page, 'Q')).toBe(true)
     expect(await windowsNow(page)).toBe('AAA')
     await commitBet(page, 'first-press', 'right')
-    await fireReveal(page, press!)
+    await page.getByTestId('key-Q').click()
+    await expect.poll(async () => (await eventsOf(page, 'reveal')).map((e) => e.bet)).toEqual(['i2-stepping/first-press'])
     expect(await windowsNow(page)).toBe('AAB')
+    await expect(page.getByTestId('step-first-worked')).toContainText('Your key Q')
+    await expect(page.getByTestId('notch-offset')).toContainText('III at D (turnover V)')
     await expect(page.getByTestId('trace-step')).toHaveAttribute('data-before', 'AAA')
     await expect(page.getByTestId('trace-step')).toHaveAttribute('data-after', 'AAB')
     await expect(page.getByTestId('step-first-worked')).toBeVisible()
@@ -120,6 +138,8 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     ] as const
     for (const [k, r] of steps.entries()) {
       await assertRevealGated(page, r)
+      // While the next bet is open the windows show the machine as it is now, not the last press's "before".
+      if (k > 0) await expect(page.getByTestId('rotor-pos-right')).toHaveAttribute('aria-valuetext', want[k - 1]![1][2]!)
       expect(await pressThrows(page), 'the keyboard stays locked: only Step presses').toBe(true)
       // A fired Step cannot press again while this bet is open.
       if (k > 0) await expect(page.getByTestId(`reveal-${steps[k - 1]!.bet}`)).toBeDisabled()
@@ -131,7 +151,9 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     }
     expect(await betResults(page)).toMatchObject({ 'first-press': true, adu: true, adv: true, aew: true })
     await expect(page.getByTestId('task-reach-bfx')).toHaveAttribute('data-done', 'true')
-    await expect(page.getByTestId('double-step-explained')).toContainText('double step')
+    await expect(page.getByTestId('double-step-explained')).toContainText('the double step')
+    await expect(page.getByTestId('double-step-now')).toHaveAttribute('aria-live', 'polite')
+    await expect(page.getByTestId('double-step-now')).toContainText('(double step)')
     await nextScene(page)
 
     // ring-vs-core: the toggle turns the right ring 01 → 05; the window letter does not move.
@@ -149,6 +171,8 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await expect(page.getByTestId('ring-right')).toHaveAttribute('aria-valuetext', '05')
     await expect(page.getByTestId('rotor-pos-right')).toHaveAttribute('aria-valuetext', 'A')
     expect(await windowsNow(page)).toBe('AAA')
+    // The displayed offset agrees with the prose: four places back (review m3).
+    await expect(page.getByTestId('ring-now')).toContainText('−4 places')
     expect((await betResults(page))['ring-window']).toBe(false)
     await expectNextDisabled(page)
     // The same key at the same windows with ring 05, then a ring changed by hand.
@@ -301,8 +325,7 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('the hint ladder on windows: L1 highlight, L2 worked example on another instance, L3 reveal', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await assertLadder(page)
     await expect(page.getByTestId('item-windows')).toHaveAttribute('data-passed', 'false')
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/windows'))
@@ -310,8 +333,7 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('a reload mid-gate keeps the seed and the instance', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await answerViaApi(page, 'windows', await wrongAnswer(page))
     await reloadKeepsSeed(page)
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
@@ -326,12 +348,11 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('gaming: two instant answers bring the left-steps fallback, keyboard locked, answered on the machine', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await configure(page, { minLatencyMs: 2000 })
     await answerViaApi(page, 'windows', await wrongAnswer(page))
     await answerViaApi(page, 'windows', await wrongAnswer(page))
-    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'i2-stepping/stepping/windows', reason: 'fast' }])
+    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'i2-stepping/lab:stepping/windows', reason: 'fast' }])
     const c = await current(page)
     expect(c).toMatchObject({ itemId: 'windows', fallback: true, kind: 'set-machine' })
     await expect(page.getByTestId('item-windows')).toHaveAttribute('data-fallback', 'true')
@@ -342,19 +363,15 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await answerViaUi(page, 'set-machine', solution)
     await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'true')
     await continueGate(page)
-    const rec = (await progress(page)).gates['i2-stepping/stepping']!.items['windows']!
+    const rec = (await progress(page)).gates['i2-stepping/lab:stepping']!.items['windows']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
     expect(await current(page)).toMatchObject({ itemId: 'windows', fallback: false, kind: 'letters' })
   })
 })
 
 test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'] }, () => {
-  test('the first mechanism scene reports focus pawls and dimmedParts; its bet gates the press', async ({ page }) => {
-    test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
-    test.setTimeout(60_000)
-    await enter(page, CHAPTER, { stage: '3d' })
-    await nextScene(page)
-    expect((await where(page)).scene).toBe('step-first')
+  /** The 3D view reports this focus (and stays the 3D view: no fallback to 2D). */
+  async function in3d(page: Page, focus: string): Promise<void> {
     await expect
       .poll(
         async () => {
@@ -363,8 +380,17 @@ test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'
         },
         { timeout: 30_000 },
       )
-      .toBe('webgl2:pawls')
-    expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts('pawls', 'I'))
+      .toBe(`webgl2:${focus}`)
+    expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts(focus as 'pawls', 'I'))
+  }
+
+  test('the mechanism scenes stay in 3D across scene changes: focus and dimmedParts; the bet gates the press', async ({ page }) => {
+    test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
+    test.setTimeout(120_000)
+    await enter(page, CHAPTER, { stage: '3d' })
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('step-first')
+    await in3d(page, 'pawls')
     // The live scene dims exactly those parts.
     await expect
       .poll(
@@ -382,5 +408,17 @@ test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'
     await commitBet(page, 'first-press', 'right')
     await fireReveal(page, press!)
     await expect.poll(() => page.evaluate(() => window.__stage!.info().windows)).toBe('AAB')
+    await completeTasks(page)
+    await nextScene(page)
+
+    // Scene change 1: the 3D view is kept (no context loss, no fall back to 2D).
+    expect((await where(page)).scene).toBe('double-step')
+    await in3d(page, 'pawls')
+    await completeScene(page)
+
+    // Scene change 2: the ring layers, still in 3D.
+    expect((await where(page)).scene).toBe('ring-vs-core')
+    await in3d(page, 'ring-right')
+    await expect(page.getByTestId('stage')).toHaveAttribute('data-renderer', 'webgl2')
   })
 })

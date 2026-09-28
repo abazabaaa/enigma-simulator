@@ -65,7 +65,7 @@ export function ChainAnswer({
         ))}
       </ol>
       <div>
-        <SubmitButton disabled={disabled || !valid} onClick={() => valid && submit(tokens)} />
+        <SubmitButton form disabled={disabled || !valid} />
       </div>
     </form>
   )

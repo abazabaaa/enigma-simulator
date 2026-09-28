@@ -52,6 +52,26 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(SCREENS, `${name}.png`), fullPage: true })
 }
 
+/**
+ * Waits until the stage has drawn with its final renderer: the 3D view (webgl2) or its 2D fallback, not the
+ * "Loading the machine…" placeholder, then lets a few frames settle. (Round 2: the first 3D shot was blank.)
+ */
+async function stageLoaded(page: Page): Promise<void> {
+  const stage = page.getByTestId('stage').first()
+  await expect(stage).not.toHaveAttribute('data-renderer', 'pending', { timeout: 30_000 })
+  await expect(stage.getByText('Loading the machine…')).toHaveCount(0)
+  const renderer = await stage.getAttribute('data-renderer')
+  await expect.poll(() => page.evaluate(() => window.__stage?.info().renderer ?? null)).toBe(renderer)
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let n = 0
+        const tick = (): void => void (++n >= 4 ? resolve() : requestAnimationFrame(tick))
+        requestAnimationFrame(tick)
+      }),
+  )
+}
+
 async function captureScene(page: Page, chapter: AnyChapterId, scene: string): Promise<void> {
   const base = `${chapter}-${scene}`
   for (const size of SIZES) {
@@ -86,6 +106,7 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
     await gotoApp(page, `${chapterPath(chapter)}/${scene}`, { stage: '3d' })
     // A chapter loads lazily after the route: wait for its scene before the shots.
     await expect.poll(async () => (await where(page)).scene).toBe(scene)
+    await stageLoaded(page)
     for (const motion of MOTIONS) {
       await page.emulateMedia({ reducedMotion: motion === 'reduce' ? 'reduce' : 'no-preference' })
       await shoot(page, `${base}-1280-${motion}-3d`)

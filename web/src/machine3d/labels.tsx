@@ -14,8 +14,12 @@ import { Billboard } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, type JSX } from 'react'
 import {
+  BufferAttribute,
+  BufferGeometry,
   CanvasTexture,
   DoubleSide,
+  DynamicDrawUsage,
+  LineBasicMaterial,
   MeshBasicMaterial,
   PerspectiveCamera,
   SRGBColorSpace,
@@ -27,6 +31,7 @@ import {
 import type { Focus, Highlight, PartId, StageDirective } from '../contracts/stage'
 import type { RotorSlot } from '../engine'
 import { SYM_FOR_PART } from '../lib/symbols'
+import { LABEL_FONT_RATIO, MIN_LABEL_FONT_PX } from './debugApi'
 import { HALO_OPACITY, TONE_COLORS, useFocus } from './focus'
 import { FONT_STACK, canvas2d, whiteTexture } from './glyphs'
 import {
@@ -45,7 +50,7 @@ import {
 } from './layout'
 import { partColor } from './palette'
 import { PAWL_DX, PAWL_PIVOT, pawlTip } from './parts/Pawls'
-import { EXPLODE_SCALE, RING_SETTING_COLOR } from './parts/RotorStack'
+import { DIAL, DIAL_R, EXPLODE_SCALE, RING_SETTING_COLOR } from './parts/RotorStack'
 import type { SceneView } from './view'
 
 const SLOT_NAME: Readonly<Record<RotorSlot, string>> = {
@@ -183,44 +188,65 @@ export interface LabelEntry {
   readonly color: string
   readonly symbol: boolean
   readonly anchor: Vec3
+  /** The point a leader line runs to from the label (notches, pawls, the ring-setting number). */
+  readonly target?: Vec3
+}
+
+/** Points on a rotor's ring band, whose screen outline the mechanism labels avoid when they can. */
+function ringOutline(view: SceneView, i: number): Vec3[] {
+  const out: Vec3[] = []
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2
+    for (const dx of [ROTOR.notchX0, ROTOR.bandX1]) out.push(onRotor(view, i, a, ROTOR.bandR, dx))
+  }
+  return out
 }
 
 /**
- * The labels to draw, in placement order, and the keep-out points they must not cover: the pawl–notch
- * contacts while pawls or notches are labelled, and the picked-out ring-setting number.
+ * The labels to draw, in placement order; the keep-out points they must not cover (the pawl–notch
+ * contacts while pawls or notches are labelled, and the picked-out ring-setting number); and, while the
+ * mechanism is labelled, the rings as soft keep-outs (each an outline of points) they avoid if they can.
  */
 export function labelPlan(
   view: SceneView,
   directive: StageDirective,
   present: readonly PartId[],
   dimmed: ReadonlySet<PartId>,
-): { entries: LabelEntry[]; keepOut: Vec3[] } {
-  if (directive.labels === 'off') return { entries: [], keepOut: [] }
+): { entries: LabelEntry[]; keepOut: Vec3[]; soft: Vec3[][] } {
+  if (directive.labels === 'off') return { entries: [], keepOut: [], soft: [] }
   const symbols = directive.labels === 'symbols'
   const parts = labelledParts(directive.focus, present).filter((p) => !dimmed.has(p) && (!symbols || SYM_FOR_PART[p]))
-  const entries: LabelEntry[] = parts.map((p) => ({
-    key: p,
-    text: symbols ? SYM_FOR_PART[p]! : partName(p, view),
-    color: partColor(p),
-    symbol: symbols,
-    anchor: partAnchor(p, view, directive.ringLayer).label,
-  }))
+  const entries: LabelEntry[] = parts.map((p) => {
+    const at = partAnchor(p, view, directive.ringLayer)
+    const mechanism = isRotorPart(p, 'notch') || isRotorPart(p, 'pawl')
+    return {
+      key: p,
+      text: symbols ? SYM_FOR_PART[p]! : partName(p, view),
+      color: partColor(p),
+      symbol: symbols,
+      anchor: at.label,
+      ...(mechanism ? { target: at.center } : {}),
+    }
+  })
   const keepOut: Vec3[] = []
   // The exploded view names the ring setting: the number that faces the core's index (kept clear).
   if (directive.ringLayer && view.source === 'machine') {
     view.rotors.forEach((r, i) => {
       if (dimmed.has(`ring-${r.slot}`) || !present.includes(`ring-${r.slot}`)) return
       const angle = WINDOW_ANGLE + r.coreTurn * stepAngle(view.layout)
+      const number = onRotor(view, i, angle, DIAL_R, DIAL.x)
       entries.push({
         key: `setting-${r.slot}`,
         text: `ring ${String(r.ring + 1).padStart(2, '0')}`,
         color: RING_SETTING_COLOR,
         symbol: false,
-        anchor: onRotor(view, i, angle, ROTOR.bandR * EXPLODE_SCALE + 1.3, ROTOR.bandX1 + 0.6),
+        anchor: onRotor(view, i, angle, DIAL.r1 + 1.3, DIAL.x + 0.6),
+        target: number,
       })
-      keepOut.push(onRotor(view, i, angle, ((ROTOR.innerR + ROTOR.bandR) * EXPLODE_SCALE) / 2, ROTOR.bandX1))
+      keepOut.push(number)
     })
   }
+  const soft: Vec3[][] = []
   if (entries.some((e) => e.key.startsWith('pawl-') || e.key.startsWith('notch-'))) {
     view.rotors.forEach((r, i) => {
       if (r.pawl) keepOut.push(pawlTip(view.layout, i, r.engaged))
@@ -228,10 +254,11 @@ export function labelPlan(
         const a = notchAngle(view, i)
         keepOut.push(onRotor(view, i, a, ROTOR.notchR + 0.3, (ROTOR.notchX0 + ROTOR.notchX1) / 2))
       }
+      soft.push(ringOutline(view, i))
     })
   }
   entries.sort((a, b) => rank(a.key) - rank(b.key))
-  return { entries, keepOut }
+  return { entries, keepOut, soft }
 }
 
 // ---------------------------------------------------------------------------
@@ -250,44 +277,22 @@ const overlaps = (a: Rect, b: Rect): boolean =>
   a.x < b.x + b.w + GAP && b.x < a.x + a.w + GAP && a.y < b.y + b.h + GAP && b.y < a.y + a.h + GAP
 
 /** Candidate moves, in units of the label's height (dy) and half width (dx), nearest first. */
-const MOVES: readonly (readonly [number, number])[] = [
-  [0, 0],
-  [0, -1],
-  [0, 1],
-  [-1, 0],
-  [1, 0],
-  [-1, -1],
-  [1, -1],
-  [-1, 1],
-  [1, 1],
-  [0, -2],
-  [0, 2],
-  [-2, 0],
-  [2, 0],
-  [-2, -1],
-  [2, -1],
-  [-2, 1],
-  [2, 1],
-  [0, -3],
-  [0, 3],
-  [-3, 0],
-  [3, 0],
-  [-3, -2],
-  [3, -2],
-  [-3, 2],
-  [3, 2],
-  [0, -4],
-  [0, 4],
-]
+const MOVES: readonly (readonly [number, number])[] = (() => {
+  const out: [number, number][] = []
+  for (let dy = -6; dy <= 6; dy++) for (let dx = -5; dx <= 5; dx++) out.push([dx, dy])
+  return out.sort((a, b) => a[0] ** 2 + a[1] ** 2 - (b[0] ** 2 + b[1] ** 2))
+})()
 
 /**
- * Places labels (centre x, y and size in pixels, in placement order) inside a viewport so that they
- * overlap neither each other nor the obstacles; returns each label's rectangle. PURE.
+ * Places labels (centre x, y and size in pixels, in placement order) inside a viewport: each takes the
+ * nearest candidate spot that overlaps no label placed before it and no obstacle, and, among those, as
+ * few soft obstacles as it can. Returns each label's rectangle. PURE.
  */
 export function placeLabels(
   labels: readonly { x: number; y: number; w: number; h: number }[],
   obstacles: readonly Rect[],
   viewport: { w: number; h: number },
+  soft: readonly Rect[] = [],
 ): Rect[] {
   const placed: Rect[] = []
   const clamp = (r: Rect): Rect => ({
@@ -297,31 +302,47 @@ export function placeLabels(
   })
   for (const l of labels) {
     let best: Rect | null = null
-    let bestHits = Infinity
-    for (const [mx, my] of MOVES) {
+    let bestScore = Infinity
+    for (let rank = 0; rank < MOVES.length; rank++) {
+      const [mx, my] = MOVES[rank]!
       const r = clamp({
         x: l.x - l.w / 2 + (mx * (l.w + GAP)) / 2,
         y: l.y - l.h / 2 + my * (l.h + GAP),
         w: l.w,
         h: l.h,
       })
-      const hits = [...placed, ...obstacles].filter((o) => overlaps(r, o)).length
-      if (hits < bestHits) {
+      const hard = placed.filter((o) => overlaps(r, o)).length + obstacles.filter((o) => overlaps(r, o)).length
+      const softHits = soft.filter((o) => overlaps(r, o)).length
+      const score = hard * 100_000 + softHits * 1_000 + rank
+      if (score < bestScore) {
         best = r
-        bestHits = hits
+        bestScore = score
       }
-      if (hits === 0) break
+      // moves are nearest first: the first spot clear of everything is the best
+      if (hard === 0 && softHits === 0) break
     }
     placed.push(best!)
   }
   return placed
 }
 
+export interface LaidOutLabel extends Rect {
+  key: string
+  text: string
+  symbol: boolean
+  leader: { x1: number; y1: number; x2: number; y2: number } | null
+}
+
 /** The latest layout, in canvas pixels: for the e2e debug hook. */
-export const labelLayout: { labels: (Rect & { key: string; text: string })[]; keepOut: Rect[] } = {
+export const labelLayout: { labels: LaidOutLabel[]; keepOut: Rect[]; soft: Rect[] } = {
   labels: [],
   keepOut: [],
+  soft: [],
 }
+
+/** The smallest on-screen label box: its type is never under MIN_LABEL_FONT_PX. */
+export const minLabelPx = (symbol: boolean): number =>
+  symbol ? Math.max(20, MIN_LABEL_FONT_PX / LABEL_FONT_RATIO.symbol) : MIN_LABEL_FONT_PX / LABEL_FONT_RATIO.name
 
 const KEEP_OUT_PX = 18
 const _p = new Vector3()
@@ -430,15 +451,26 @@ function Label({
   )
 }
 
-/** Draws the labels and lays them out on screen every frame (before it is rendered). */
-function LabelLayer({ entries, keepOut }: { entries: readonly LabelEntry[]; keepOut: readonly Vec3[] }): JSX.Element {
+/**
+ * Draws the labels and lays them out on screen every frame (before it is rendered): never smaller
+ * than minLabelPx, placed by placeLabels, with a leader line from the label's edge to its target.
+ */
+function LabelLayer({
+  entries,
+  keepOut,
+  soft,
+}: {
+  entries: readonly LabelEntry[]
+  keepOut: readonly Vec3[]
+  soft: readonly (readonly Vec3[])[]
+}): JSX.Element {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   const placed = useRef(new Map<string, Placed>())
   const order = useRef<readonly LabelEntry[]>(entries)
   order.current = entries
-  const obstacles = useRef<readonly Vec3[]>(keepOut)
-  obstacles.current = keepOut
+  const obstacles = useRef({ keepOut, soft })
+  obstacles.current = { keepOut, soft }
   const register = useMemo(
     () => (key: string, value: Placed | null) => {
       if (value) placed.current.set(key, value)
@@ -446,17 +478,31 @@ function LabelLayer({ entries, keepOut }: { entries: readonly LabelEntry[]; keep
     },
     [],
   )
+  const capacity = entries.length
+  const leaders = useMemo(() => {
+    const g = new BufferGeometry()
+    g.setAttribute('position', new BufferAttribute(new Float32Array(capacity * 6), 3).setUsage(DynamicDrawUsage))
+    g.setDrawRange(0, 0)
+    return g
+  }, [capacity])
+  const leaderMaterial = useMemo(
+    () =>
+      new LineBasicMaterial({ color: '#e7e5e4', transparent: true, opacity: 0.9, depthTest: false, toneMapped: false }),
+    [],
+  )
+  useEffect(() => () => leaders.dispose(), [leaders])
+  useEffect(() => () => leaderMaterial.dispose(), [leaderMaterial])
   useEffect(
     () => () => {
       labelLayout.labels = []
       labelLayout.keepOut = []
+      labelLayout.soft = []
     },
     [],
   )
   useFrame(() => {
     camera.updateMatrixWorld()
-    const items: { key: string; text: string; x: number; y: number; w: number; h: number; ppu: number; p: Placed }[] =
-      []
+    const items: { key: string; x: number; y: number; w: number; h: number; ppu: number; p: Placed }[] = []
     for (const entry of order.current) {
       const p = placed.current.get(entry.key)
       if (!p) continue
@@ -466,29 +512,79 @@ function LabelLayer({ entries, keepOut }: { entries: readonly LabelEntry[]; keep
         continue
       }
       p.group.visible = true
-      const h = labelHeight(p.entry.symbol) * s.ppu
-      items.push({ key: entry.key, text: p.entry.text, x: s.x, y: s.y, w: h * p.aspect, h, ppu: s.ppu, p })
+      // far from the camera (a phone), a label keeps a legible size on screen
+      const natural = labelHeight(p.entry.symbol) * s.ppu
+      const h = Math.max(natural, minLabelPx(p.entry.symbol))
+      p.group.scale.setScalar(h / natural)
+      items.push({ key: entry.key, x: s.x, y: s.y, w: h * p.aspect, h, ppu: s.ppu, p })
     }
     const keep: Rect[] = []
-    for (const k of obstacles.current) {
+    for (const k of obstacles.current.keepOut) {
       const s = project(camera, k, size)
       if (s) keep.push({ x: s.x - KEEP_OUT_PX / 2, y: s.y - KEEP_OUT_PX / 2, w: KEEP_OUT_PX, h: KEEP_OUT_PX })
     }
-    const rects = placeLabels(items, keep, { w: size.width, h: size.height })
+    const softRects: Rect[] = []
+    for (const outline of obstacles.current.soft) {
+      const pts = outline.map((q) => project(camera, q, size)).filter((q) => q !== null)
+      if (!pts.length) continue
+      const xs = pts.map((q) => q.x)
+      const ys = pts.map((q) => q.y)
+      const x = Math.min(...xs)
+      const y = Math.min(...ys)
+      softRects.push({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y })
+    }
+    const rects = placeLabels(items, keep, { w: size.width, h: size.height }, softRects)
     _right.setFromMatrixColumn(camera.matrixWorld, 0)
     _up.setFromMatrixColumn(camera.matrixWorld, 1)
+    const positions = leaders.getAttribute('position') as BufferAttribute
+    let segments = 0
+    const laidOut: LaidOutLabel[] = []
     items.forEach((it, i) => {
       const r = rects[i]!
-      const dx = (r.x + r.w / 2 - it.x) / it.ppu
-      const dy = (r.y + r.h / 2 - it.y) / it.ppu
+      const cx = r.x + r.w / 2
+      const cy = r.y + r.h / 2
       const a = it.p.entry.anchor
-      it.p.group.position.set(a.x, a.y, a.z).addScaledVector(_right, dx).addScaledVector(_up, -dy)
+      const group = it.p.group.position
+      group
+        .set(a.x, a.y, a.z)
+        .addScaledVector(_right, (cx - it.x) / it.ppu)
+        .addScaledVector(_up, -(cy - it.y) / it.ppu)
+      let leader: LaidOutLabel['leader'] = null
+      const target = it.p.entry.target
+      const t = target ? project(camera, target, size) : null
+      if (target && t && segments < capacity) {
+        const dx = t.x - cx
+        const dy = t.y - cy
+        // from where the line to the target leaves the label's box
+        const k = Math.min(dx ? r.w / 2 / Math.abs(dx) : Infinity, dy ? r.h / 2 / Math.abs(dy) : Infinity)
+        if (k < 1) {
+          const start = _p
+            .copy(group)
+            .addScaledVector(_right, (dx * k) / it.ppu)
+            .addScaledVector(_up, -(dy * k) / it.ppu)
+          positions.setXYZ(segments * 2, start.x, start.y, start.z)
+          positions.setXYZ(segments * 2 + 1, target.x, target.y, target.z)
+          segments++
+          leader = { x1: cx + dx * k, y1: cy + dy * k, x2: t.x, y2: t.y }
+        }
+      }
+      laidOut.push({ ...r, key: it.key, text: it.p.entry.text, symbol: it.p.entry.symbol, leader })
     })
-    labelLayout.labels = items.map((it, i) => ({ ...rects[i]!, key: it.key, text: it.text }))
+    positions.needsUpdate = true
+    leaders.setDrawRange(0, segments * 2)
+    labelLayout.labels = laidOut
     labelLayout.keepOut = keep
+    labelLayout.soft = softRects
   })
   return (
     <group name="labels">
+      <lineSegments
+        name="label-leaders"
+        geometry={leaders}
+        material={leaderMaterial}
+        renderOrder={9}
+        frustumCulled={false}
+      />
       {entries.map((e) => (
         <Label key={e.key} entry={e} register={register} />
       ))}
@@ -506,9 +602,9 @@ export const PartLabels = memo(function PartLabels({
   present: readonly PartId[]
 }): JSX.Element | null {
   const { dimmed } = useFocus()
-  const { entries, keepOut } = labelPlan(view, directive, present, dimmed)
+  const { entries, keepOut, soft } = labelPlan(view, directive, present, dimmed)
   if (!entries.length) return null
-  return <LabelLayer entries={entries} keepOut={keepOut} />
+  return <LabelLayer entries={entries} keepOut={keepOut} soft={soft} />
 })
 
 function Halo({

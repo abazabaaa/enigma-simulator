@@ -16,7 +16,7 @@ import {
   type Vec3,
 } from './layout'
 import { pawlTip } from './parts/Pawls'
-import { CAMERA_FOV, frameShot } from './shots'
+import { CAMERA_FOV, dialUp, frameShot } from './shots'
 
 const LAYOUTS: readonly [string, Layout][] = [
   ['I', makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })],
@@ -106,6 +106,41 @@ describe('frameShot', () => {
       return [(s.position.x - s.target.x) / d, (s.position.y - s.target.y) / d, (s.position.z - s.target.z) / d]
     }
     dir(narrow).forEach((c, k) => expect(c).toBeCloseTo(dir(wide)[k]!, 12))
+  })
+
+  it('rotor-layers: the window letter is not seen edge-on and the dial numbers stand upright', () => {
+    const l = LAYOUTS[0]![1]
+    for (const aspect of ASPECTS) {
+      const s = frameShot('rotor-layers', l, { aspect, focus: 'ring-right', labels: true, ringLayer: true })
+      const camera = new PerspectiveCamera(CAMERA_FOV, aspect, 1, 600)
+      camera.position.set(s.position.x, s.position.y, s.position.z)
+      camera.lookAt(s.target.x, s.target.y, s.target.z)
+      camera.updateMatrixWorld()
+      const px = (a: Vector3, b: Vector3) => {
+        const p = a.clone().project(camera)
+        const q = b.clone().project(camera)
+        return Math.hypot((p.x - q.x) * aspect, p.y - q.y)
+      }
+      const r = ROTOR.bandR * 1.3
+      const c = new Vector3(
+        slotX(l, 2) + ROTOR.letterX,
+        AXIS_Y + r * Math.cos(WINDOW_ANGLE),
+        AXIS_Z + r * Math.sin(WINDOW_ANGLE),
+      )
+      const across = new Vector3(0.5, 0, 0)
+      const up = new Vector3(0, Math.sin(WINDOW_ANGLE), -Math.cos(WINDOW_ANGLE)).multiplyScalar(0.5)
+      const ratio = px(c.clone().sub(across), c.clone().add(across)) / px(c.clone().sub(up), c.clone().add(up))
+      expect(ratio, `window letter width/height at aspect ${aspect.toFixed(2)}`).toBeGreaterThan(0.65)
+      // the dial's up is (nearly) the camera's up: numbers keep their height
+      const u = dialUp()
+      const dial = new Vector3(slotX(l, 2) + ROTOR.bandX1, AXIS_Y, AXIS_Z + 5.7)
+      const along = new Vector3(0, u.y, u.z).multiplyScalar(0.5)
+      const d0 = px(dial.clone().sub(along), dial.clone().add(along))
+      const camUp = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(0.5)
+      expect(d0 / px(dial.clone().sub(camUp), dial.clone().add(camUp)), 'dial numbers unforeshortened').toBeGreaterThan(
+        0.9,
+      )
+    }
   })
 
   it('frames the pawls from above the stack: the pawl–notch contact faces the camera', () => {
