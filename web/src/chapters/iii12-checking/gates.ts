@@ -120,6 +120,14 @@ export interface Replay {
 
 const columnOf = (d: CheckData, pos: number): [string, string] => [d.crib[pos - 1]!.toUpperCase(), d.under[pos - 1]!.toUpperCase()]
 
+/** Every column's letters and scrambler, computed once per check. */
+function columnsOf(d: CheckData): { a: string; b: string; z: readonly number[] }[] {
+  return Array.from({ length: d.crib.length }, (_, j) => {
+    const [a, b] = columnOf(d, j + 1)
+    return { a, b, z: columnScrambler(d, j + 1) }
+  })
+}
+
 /** The starting notes: the stop's hypothesis, test letter ↔ its register partner. */
 export function startNotes(d: CheckData): Record<string, string> {
   return { [d.stop.testLetter]: d.stop.stecker, [d.stop.stecker]: d.stop.testLetter }
@@ -127,12 +135,13 @@ export function startNotes(d: CheckData): Record<string, string> {
 
 /** Replay a log of deductions from the stop's hypothesis, checking each step against the checking machine. */
 export function replay(d: CheckData, log: readonly CheckStep[]): Replay {
+  const cols = columnsOf(d)
   const partner: Record<string, string> = startNotes(d)
   for (let k = 0; k < log.length; k++) {
     const s = log[k]!
     const pos = Number(s?.pos)
     if (!Number.isInteger(pos) || pos < 1 || pos > d.crib.length) return { partner, invalid: { at: k, message: `Step ${k + 1} names no crib column.` } }
-    const [a, b] = columnOf(d, pos)
+    const { a, b, z } = cols[pos - 1]!
     const letter = String(s.letter ?? '').toUpperCase()
     const press = String(s.press ?? '').toUpperCase()
     const lamp = String(s.partner ?? '').toUpperCase()
@@ -152,7 +161,7 @@ export function replay(d: CheckData, log: readonly CheckStep[]): Replay {
         },
       }
     }
-    const lit = L(columnScrambler(d, pos)[idx(press)]!)
+    const lit = L(z[idx(press)]!)
     if (lit !== lamp) {
       return { partner, invalid: { at: k, message: `At column ${pos}, pressing ${press} lights ${lit}, not ${lamp}.` } }
     }
@@ -202,23 +211,34 @@ export function closure(d: CheckData, partner: Readonly<Record<string, string>>)
  * pass finds nothing new; a deduction that gives a letter a second partner ends it.
  */
 export function canonicalLog(d: CheckData): { log: CheckStep[]; conflict: Replay['conflict'] | null } {
+  const cols = columnsOf(d)
   const partner: Record<string, string> = startNotes(d)
   const log: CheckStep[] = []
   for (let changed = true; changed; ) {
     changed = false
-    for (let pos = 1; pos <= d.crib.length; pos++) {
-      const [a, b] = columnOf(d, pos)
+    for (let j = 0; j < cols.length; j++) {
+      const { a, b, z } = cols[j]!
       for (const [from, to] of [
         [a, b],
         [b, a],
       ] as const) {
         const p = partner[from]
         if (p === undefined) continue
-        const want = L(columnScrambler(d, pos)[idx(p)]!)
+        const want = L(z[idx(p)]!)
         if (partner[to] === want) continue
-        log.push({ pos, press: p, letter: to, partner: want })
-        const r = replay(d, log)
-        if (r.conflict) return { log, conflict: r.conflict }
+        log.push({ pos: j + 1, press: p, letter: to, partner: want })
+        // The same test as replay's: a second partner for `to`, or `want` already taken.
+        const letters: string[] = []
+        const partners: string[] = []
+        if (partner[to] !== undefined) {
+          letters.push(to)
+          partners.push(partner[to]!, want)
+        }
+        if (partner[want] !== undefined && partner[want] !== to) {
+          letters.push(want)
+          partners.push(partner[want]!, to)
+        }
+        if (letters.length) return { log, conflict: { at: log.length - 1, letters, partners } }
         partner[to] = want
         partner[want] = to
         changed = true
@@ -226,6 +246,26 @@ export function canonicalLog(d: CheckData): { log: CheckStep[]; conflict: Replay
     }
   }
   return { log, conflict: null }
+}
+
+/**
+ * The checking machine's next move under some notes, in its own order: the first column (from the left, each both
+ * ways) where a known partner gives a new or a disagreeing partner. null when every column agrees.
+ */
+export function nextDeduction(d: CheckData, partner: Readonly<Record<string, string>>): CheckStep | null {
+  for (let pos = 1; pos <= d.crib.length; pos++) {
+    const [a, b] = columnOf(d, pos)
+    for (const [from, to] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const p = partner[from]
+      if (p === undefined) continue
+      const want = L(columnScrambler(d, pos)[idx(p)]!)
+      if (partner[to] !== want) return { pos, press: p, letter: to, partner: want }
+    }
+  }
+  return null
 }
 
 /** The cables the notes hold (pairs of different letters, 'AB' with A < B, sorted) and the letters found uncabled. */
@@ -332,7 +372,11 @@ export function stopInstance(r: Rng, ctx: Pick<GenCtx, 'attempt'>): StopInstance
     const o = { menu, rotors: day.rotors, reflector: day.reflector, diagonal: false }
     let found: Stop | undefined
     if (wantFalse) {
-      found = runBombe({ ...o, from: positionString(int(r, 17576)), limit: 60 }).find((s) => s.positions !== truth)
+      // The first false stop scanning from a random position, 20 positions at a time (a stop comes every few dozen).
+      const from = int(r, 17576)
+      for (let k = 0; k < 3 && !found; k++) {
+        found = runBombe({ ...o, from: positionString(from + 20 * k), limit: 20 }).find((s) => s.positions !== truth)
+      }
     } else {
       found = runBombe({ ...o, from: truth, limit: 1 })[0]
       const S = fromPairs(day.plugboard)
