@@ -7,7 +7,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { AnyChapterId } from '../../contracts/core'
-import type { BetHandle, ChapterDef, GateBinding, GateHandle, ItemUiMap, SceneDef, SceneProps } from '../../contracts/lesson'
+import type {
+  BetHandle,
+  ChapterDef,
+  GateBinding,
+  GateHandle,
+  ItemUiMap,
+  SceneDef,
+  SceneProps,
+} from '../../contracts/lesson'
 import type { BetRecord } from '../../contracts/progress'
 import { MachinePanel } from '../../machine-ui'
 import { StageHost } from '../../stage/StageHost'
@@ -72,7 +80,12 @@ function stepPress(key: string): void {
   }
 }
 
-function GateBody(p: { gateKey: `${string}/${string}`; binding: GateBinding; recall: boolean; onHandle(h: GateHandle | null): void }): JSX.Element {
+function GateBody(p: {
+  gateKey: `${string}/${string}`
+  binding: GateBinding
+  recall: boolean
+  onHandle(h: GateHandle | null): void
+}): JSX.Element {
   const controller = useGateController(p.gateKey as never, p.binding, p.recall)
   const { onHandle } = p
   useEffect(() => {
@@ -135,7 +148,10 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     }
   }, [chapter, scene])
 
-  const isCommitted = useCallback((bet: string) => useProgress.getState().bets[betKey(chapter, bet)] !== undefined, [chapter])
+  const isCommitted = useCallback(
+    (bet: string) => useProgress.getState().bets[betKey(chapter, bet)] !== undefined,
+    [chapter],
+  )
 
   const fire = useCallback(
     (bet: string) => {
@@ -213,7 +229,9 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
   }, [scene, p.def, chapter, salt, p.recallUi])
 
   const stage = itemStage !== undefined ? itemStage : scene.stage
-  const alphabet = scene.setup?.toy?.n ?? (scene.stage && (typeof scene.stage === 'string' ? scene.stage : scene.stage.preset) === 'toy' ? 6 : 26)
+  const alphabet =
+    scene.setup?.toy?.n ??
+    (scene.stage && (typeof scene.stage === 'string' ? scene.stage : scene.stage.preset) === 'toy' ? 6 : 26)
   const View = scene.View
 
   return (
@@ -228,7 +246,9 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       >
         <h2 className="text-xl font-semibold text-stone-100">{scene.title}</h2>
         {scene.kind === 'story' && scene.story ? <StoryScene story={scene.story} facts={p.def.facts} /> : null}
-        {stage ? <StageHost stage={stage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" /> : null}
+        {stage ? (
+          <StageHost stage={stage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" />
+        ) : null}
         {scene.panels && !ownsMachine ? <MachinePanel show={scene.panels} /> : null}
         {View ? <View {...props} /> : null}
         {scene.bets?.length ? (
@@ -259,7 +279,12 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
             {scene.tasks.map((t) => {
               const done = tasksDone.includes(taskKey(scene.id, t.id))
               return (
-                <li key={t.id} data-testid={`task-${t.id}`} data-done={String(done)} className={done ? 'text-emerald-300' : 'text-stone-300'}>
+                <li
+                  key={t.id}
+                  data-testid={`task-${t.id}`}
+                  data-done={String(done)}
+                  className={done ? 'text-emerald-300' : 'text-stone-300'}
+                >
                   {done ? '✓' : '○'} {t.label}
                 </li>
               )
@@ -278,7 +303,13 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
           <p className="text-sm text-red-300">Gate {scene.gate} is missing.</p>
         ) : null}
         <nav className="flex items-center justify-between gap-2 border-t border-stone-800 pt-3">
-          <button type="button" data-testid="scene-back" className={QUIET_BUTTON} disabled={p.index === 0} onClick={p.onBack}>
+          <button
+            type="button"
+            data-testid="scene-back"
+            className={QUIET_BUTTON}
+            disabled={p.index === 0}
+            onClick={p.onBack}
+          >
             Back
           </button>
           <button

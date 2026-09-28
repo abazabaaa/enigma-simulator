@@ -149,7 +149,10 @@ export const windows = lettersItem<WindowsInstance>({
     const base = randomConfig(r, { plugs: 0 })
     const turnover = ROTORS[base.rotors[2]!].turnovers[0]!
     const right = L(mod(idx(turnover) - int(r, 3), 26))
-    return { length: 9, config: normalizeConfig({ ...base, positions: [base.positions[0]!, base.positions[1]!, right] }) }
+    return {
+      length: 9,
+      config: normalizeConfig({ ...base, positions: [base.positions[0]!, base.positions[1]!, right] }),
+    }
   },
   same: (a, b) => sameJson(a.config, b.config),
   solve: (i) => windowsAfterPresses(i.config, 3).join(''),
@@ -258,7 +261,13 @@ export const pressOrder = orderItem<{ blocks: readonly Choice[] }>({
   constantAnswer: true,
   generate(r) {
     let blocks = shuffle(r, PRESS_BLOCKS)
-    while (sameJson(blocks.map((b) => b.id), PRESS_ORDER)) blocks = shuffle(r, PRESS_BLOCKS)
+    while (
+      sameJson(
+        blocks.map((b) => b.id),
+        PRESS_ORDER,
+      )
+    )
+      blocks = shuffle(r, PRESS_BLOCKS)
     return { blocks }
   },
   same: (a, b) => sameJson(a.blocks, b.blocks),
@@ -296,12 +305,23 @@ export const toyChain = chainItem<ChainInstance>({
   check(i, a) {
     const ref = chainHops(i)
     const got = Array.isArray(a) ? a.map((t) => String(t).toUpperCase()) : []
-    return verdict(sameJson(got, ref.map((h) => h.output)), { kind: 'path', ghost: ghostFromOutputs(ref, got) })
+    return verdict(
+      sameJson(
+        got,
+        ref.map((h) => h.output),
+      ),
+      { kind: 'path', ghost: ghostFromOutputs(ref, got) },
+    )
   },
   setup: (i) => toySetup(i.spec),
   highlight(i, lastWrong) {
     const ref = chainHops(i)
-    const k = lastWrong ? firstDiff(ref.map((h) => h.output), lastWrong) : 0
+    const k = lastWrong
+      ? firstDiff(
+          ref.map((h) => h.output),
+          lastWrong,
+        )
+      : 0
     return [{ part: partForStage(ref[Math.max(0, Math.min(ref.length - 1, k))]!.stage), tone: 'hint' }]
   },
 })
@@ -437,7 +457,8 @@ export const whichWrong = ghostPickItem<GhostInstance>({
   },
   same: (a, b) => a.key === b.key && sameJson(a.ghost, b.ghost),
   solve: (i) => partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage),
-  check: (i, a) => verdict(a === partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage), { kind: 'path', ghost: i.ghost }),
+  check: (i, a) =>
+    verdict(a === partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage), { kind: 'path', ghost: i.ghost }),
   setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: 'wire' }),
   // The last hop that is still right: the bug is after it.
   highlight: (i) => [{ part: partForStage(i.ghost.hops[Math.max(0, i.ghost.divergeAt - 1)]!.stage), tone: 'hint' }],
@@ -509,7 +530,12 @@ export function toySetItem(id: string): ItemLogic<ToySetInstance, number> {
     check(i, p) {
       const pos = Number(p)
       if (!Number.isInteger(pos) || pos < 0 || pos >= i.spec.n) {
-        return verdict(false, { kind: 'machine', field: 'positions', message: 'Pick a rotor position.', highlight: ['rotor-right'] })
+        return verdict(false, {
+          kind: 'machine',
+          field: 'positions',
+          message: 'Pick a rotor position.',
+          highlight: ['rotor-right'],
+        })
       }
       const lamp = toyLampAt(i, pos)
       return verdict(lamp === i.target, {
@@ -568,7 +594,18 @@ export const puzzleSet = toySetItem('puzzle-set')
 
 export const GATES: ChapterGates = {
   main: {
-    items: [toyLamp, windows, lengths, selfChoice, pressOrder, toyChain, middleSteps, whichWrong, double, toySet] as ItemLogic[],
+    items: [
+      toyLamp,
+      windows,
+      lengths,
+      selfChoice,
+      pressOrder,
+      toyChain,
+      middleSteps,
+      whichWrong,
+      double,
+      toySet,
+    ] as ItemLogic[],
     fallback: leftSteps as ItemLogic,
   },
   puzzle: { items: [puzzleLamps as ItemLogic], fallback: puzzleSet as ItemLogic, puzzle: true },

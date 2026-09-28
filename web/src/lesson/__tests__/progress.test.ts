@@ -3,7 +3,10 @@ import { PROGRESS_CORRUPT_KEY, PROGRESS_KEY } from '../../contracts/progress'
 import type { SafeStorage } from '../../lib/storage'
 import { createProgressStore, freshProgress, parseProgress } from '../progress'
 
-function memory(init: Record<string, string> = {}, o: { failWrites?: boolean } = {}): SafeStorage & { data: Map<string, string> } {
+function memory(
+  init: Record<string, string> = {},
+  o: { failWrites?: boolean } = {},
+): SafeStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(init))
   let ok = true
   return {
@@ -30,7 +33,11 @@ describe('progress persistence', () => {
     expect(store.getState()).toMatchObject({ version: 1, salt: 'abc', createdAt: 1000, lastVisit: 1000 })
     store.getState().patchChapter('i1-anatomy', { reached: 2 })
     const saved = JSON.parse(s.data.get(PROGRESS_KEY)!)
-    expect(saved).toMatchObject({ version: 1, salt: 'abc', chapters: { 'i1-anatomy': { reached: 2, completed: false, tasks: [] } } })
+    expect(saved).toMatchObject({
+      version: 1,
+      salt: 'abc',
+      chapters: { 'i1-anatomy': { reached: 2, completed: false, tasks: [] } },
+    })
     expect(saved).not.toHaveProperty('notice')
     expect(parseProgress(s.data.get(PROGRESS_KEY)!)).not.toBeNull()
   })
@@ -38,7 +45,16 @@ describe('progress persistence', () => {
   it('restores saved progress exactly (seeds included) on the next load', () => {
     const s = memory()
     const a = createProgressStore({ storage: s, seed: 'abc' })
-    const rec = { attempt: 3, seed: 12345, redraw: 2, shownAt: 7, outcomes: [], wrong: 0, fallbackNext: false, passed: false }
+    const rec = {
+      attempt: 3,
+      seed: 12345,
+      redraw: 2,
+      shownAt: 7,
+      outcomes: [],
+      wrong: 0,
+      fallbackNext: false,
+      passed: false,
+    }
     a.getState().setGate('lab-fixture/main', { items: { 'toy-lamp': rec }, passed: false })
     const b = createProgressStore({ storage: s })
     expect(b.getState().gates['lab-fixture/main']!.items['toy-lamp']).toEqual(rec)
@@ -49,7 +65,10 @@ describe('progress persistence', () => {
   it.each([
     ['not JSON', '{nope'],
     ['another version', JSON.stringify({ ...freshProgress(1, 's'), version: 2 })],
-    ['a broken gate record', JSON.stringify({ ...freshProgress(1, 's'), gates: { 'x/y': { passed: false, items: { a: { attempt: 'x' } } } } })],
+    [
+      'a broken gate record',
+      JSON.stringify({ ...freshProgress(1, 's'), gates: { 'x/y': { passed: false, items: { a: { attempt: 'x' } } } } }),
+    ],
     ['zustand-wrapped state', JSON.stringify({ state: freshProgress(1, 's'), version: 1 })],
   ])('quarantines %s and starts fresh with a notice', (_label, raw) => {
     const s = memory({ [PROGRESS_KEY]: raw })
@@ -71,7 +90,12 @@ describe('progress persistence', () => {
   })
 
   it('raises the banner at once when storage is unavailable', () => {
-    const s = { ...memory(), get persistent() { return false } }
+    const s = {
+      ...memory(),
+      get persistent() {
+        return false
+      },
+    }
     expect(createProgressStore({ storage: s }).getState().notice.storageFailed).toBe(true)
   })
 

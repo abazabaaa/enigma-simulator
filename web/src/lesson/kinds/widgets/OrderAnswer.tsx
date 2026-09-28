@@ -4,7 +4,11 @@ import { QUIET_BUTTON, SubmitButton } from '../../ui/controls'
 import type { WidgetProps } from './types'
 
 /** A Parsons list: reorder with Alt+↑/↓ on the focused block, the arrow buttons, or drag and drop. */
-export function OrderAnswer({ instance, disabled, submit }: WidgetProps<{ blocks: readonly Choice[] }, string[]>): JSX.Element {
+export function OrderAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<{ blocks: readonly Choice[] }, string[]>): JSX.Element {
   const [order, setOrder] = useState<string[]>(() => instance.blocks.map((b) => b.id))
   const [focus, setFocus] = useState(0)
   const drag = useRef<number | null>(null)
@@ -23,7 +27,9 @@ export function OrderAnswer({ instance, disabled, submit }: WidgetProps<{ blocks
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-stone-400">Put the blocks in order: focus one and press Alt+↑ or Alt+↓, use the arrows, or drag.</p>
+      <p className="text-xs text-stone-400">
+        Put the blocks in order: focus one and press Alt+↑ or Alt+↓, use the arrows, or drag.
+      </p>
       <ol
         role="listbox"
         aria-label="Blocks to put in order"
@@ -72,7 +78,13 @@ export function OrderAnswer({ instance, disabled, submit }: WidgetProps<{ blocks
           >
             <span className="w-5 font-mono text-stone-400">{k + 1}.</span>
             <span className="flex-1">{label(id)}</span>
-            <button type="button" className={QUIET_BUTTON} aria-label={`Move ${label(id)} up`} disabled={disabled || k === 0} onClick={() => move(k, k - 1)}>
+            <button
+              type="button"
+              className={QUIET_BUTTON}
+              aria-label={`Move ${label(id)} up`}
+              disabled={disabled || k === 0}
+              onClick={() => move(k, k - 1)}
+            >
               ↑
             </button>
             <button

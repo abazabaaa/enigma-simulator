@@ -3,7 +3,11 @@ import { INPUT, SubmitButton } from '../../ui/controls'
 import type { WidgetProps } from './types'
 
 /** `instance.length` letters in segmented boxes; typing moves on, pasting fills every box. */
-export function LettersAnswer({ instance, disabled, submit }: WidgetProps<{ length: number; alphabet?: number }, string>): JSX.Element {
+export function LettersAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<{ length: number; alphabet?: number }, string>): JSX.Element {
   const length = instance.length
   const n = instance.alphabet ?? 26
   const last = String.fromCharCode(64 + n)
@@ -33,7 +37,11 @@ export function LettersAnswer({ instance, disabled, submit }: WidgetProps<{ leng
         if (valid && !disabled) submit(cells.join(''))
       }}
     >
-      <fieldset className="flex flex-wrap gap-1" aria-label={`Answer: ${length} letters A to ${last}`} disabled={disabled}>
+      <fieldset
+        className="flex flex-wrap gap-1"
+        aria-label={`Answer: ${length} letters A to ${last}`}
+        disabled={disabled}
+      >
         {cells.map((c, k) => (
           <input
             key={k}

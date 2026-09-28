@@ -41,7 +41,11 @@ const MOTIONS = ['reduce', 'full'] as const
 
 const consoleLog: { chapter: string; scene: string | null; type: string; text: string }[] = []
 const stageLog: { chapter: string; scene: string; renderer: string; info: unknown; stats: unknown }[] = []
-const axeLog: { chapter: string; scene: string; violations: { id: string; impact: string | null; help: string; targets: string[] }[] }[] = []
+const axeLog: {
+  chapter: string
+  scene: string
+  violations: { id: string; impact: string | null; help: string; targets: string[] }[]
+}[] = []
 
 async function shoot(page: Page, name: string): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
@@ -70,7 +74,12 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
   axeLog.push({
     chapter,
     scene,
-    violations: axe.violations.map((v) => ({ id: v.id, impact: v.impact ?? null, help: v.help, targets: v.nodes.map((n) => String(n.target)) })),
+    violations: axe.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact ?? null,
+      help: v.help,
+      targets: v.nodes.map((n) => String(n.target)),
+    })),
   })
 
   if (MACHINE_3D_READY && (await page.getByTestId('stage').count())) {

@@ -38,7 +38,11 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
   for (let k = 0; k < rb.expected.length; k++) {
     const s = step(state)
     const moved = (['left', 'middle', 'right'] as const).filter((slot) => s.stepped[slot]).join(' + ')
-    presses.push({ before: positionsToString(state), after: positionsToString(s.state), moved: `${moved}${s.doubleStep ? ' (double step)' : ''}` })
+    presses.push({
+      before: positionsToString(state),
+      after: positionsToString(s.state),
+      moved: `${moved}${s.doubleStep ? ' (double step)' : ''}`,
+    })
     state = s.state
   }
   const [shown, setShown] = useState(rb.firstWrong)
@@ -56,7 +60,11 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
           </thead>
           <tbody>
             {rb.expected.map((e, k) => (
-              <tr key={k} data-first-wrong={k === rb.firstWrong ? 'true' : undefined} className={k === rb.firstWrong ? 'text-red-200' : ''}>
+              <tr
+                key={k}
+                data-first-wrong={k === rb.firstWrong ? 'true' : undefined}
+                className={k === rb.firstWrong ? 'text-red-200' : ''}
+              >
                 <td className="pr-4">{k + 1}</td>
                 <td className="pr-4">{e}</td>
                 <td>{rb.got[k] ?? '—'}</td>
@@ -67,7 +75,13 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
       </div>
       {p ? (
         <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="stepping-preview">
-          <button type="button" className={QUIET_BUTTON} disabled={shown === 0} onClick={() => setShown(shown - 1)} aria-label="Previous press">
+          <button
+            type="button"
+            className={QUIET_BUTTON}
+            disabled={shown === 0}
+            onClick={() => setShown(shown - 1)}
+            aria-label="Previous press"
+          >
             ◀
           </button>
           <span>
@@ -88,7 +102,17 @@ function WindowsView({ rb }: { rb: Of<'windows'> }): JSX.Element {
   )
 }
 
-function OrderView({ rb, logic, instance, answer }: { rb: Of<'order'>; logic: ItemLogic; instance: unknown; answer: unknown }): JSX.Element {
+function OrderView({
+  rb,
+  logic,
+  instance,
+  answer,
+}: {
+  rb: Of<'order'>
+  logic: ItemLogic
+  instance: unknown
+  answer: unknown
+}): JSX.Element {
   const blocks = ((instance as { blocks?: readonly Choice[] }).blocks ?? []) as readonly Choice[]
   const label = (id: string) => blocks.find((b) => b.id === id)?.label ?? id
   const got = Array.isArray(answer) ? (answer as string[]) : []
@@ -99,7 +123,11 @@ function OrderView({ rb, logic, instance, answer }: { rb: Of<'order'>; logic: It
         <p className="text-xs text-stone-400">Your order</p>
         <ol className="list-decimal pl-5 text-sm">
           {got.map((id, k) => (
-            <li key={id} data-first-wrong={k === rb.firstWrong ? 'true' : undefined} className={k === rb.firstWrong ? 'text-red-200' : ''}>
+            <li
+              key={id}
+              data-first-wrong={k === rb.firstWrong ? 'true' : undefined}
+              className={k === rb.firstWrong ? 'text-red-200' : ''}
+            >
               {label(id)}
             </li>
           ))}
@@ -148,7 +176,9 @@ export function RollbackView(p: {
           {rb.message} <span className="text-stone-400">(highlighted: {rb.highlight.map(partName).join(', ')})</span>
         </p>
       ) : null}
-      {!result.correct && rb.kind === 'order' ? <OrderView rb={rb} logic={p.logic} instance={p.instance} answer={p.answer} /> : null}
+      {!result.correct && rb.kind === 'order' ? (
+        <OrderView rb={rb} logic={p.logic} instance={p.instance} answer={p.answer} />
+      ) : null}
       {!result.correct && Feedback && !['path', 'windows', 'machine', 'order'].includes(rb.kind) ? (
         <Feedback instance={p.instance} answer={p.answer} result={result} />
       ) : null}

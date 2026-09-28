@@ -4,7 +4,11 @@ import { SubmitButton } from '../../ui/controls'
 import type { WidgetProps } from './types'
 
 /** A radio group over `instance.options`. */
-export function ChoiceAnswer({ instance, disabled, submit }: WidgetProps<{ options: readonly Choice[] }, string>): JSX.Element {
+export function ChoiceAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<{ options: readonly Choice[] }, string>): JSX.Element {
   const [v, setV] = useState<string | null>(null)
   const name = useId()
   return (
@@ -18,7 +22,10 @@ export function ChoiceAnswer({ instance, disabled, submit }: WidgetProps<{ optio
       <fieldset className="flex flex-col gap-2" disabled={disabled}>
         <legend className="sr-only">Choose one answer</legend>
         {instance.options.map((o) => (
-          <label key={o.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-stone-700 p-2 text-sm hover:border-stone-500">
+          <label
+            key={o.id}
+            className="flex cursor-pointer items-start gap-2 rounded-md border border-stone-700 p-2 text-sm hover:border-stone-500"
+          >
             <input
               type="radio"
               name={name}

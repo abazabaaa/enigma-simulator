@@ -98,7 +98,9 @@ export function GateRunner(p: {
   const current = view.current
   const currentLogic = current ? logic.items.find((it) => it.id === current.itemId)! : null
   const currentShown: Shown | null =
-    current && currentLogic && rec?.items[current.itemId] ? shownInstance(controller.ctx(), currentLogic, rec.items[current.itemId]!) : null
+    current && currentLogic && rec?.items[current.itemId]
+      ? shownInstance(controller.ctx(), currentLogic, rec.items[current.itemId]!)
+      : null
   const feedback = state.phase === 'feedback' ? state.last : null
   const displayed: Shown | null = feedback ? feedback.shown : currentShown
   const displayedKey = feedback
@@ -182,7 +184,11 @@ export function GateRunner(p: {
                   {live.fallback ? ' · a hands-on variant' : ''}
                 </span>
                 <span>
-                  {v.passed ? 'passed' : v.rule.kind === 'window' ? '2 of your last 3 right to pass' : 'one right answer passes'}
+                  {v.passed
+                    ? 'passed'
+                    : v.rule.kind === 'window'
+                      ? '2 of your last 3 right to pass'
+                      : 'one right answer passes'}
                   {v.attempt > 0 ? ` · attempt ${v.attempt}` : ''}
                 </span>
               </div>
@@ -202,7 +208,10 @@ export function GateRunner(p: {
         })}
       </ol>
       {view.passed && !feedback ? (
-        <p data-testid="gate-passed" className="rounded-md border border-emerald-700 bg-emerald-950/30 p-2 text-sm text-emerald-200">
+        <p
+          data-testid="gate-passed"
+          className="rounded-md border border-emerald-700 bg-emerald-950/30 p-2 text-sm text-emerald-200"
+        >
           Gate passed.
         </p>
       ) : null}
@@ -233,7 +242,8 @@ function ItemBody(p: {
       // A second click while the first answer's feedback is showing: one outcome only.
     }
   }
-  const Widget = (itemUi.Answer ?? (displayed.logic.kind === 'custom' ? null : WIDGETS[displayed.logic.kind])) as ComponentType<WidgetProps> | null
+  const Widget = (itemUi.Answer ??
+    (displayed.logic.kind === 'custom' ? null : WIDGETS[displayed.logic.kind])) as ComponentType<WidgetProps> | null
   return (
     <div className="mt-2 flex flex-col gap-3">
       <div className="text-sm text-stone-200" data-testid="item-prompt">

@@ -5,7 +5,12 @@
 
 import type { JSX, KeyboardEvent } from 'react'
 
-export function CodeEditor(p: { value: string; onChange(v: string): void; readOnly?: boolean; testId?: string }): JSX.Element {
+export function CodeEditor(p: {
+  value: string
+  onChange(v: string): void
+  readOnly?: boolean
+  testId?: string
+}): JSX.Element {
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Tab' || e.shiftKey || p.readOnly) return
     e.preventDefault()

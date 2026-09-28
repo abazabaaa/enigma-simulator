@@ -64,7 +64,18 @@ describe('the fixture chapter', () => {
     expect([...triggers].sort()).toEqual(['play', 'press', 'run', 'step', 'toggle'])
     const items = Object.values(FIXTURE_GATES).flatMap((g) => g.items.map((i) => i.kind))
     expect(new Set(items)).toEqual(
-      new Set(['letter', 'letters', 'numbers', 'choice', 'order', 'chain', 'set-machine', 'ghost-pick', 'code', 'custom']),
+      new Set([
+        'letter',
+        'letters',
+        'numbers',
+        'choice',
+        'order',
+        'chain',
+        'set-machine',
+        'ghost-pick',
+        'code',
+        'custom',
+      ]),
     )
     expect(Object.values(FIXTURE_GATES).some((g) => g.puzzle)).toBe(true)
   })
@@ -73,7 +84,10 @@ describe('the fixture chapter', () => {
     const broken: ChapterDef = {
       ...fixture,
       scenes: [
-        { ...fixture.scenes[0]!, story: { ...fixture.scenes[0]!.story!, text: 'word '.repeat(121), people: ['patent'] } },
+        {
+          ...fixture.scenes[0]!,
+          story: { ...fixture.scenes[0]!.story!, text: 'word '.repeat(121), people: ['patent'] },
+        },
         { ...fixture.scenes[0]!, id: 'story-2' },
         { ...fixture.scenes[1]!, reveals: [], freePress: true },
         { ...fixture.scenes[4]!, gate: 'nope' },
@@ -94,7 +108,10 @@ describe('the recall pool', () => {
     expect(itemUiProblems('recall', [...Object.values(RECALL_LOGIC), RECALL_FALLBACK], RECALL_UI)).toEqual([])
   })
   it.each(Object.entries(gates))('%s: V9, V10, V12', (_name, g) => {
-    const problems = [...g.items.flatMap((i) => itemProblems('recall', i, 'item')), ...itemProblems('recall', g.fallback, 'fallback')]
+    const problems = [
+      ...g.items.flatMap((i) => itemProblems('recall', i, 'item')),
+      ...itemProblems('recall', g.fallback, 'fallback'),
+    ]
     expect(problems).toEqual([])
   })
   it('every recall item is once', () => {

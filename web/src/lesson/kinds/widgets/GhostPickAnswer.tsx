@@ -22,7 +22,11 @@ export function partName(p: PartId): string {
  * Pick the part where the ghost path first goes wrong: the part buttons, or a click on a part in the stage
  * (any element with data-part inside the stage). The ghost is drawn on the stage while the item is shown.
  */
-export function GhostPickAnswer({ instance, disabled, submit }: WidgetProps<{ options: readonly PartId[]; ghost: Ghost }, PartId>): JSX.Element {
+export function GhostPickAnswer({
+  instance,
+  disabled,
+  submit,
+}: WidgetProps<{ options: readonly PartId[]; ghost: Ghost }, PartId>): JSX.Element {
   const [pick, setPick] = useState<PartId | null>(null)
   const setGhost = useStageStore((s) => s.setGhost)
   useEffect(() => {

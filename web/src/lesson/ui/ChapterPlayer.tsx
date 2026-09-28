@@ -26,7 +26,11 @@ import { ReturnCheck, type ReturnCheckState } from './ReturnCheck'
 function dueCheck(): ReturnCheckState | null {
   const p = progressSnapshot()
   if (!returnCheckDue(p, now())) return null
-  const items: RecallId[] = returnCheckItems(eligibleActs(CHAPTERS, p), p.recall, seedFor(p.salt, p.lastVisit, 'return'))
+  const items: RecallId[] = returnCheckItems(
+    eligibleActs(CHAPTERS, p),
+    p.recall,
+    seedFor(p.salt, p.lastVisit, 'return'),
+  )
   return items.length ? { stamp: p.lastVisit, items } : null
 }
 
@@ -50,7 +54,9 @@ export function ChapterPlayer(p: {
 
   const complete = useCallback(() => {
     const prev = useProgress.getState().chapters[chapterId]
-    useProgress.getState().patchChapter(chapterId, { completed: true, reached: Math.max(prev?.reached ?? 0, scenes.length - 1) })
+    useProgress
+      .getState()
+      .patchChapter(chapterId, { completed: true, reached: Math.max(prev?.reached ?? 0, scenes.length - 1) })
     emit({ type: 'chapter.complete', chapter: chapterId })
     setDone(true)
   }, [chapterId, scenes.length])
@@ -92,7 +98,9 @@ export function ChapterPlayer(p: {
     const want = scenes[index]!.id
     if (p.sceneParam !== want) {
       const known = p.sceneParam !== undefined && scenes.some((s) => s.id === p.sceneParam)
-      navigate(`${p.basePath}/${want}`, undefined, { replace: !known || scenes.findIndex((s) => s.id === p.sceneParam) > reached })
+      navigate(`${p.basePath}/${want}`, undefined, {
+        replace: !known || scenes.findIndex((s) => s.id === p.sceneParam) > reached,
+      })
     }
     if (!checkRef.current) useProgress.getState().visit(now())
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +124,11 @@ export function ChapterPlayer(p: {
     }
   }, [offset])
   useEffect(() => {
-    if (check) emit({ type: 'return-check', items: check.items.map((id, k) => `${chapterId}/return-${check.stamp}-${k}/${id}` as const) })
+    if (check)
+      emit({
+        type: 'return-check',
+        items: check.items.map((id, k) => `${chapterId}/return-${check.stamp}-${k}/${id}` as const),
+      })
   }, [check, chapterId])
 
   // lastVisit on leaving the tab.
@@ -211,7 +223,10 @@ export function ChapterPlayer(p: {
         <p className="text-sm text-stone-400">Loading the chapter…</p>
       )}
       {done || progress.chapters[chapterId]?.completed ? (
-        <section data-testid="chapter-complete" className="rounded-lg border border-emerald-700 bg-emerald-950/30 p-3 text-sm">
+        <section
+          data-testid="chapter-complete"
+          className="rounded-lg border border-emerald-700 bg-emerald-950/30 p-3 text-sm"
+        >
           <p className="font-semibold text-emerald-200">Chapter complete.</p>
           <p className="mt-1 flex flex-wrap gap-3">
             {upcoming ? (

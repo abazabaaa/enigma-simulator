@@ -63,17 +63,28 @@ export function BetPanel(p: {
     bet.kind === 'choice'
       ? (bet.options ?? []).map((o) => ({ id: o.id, label: o.label }))
       : bet.kind === 'letter'
-        ? Array.from({ length: p.alphabet }, (_, k) => ({ id: String.fromCharCode(65 + k), label: String.fromCharCode(65 + k) }))
+        ? Array.from({ length: p.alphabet }, (_, k) => ({
+            id: String.fromCharCode(65 + k),
+            label: String.fromCharCode(65 + k),
+          }))
         : []
   const label = (id: string) => options.find((o) => o.id === id)?.label ?? id
   return (
-    <fieldset data-testid={`bet-${bet.id}`} data-committed={String(committed)} className="rounded-lg border border-violet-700/60 bg-violet-950/20 p-3">
+    <fieldset
+      data-testid={`bet-${bet.id}`}
+      data-committed={String(committed)}
+      className="rounded-lg border border-violet-700/60 bg-violet-950/20 p-3"
+    >
       <legend className="px-1 text-sm font-semibold text-violet-200">Your bet</legend>
       <p className="mb-2 text-sm text-stone-200">{bet.prompt}</p>
       {committed ? (
         <p className="text-sm text-stone-300" data-testid={`bet-result-${bet.id}`}>
           You bet <strong>{label(record.value)}</strong>.
-          {record.correct === true ? ' You were right.' : record.correct === false ? ' Not this time: see what happened.' : ''}
+          {record.correct === true
+            ? ' You were right.'
+            : record.correct === false
+              ? ' Not this time: see what happened.'
+              : ''}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -87,7 +98,11 @@ export function BetPanel(p: {
               onChange={(e) => choose(e.target.value.replace(/[^\d.-]/g, ''))}
             />
           ) : (
-            <div role="radiogroup" aria-label={bet.prompt} className={bet.kind === 'letter' ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1'}>
+            <div
+              role="radiogroup"
+              aria-label={bet.prompt}
+              className={bet.kind === 'letter' ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1'}
+            >
               {options.map((o) => (
                 <button
                   key={o.id}
@@ -104,7 +119,13 @@ export function BetPanel(p: {
             </div>
           )}
           <div>
-            <button type="button" data-testid={`bet-commit-${bet.id}`} className={BUTTON} disabled={value === ''} onClick={() => value !== '' && p.onCommit(value)}>
+            <button
+              type="button"
+              data-testid={`bet-commit-${bet.id}`}
+              className={BUTTON}
+              disabled={value === ''}
+              onClick={() => value !== '' && p.onCommit(value)}
+            >
               Commit my bet
             </button>
           </div>

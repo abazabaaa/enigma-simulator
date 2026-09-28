@@ -202,10 +202,18 @@ export function orderItem<I extends { blocks: readonly Choice[] }>(s: Base<I, st
     {
       compute: false,
       inPage: false,
-      sampleAnswer: (i, r) => shuffle(r, i.blocks.map((b) => b.id)),
+      sampleAnswer: (i, r) =>
+        shuffle(
+          r,
+          i.blocks.map((b) => b.id),
+        ),
       mutate: (_i, a, r) => {
         if (a.length < 2) return [...a, '?']
-        const [x, y] = sample(r, a.map((_, k) => k), 2) as [number, number]
+        const [x, y] = sample(
+          r,
+          a.map((_, k) => k),
+          2,
+        ) as [number, number]
         const out = [...a]
         ;[out[x], out[y]] = [out[y]!, out[x]!]
         return out
@@ -242,7 +250,14 @@ export function chainItem<I extends { stages: readonly { id: string; label: stri
 // set-machine
 // ---------------------------------------------------------------------------
 
-export const LOCKABLE: readonly Exclude<LockKey, 'keyboard'>[] = ['model', 'rotors', 'reflector', 'rings', 'positions', 'plugboard']
+export const LOCKABLE: readonly Exclude<LockKey, 'keyboard'>[] = [
+  'model',
+  'rotors',
+  'reflector',
+  'rings',
+  'positions',
+  'plugboard',
+]
 
 /**
  * The locks a set-the-machine item applies (G8): the keyboard is locked, the lamps are hidden, and every
@@ -256,7 +271,12 @@ export function setMachineLocks(unlocked: readonly LockKey[], base: MachineLocks
   return locks as MachineLocks
 }
 
-type SetMachineInstance = { setup: ItemSetup; unlocked: readonly LockKey[]; trial: 'locked' | 'preview'; maxPlugs?: number }
+type SetMachineInstance = {
+  setup: ItemSetup
+  unlocked: readonly LockKey[]
+  trial: 'locked' | 'preview'
+  maxPlugs?: number
+}
 
 /** The fields of a config that each lock guards. */
 function fieldOf(c: MachineConfig, k: Exclude<LockKey, 'keyboard'>): unknown {
@@ -279,7 +299,10 @@ function fieldOf(c: MachineConfig, k: Exclude<LockKey, 'keyboard'>): unknown {
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The first field the learner could not have changed that differs from the setup (a devtools edit). */
-function lockedFieldChanged(i: SetMachineInstance, cfg: MachineConfig): Exclude<LockKey, 'keyboard'> | 'invalid' | null {
+function lockedFieldChanged(
+  i: SetMachineInstance,
+  cfg: MachineConfig,
+): Exclude<LockKey, 'keyboard'> | 'invalid' | null {
   if (!i.setup.machine) return null
   let start: MachineConfig
   try {
@@ -464,7 +487,8 @@ export function codeItem<I extends { seed: number }>(
         else if (!runOk) {
           const f = run.firstFailure
           feedback = f ? `Case ${f.label}: expected ${f.expected}, got ${f.actual}.` : 'Some cases failed.'
-        } else feedback = `Every case passed, but your prediction for ${probe.call} did not match what the function returns.`
+        } else
+          feedback = `Every case passed, but your prediction for ${probe.call} did not match what the function returns.`
         return { correct: false, feedback, rollback: (rollback ?? defaultRollback)(i, a) }
       },
       solve: (i) => ({ probe: task.probe(i).expected, run: passingRun(task.cases(i).length, i.seed) }),

@@ -77,7 +77,8 @@ const RESULTS: readonly OutcomeResult[] = ['correct', 'wrong', 'revealed']
 
 function validItem(x: unknown): x is ItemRecord {
   if (!isObj(x)) return false
-  if (!isNum(x.attempt) || x.attempt < 1 || !isNum(x.seed) || !isNum(x.redraw) || !isNum(x.shownAt) || !isNum(x.wrong)) return false
+  if (!isNum(x.attempt) || x.attempt < 1 || !isNum(x.seed) || !isNum(x.redraw) || !isNum(x.shownAt) || !isNum(x.wrong))
+    return false
   if (typeof x.fallbackNext !== 'boolean' || typeof x.passed !== 'boolean' || !Array.isArray(x.outcomes)) return false
   return x.outcomes.every(
     (o) =>
@@ -99,13 +100,15 @@ export function parseProgress(raw: string): ProgressV1 | null {
   } catch {
     return null
   }
-  if (!isObj(v) || v.version !== 1 || typeof v.salt !== 'string' || !isNum(v.createdAt) || !isNum(v.lastVisit)) return null
+  if (!isObj(v) || v.version !== 1 || typeof v.salt !== 'string' || !isNum(v.createdAt) || !isNum(v.lastVisit))
+    return null
   if (!isObj(v.chapters) || !isObj(v.gates) || !isObj(v.bets) || !isObj(v.recall) || !isObj(v.prefs)) return null
   for (const c of Object.values(v.chapters)) {
     if (!isObj(c) || !isNum(c.reached) || typeof c.completed !== 'boolean' || !Array.isArray(c.tasks)) return null
   }
   for (const g of Object.values(v.gates)) {
-    if (!isObj(g) || typeof g.passed !== 'boolean' || !isObj(g.items) || !Object.values(g.items).every(validItem)) return null
+    if (!isObj(g) || typeof g.passed !== 'boolean' || !isObj(g.items) || !Object.values(g.items).every(validItem))
+      return null
   }
   for (const b of Object.values(v.bets)) if (!isObj(b) || typeof b.value !== 'string' || !isNum(b.at)) return null
   for (const r of Object.values(v.recall)) if (!isObj(r) || !isNum(r.lastSeen)) return null

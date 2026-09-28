@@ -40,10 +40,19 @@ function ToyTables({ spec }: { spec: ToySpec }): JSX.Element {
     <div className="flex flex-col gap-2">
       {Array.from({ length: k }, (_, j) => {
         const slot = slots[k - 1 - j]!
-        return <LetterTable key={slot} images={permString(perms[1 + j]!)} label={`${slot} rotor, towards the reflector`} n={spec.n} />
+        return (
+          <LetterTable
+            key={slot}
+            images={permString(perms[1 + j]!)}
+            label={`${slot} rotor, towards the reflector`}
+            n={spec.n}
+          />
+        )
       })}
       <LetterTable images={permString(perms[1 + k]!)} label="reflector" n={spec.n} />
-      <p className="text-xs text-stone-400">On the way back, read each rotor table from the bottom row to the top row.</p>
+      <p className="text-xs text-stone-400">
+        On the way back, read each rotor table from the bottom row to the top row.
+      </p>
     </div>
   )
 }
@@ -51,8 +60,8 @@ function ToyTables({ spec }: { spec: ToySpec }): JSX.Element {
 function MachineLine({ c }: { c: WindowsInstance['config'] }): JSX.Element {
   return (
     <p>
-      Rotors <Mono>{c.rotors.join(' ')}</Mono> (left to right), rings <Mono>{c.rings.map(ring).join(' ')}</Mono>, windows{' '}
-      <Mono>{c.positions.join('')}</Mono>. Turnover letters: {TURNOVERS}.
+      Rotors <Mono>{c.rotors.join(' ')}</Mono> (left to right), rings <Mono>{c.rings.map(ring).join(' ')}</Mono>,
+      windows <Mono>{c.positions.join('')}</Mono>. Turnover letters: {TURNOVERS}.
     </p>
   )
 }
@@ -63,7 +72,8 @@ const toyLamp = {
   Prompt: ({ instance }: { instance: ToyLampInstance }) => (
     <div className="flex flex-col gap-2">
       <p>
-        A toy machine on the letters A–F with two rotors that do not turn. Press <Mono>{instance.key}</Mono>: which lamp lights?
+        A toy machine on the letters A–F with two rotors that do not turn. Press <Mono>{instance.key}</Mono>: which lamp
+        lights?
       </p>
       <ToyTables spec={instance.spec} />
     </div>
@@ -114,7 +124,8 @@ const lengths = {
   Prompt: ({ instance }: { instance: LengthsInstance }) => (
     <div className="flex flex-col gap-2">
       <p>
-        a and b swap the first {instance.n} letters in pairs. List the cycle lengths of ab (a first, then b), longest first.
+        a and b swap the first {instance.n} letters in pairs. List the cycle lengths of ab (a first, then b), longest
+        first.
       </p>
       <LetterTable images={permString(instance.a)} label="a" />
       <LetterTable images={permString(instance.b)} label="b" />
@@ -129,8 +140,8 @@ const lengths = {
   Feedback: ({ result }: { instance: LengthsInstance; answer: number[]; result: CheckResult }) =>
     result.rollback.kind === 'cycles' ? (
       <p className="text-sm" data-testid="cycles-feedback">
-        Walk this cycle: <Mono>({result.rollback.cycle.map(L).join(' ')})</Mono>, {result.rollback.cycle.length} letters. You counted{' '}
-        <Mono>{result.rollback.got.join(' ') || 'nothing'}</Mono>.
+        Walk this cycle: <Mono>({result.rollback.cycle.map(L).join(' ')})</Mono>, {result.rollback.cycle.length}{' '}
+        letters. You counted <Mono>{result.rollback.got.join(' ') || 'nothing'}</Mono>.
       </p>
     ) : null,
 }
@@ -139,21 +150,25 @@ const self = {
   Prompt: () => <p>Can an Enigma I ever encipher a letter to itself?</p>,
   Worked: () => (
     <p className="text-sm">
-      No. The reflector pairs every contact with a different one, so the current can never come back on the wire it went in on.
+      No. The reflector pairs every contact with a different one, so the current can never come back on the wire it went
+      in on.
     </p>
   ),
 }
 
 const pressOrder = {
   Prompt: () => <p>Put the stages of a key press in order.</p>,
-  Worked: ({ solution }: { instance: unknown; solution: string[] }) => <p className="text-sm">In order: {solution.join(', ')}.</p>,
+  Worked: ({ solution }: { instance: unknown; solution: string[] }) => (
+    <p className="text-sm">In order: {solution.join(', ')}.</p>
+  ),
 }
 
 const toyChain = {
   Prompt: ({ instance }: { instance: ChainInstance }) => (
     <div className="flex flex-col gap-2">
       <p>
-        The same kind of toy (A–F, rotors held, no cables). Follow key <Mono>{instance.key}</Mono>: type the letter that leaves each stage.
+        The same kind of toy (A–F, rotors held, no cables). Follow key <Mono>{instance.key}</Mono>: type the letter that
+        leaves each stage.
       </p>
       <ToyTables spec={instance.spec} />
     </div>
@@ -170,8 +185,8 @@ function StepsPrompt({ instance }: { instance: StepsInstance }): JSX.Element {
     <div className="flex flex-col gap-1">
       <MachineLine c={instance.setup.machine} />
       <p>
-        Turn the rotors so that the <strong>{instance.target}</strong> rotor steps on the next key press. The keyboard is locked: set the
-        windows, then submit.
+        Turn the rotors so that the <strong>{instance.target}</strong> rotor steps on the next key press. The keyboard
+        is locked: set the windows, then submit.
       </p>
     </div>
   )
@@ -194,8 +209,9 @@ const whichWrong = {
     <div className="flex flex-col gap-2">
       <p>
         Key <Mono>{instance.key}</Mono> on rotors <Mono>{instance.config.rotors.join(' ')}</Mono>, windows{' '}
-        <Mono>{instance.config.positions.join('')}</Mono>, cables <Mono>{instance.config.plugboard.join(' ') || 'none'}</Mono>. One part
-        of the red path is faulty. Where does it first go wrong? Each hop's correct table is shown.
+        <Mono>{instance.config.positions.join('')}</Mono>, cables{' '}
+        <Mono>{instance.config.plugboard.join(' ') || 'none'}</Mono>. One part of the red path is faulty. Where does it
+        first go wrong? Each hop's correct table is shown.
       </p>
       <ol className="flex flex-col gap-1 text-xs">
         {instance.ghost.hops.map((h, k) => (
@@ -211,8 +227,8 @@ const whichWrong = {
   ),
   Worked: ({ instance, solution }: { instance: GhostInstance; solution: PartId }) => (
     <p className="text-sm">
-      Hop {instance.ghost.divergeAt + 1} ({instance.ghost.hops[instance.ghost.divergeAt]!.stage}) does not match its table: the fault is in the{' '}
-      {partName(solution)}.
+      Hop {instance.ghost.divergeAt + 1} ({instance.ghost.hops[instance.ghost.divergeAt]!.stage}) does not match its
+      table: the fault is in the {partName(solution)}.
     </p>
   ),
 }
@@ -233,13 +249,32 @@ function ToySetAnswer({ instance, disabled, submit }: AnswerProps<ToySetInstance
   return (
     <div className="flex flex-col gap-3" data-testid="toy-set">
       <div className="flex items-center gap-2">
-        <button type="button" className={QUIET_BUTTON} data-testid="toy-set-dec" aria-label="Turn the rotor back" disabled={disabled} onClick={() => setPos((p) => (p + n - 1) % n)}>
+        <button
+          type="button"
+          className={QUIET_BUTTON}
+          data-testid="toy-set-dec"
+          aria-label="Turn the rotor back"
+          disabled={disabled}
+          onClick={() => setPos((p) => (p + n - 1) % n)}
+        >
           −
         </button>
-        <span data-testid="toy-set-window" role="status" aria-label={`Window ${L(pos)}`} className="w-8 text-center font-mono text-lg">
+        <span
+          data-testid="toy-set-window"
+          role="status"
+          aria-label={`Window ${L(pos)}`}
+          className="w-8 text-center font-mono text-lg"
+        >
           {L(pos)}
         </span>
-        <button type="button" className={QUIET_BUTTON} data-testid="toy-set-inc" aria-label="Turn the rotor on" disabled={disabled} onClick={() => setPos((p) => (p + 1) % n)}>
+        <button
+          type="button"
+          className={QUIET_BUTTON}
+          data-testid="toy-set-inc"
+          aria-label="Turn the rotor on"
+          disabled={disabled}
+          onClick={() => setPos((p) => (p + 1) % n)}
+        >
           +
         </button>
       </div>
@@ -256,8 +291,9 @@ const toySet = {
     return (
       <div className="flex flex-col gap-2">
         <p>
-          A toy with one rotor on A–F. Turn the rotor so that key <Mono>{instance.key}</Mono> lights <Mono>{instance.target}</Mono>. The
-          keyboard is locked: work it out from the tables. At window W the rotor's wiring is shifted by W places.
+          A toy with one rotor on A–F. Turn the rotor so that key <Mono>{instance.key}</Mono> lights{' '}
+          <Mono>{instance.target}</Mono>. The keyboard is locked: work it out from the tables. At window W the rotor's
+          wiring is shifted by W places.
         </p>
         <LetterTable images={wiring} label="rotor wiring at window A" n={6} />
         <LetterTable images={permString(instance.spec.reflector)} label="reflector" n={6} />
@@ -276,16 +312,14 @@ const puzzleLamps = {
   Prompt: ({ instance }: { instance: LampsInstance }) => (
     <div className="flex flex-col gap-2">
       <p>
-        A one-rotor toy on A–F, rotor held. Which lamps light for the keys <Mono>{instance.keys.join(', ')}</Mono>? (three letters, in
-        that order)
+        A one-rotor toy on A–F, rotor held. Which lamps light for the keys <Mono>{instance.keys.join(', ')}</Mono>?
+        (three letters, in that order)
       </p>
       <ToyTables spec={instance.spec} />
     </div>
   ),
   Worked: ({ instance, solution }: { instance: LampsInstance; solution: string }) => (
-    <p className="text-sm">
-      {instance.keys.map((k, j) => `${k} → ${solution[j]}`).join('; ')}.
-    </p>
+    <p className="text-sm">{instance.keys.map((k, j) => `${k} → ${solution[j]}`).join('; ')}.</p>
   ),
 }
 

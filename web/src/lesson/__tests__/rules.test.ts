@@ -131,8 +131,16 @@ describe('rule 4: hint ladder', () => {
   })
 
   it('the outcome records the hint level the instance was shown at', () => {
-    expect(run('W W W R', WINDOW).at(-1)!.outcomes.map((o) => o.hintLevel)).toEqual([0, 1, 2, 3])
-    expect(run('W W W W', WINDOW, { puzzle: true }).at(-1)!.outcomes.map((o) => o.hintLevel)).toEqual([0, 0, 1, 2])
+    expect(
+      run('W W W R', WINDOW)
+        .at(-1)!
+        .outcomes.map((o) => o.hintLevel),
+    ).toEqual([0, 1, 2, 3])
+    expect(
+      run('W W W W', WINDOW, { puzzle: true })
+        .at(-1)!
+        .outcomes.map((o) => o.hintLevel),
+    ).toEqual([0, 0, 1, 2])
   })
 })
 
@@ -181,12 +189,22 @@ describe('rule 5: gaming', () => {
       salt: SALT,
       key: KEY,
     })
-    expect(answered.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true, seed: fallbackSeed(SALT, KEY, 3) })
+    expect(answered.outcomes.at(-1)).toMatchObject({
+      result: 'correct',
+      fallback: true,
+      seed: fallbackSeed(SALT, KEY, 3),
+    })
     expect(answered.fallbackNext).toBe(false)
     expect(answered.seed).toBe(instanceSeed(SALT, KEY, 4, 0))
     // Two instant answers again → another fallback.
-    const again = reduceItem(answered, { type: 'answer', correct: false, now: answered.shownAt + 1 }, WINDOW, { salt: SALT, key: KEY })
-    const again2 = reduceItem(again, { type: 'answer', correct: false, now: again.shownAt + 1 }, WINDOW, { salt: SALT, key: KEY })
+    const again = reduceItem(answered, { type: 'answer', correct: false, now: answered.shownAt + 1 }, WINDOW, {
+      salt: SALT,
+      key: KEY,
+    })
+    const again2 = reduceItem(again, { type: 'answer', correct: false, now: again.shownAt + 1 }, WINDOW, {
+      salt: SALT,
+      key: KEY,
+    })
     expect(again2.fallbackNext).toBe(true)
   })
 })
@@ -199,7 +217,11 @@ describe('rule 6: code items (probe AND every case of this instance)', () => {
     ['probe right, all cases pass', { probe: '42', run: pass }, true],
     ['probe right (spaces, quotes)', { probe: ' "42" ', run: pass }, true],
     ['probe wrong, all cases pass', { probe: '41', run: pass }, false],
-    ['probe right, a failing case', { probe: '42', run: { ...pass, status: 'fail' as const, passed: total - 1 } }, false],
+    [
+      'probe right, a failing case',
+      { probe: '42', run: { ...pass, status: 'fail' as const, passed: total - 1 } },
+      false,
+    ],
     ['probe right, a stale run of another instance', { probe: '42', run: { ...pass, instanceSeed: 78 } }, false],
     ['probe right, too long', { probe: '42', run: { ...pass, status: 'too-long' as const, passed: 0 } }, false],
     ['probe right, timeout', { probe: '42', run: { ...pass, status: 'timeout' as const, passed: 0 } }, false],
@@ -224,10 +246,7 @@ describe('rule 6: code items (probe AND every case of this instance)', () => {
             label: 'hops',
             fn: 'f',
             args: [],
-            expect: [
-              { output: 'B' },
-              { output: 'C' },
-            ],
+            expect: [{ output: 'B' }, { output: 'C' }],
             compare: 'hops',
           },
         ],
@@ -235,8 +254,18 @@ describe('rule 6: code items (probe AND every case of this instance)', () => {
       },
       { id: 'f', rule: WINDOW, generate: () => ({ seed: 1 }), same: () => true, highlight: () => [] },
     )
-    const hop = (output: string) => ({ kind: 'rotor' as const, stage: 'rotor-right-fwd' as const, input: 'A' as const, output: output as 'B', inputIndex: 0, outputIndex: 1 })
-    const res = item.check({ seed: 1 }, { probe: 'C', run: { status: 'fail', passed: 0, total: 1, instanceSeed: 1, hops: [hop('B'), hop('D')] } })
+    const hop = (output: string) => ({
+      kind: 'rotor' as const,
+      stage: 'rotor-right-fwd' as const,
+      input: 'A' as const,
+      output: output as 'B',
+      inputIndex: 0,
+      outputIndex: 1,
+    })
+    const res = item.check(
+      { seed: 1 },
+      { probe: 'C', run: { status: 'fail', passed: 0, total: 1, instanceSeed: 1, hops: [hop('B'), hop('D')] } },
+    )
     expect(res.rollback).toMatchObject({ kind: 'path', ghost: { divergeAt: 1 } })
   })
 })

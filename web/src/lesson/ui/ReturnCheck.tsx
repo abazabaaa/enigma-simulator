@@ -35,7 +35,10 @@ export function ReturnCheck(p: { chapter: AnyChapterId; check: ReturnCheckState;
   const id = p.check.items[k]
   const gateKey = `${p.chapter}/return-${p.check.stamp}-${k}` as GateKey
   const { onDone } = p
-  const advance = useMemo(() => () => (k + 1 < p.check.items.length ? setK(k + 1) : onDone()), [k, p.check.items.length, onDone])
+  const advance = useMemo(
+    () => () => (k + 1 < p.check.items.length ? setK(k + 1) : onDone()),
+    [k, p.check.items.length, onDone],
+  )
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/85 p-4">
       <div
@@ -50,8 +53,8 @@ export function ReturnCheck(p: { chapter: AnyChapterId; check: ReturnCheckState;
           Welcome back
         </h2>
         <p className="text-sm text-stone-300">
-          Two quick questions from earlier chapters ({k + 1} of {p.check.items.length}). Answer it, or work through the hints
-          to the solution, and you are straight back in.
+          Two quick questions from earlier chapters ({k + 1} of {p.check.items.length}). Answer it, or work through the
+          hints to the solution, and you are straight back in.
         </p>
         {id ? <ReturnItem key={gateKey} gateKey={gateKey} id={id} onDone={advance} /> : null}
       </div>

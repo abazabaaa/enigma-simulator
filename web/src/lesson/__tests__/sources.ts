@@ -24,9 +24,11 @@ export function chapterGates(): { chapter: string; gates: ChapterGates }[] {
 export function gateSources(): GateSource[] {
   const out: GateSource[] = []
   for (const { chapter, gates } of chapterGates()) {
-    for (const [id, logic] of Object.entries(gates)) out.push({ name: `${chapter}/${id}`, logic, key: `${chapter}/${id}` })
+    for (const [id, logic] of Object.entries(gates))
+      out.push({ name: `${chapter}/${id}`, logic, key: `${chapter}/${id}` })
   }
-  for (const [id, logic] of Object.entries(FIXTURE_GATES)) out.push({ name: `lab-fixture/${id}`, logic, key: `lab-fixture/${id}` })
+  for (const [id, logic] of Object.entries(FIXTURE_GATES))
+    out.push({ name: `lab-fixture/${id}`, logic, key: `lab-fixture/${id}` })
   for (const [id, logic] of Object.entries(allRecallGates())) {
     out.push({ name: `recall/${id}`, logic, key: `${id.split(':')[0]}/recall` })
   }
@@ -40,9 +42,11 @@ export function gateSources(): GateSource[] {
 export function allItemLogics(): { owner: string; logic: ItemLogic }[] {
   const seen = new Map<ItemLogic, string>()
   for (const { chapter, gates } of chapterGates()) {
-    for (const g of Object.values(gates)) for (const l of [...g.items, g.fallback]) if (!seen.has(l)) seen.set(l, chapter)
+    for (const g of Object.values(gates))
+      for (const l of [...g.items, g.fallback]) if (!seen.has(l)) seen.set(l, chapter)
   }
-  for (const g of Object.values(FIXTURE_GATES)) for (const l of [...g.items, g.fallback]) if (!seen.has(l)) seen.set(l, 'lab-fixture')
+  for (const g of Object.values(FIXTURE_GATES))
+    for (const l of [...g.items, g.fallback]) if (!seen.has(l)) seen.set(l, 'lab-fixture')
   for (const l of [...Object.values(RECALL_LOGIC), RECALL_FALLBACK]) if (!seen.has(l)) seen.set(l, 'recall')
   return [...seen].map(([logic, owner]) => ({ owner, logic }))
 }

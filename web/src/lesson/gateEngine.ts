@@ -23,7 +23,16 @@ import type {
 } from '../contracts/lesson'
 import type { LessonEvent } from '../contracts/progress'
 import { createRng } from '../lib/rng'
-import { DEFAULT_RULES, drawInstance, drawWorked, gatePassed, hintLevel, isGaming, newItemRecord, reduceItem } from './rules'
+import {
+  DEFAULT_RULES,
+  drawInstance,
+  drawWorked,
+  gatePassed,
+  hintLevel,
+  isGaming,
+  newItemRecord,
+  reduceItem,
+} from './rules'
 
 export interface GateCtx {
   readonly key: GateKey
@@ -98,7 +107,11 @@ export function shownInstance(ctx: GateCtx, item: ItemLogic, rec: ItemRecord): S
   const refs = previousRefs(rec)
   const previous = previousInstances(item, key, rec)
   const tag = refs.map((p) => `${p.attempt}:${p.seed}`).join(',')
-  return { logic: item, fallback: false, instance: instanceAt(item, key, rec.seed, rec.attempt, 'instance', previous, tag) }
+  return {
+    logic: item,
+    fallback: false,
+    instance: instanceAt(item, key, rec.seed, rec.attempt, 'instance', previous, tag),
+  }
 }
 
 /** Settle a record's redraw: a normal instance that repeats one of the last 3 is redrawn (G3). */
@@ -110,7 +123,11 @@ export function settle(ctx: GateCtx, item: ItemLogic, rec: ItemRecord): ItemReco
 }
 
 /** The worked example for hint L2: an instance different from the current one and from the next one. */
-export function workedFor(ctx: GateCtx, item: ItemLogic, rec: ItemRecord): { instance: unknown; seed: number; solution: unknown; logic: ItemLogic } {
+export function workedFor(
+  ctx: GateCtx,
+  item: ItemLogic,
+  rec: ItemRecord,
+): { instance: unknown; seed: number; solution: unknown; logic: ItemLogic } {
   const key = itemKeyOf(ctx.key, item.id)
   const shown = shownInstance(ctx, item, rec)
   let next: unknown = shown.instance
@@ -135,9 +152,22 @@ export function ensureCurrent(ctx: GateCtx, rec: GateRecord | undefined, now: nu
   return { ...gate, items: { ...gate.items, [item.id]: fresh } }
 }
 
-const NOT_STARTED = { attempt: 0, seed: 0, hintLevel: 0, fallback: false, passed: false, window: [], instance: null } as const
+const NOT_STARTED = {
+  attempt: 0,
+  seed: 0,
+  hintLevel: 0,
+  fallback: false,
+  passed: false,
+  window: [],
+  instance: null,
+} as const
 
-export function itemView(ctx: GateCtx, item: ItemLogic, rec: ItemRecord | undefined, withInstance: boolean): ItemRuntimeView {
+export function itemView(
+  ctx: GateCtx,
+  item: ItemLogic,
+  rec: ItemRecord | undefined,
+  withInstance: boolean,
+): ItemRuntimeView {
   const key = itemKeyOf(ctx.key, item.id)
   if (!rec) return { key, itemId: item.id, kind: item.kind, rule: item.rule, ...NOT_STARTED }
   const shown = withInstance ? shownInstance(ctx, item, rec) : null
@@ -229,7 +259,13 @@ function finish(
 }
 
 /** Score an answer to the current item (rules 1–6). Throws if `itemId` is not the current item. */
-export function submitAnswer(ctx: GateCtx, rec: GateRecord, itemId: string, answer: unknown, now: number): SubmitResult {
+export function submitAnswer(
+  ctx: GateCtx,
+  rec: GateRecord,
+  itemId: string,
+  answer: unknown,
+  now: number,
+): SubmitResult {
   const { item, item_rec } = currentRecord(ctx, rec, itemId)
   const shown = shownInstance(ctx, item, item_rec)
   let result: CheckResult

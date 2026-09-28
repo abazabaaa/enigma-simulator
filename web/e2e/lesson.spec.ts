@@ -192,7 +192,9 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
       const logic = await logicFor(l1.gateKey, id, false)
       const hint = logic.highlight(l1.instance, wrong).map((h) => h.part)
       if (hint.length) {
-        await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toEqual(expect.arrayContaining([hint[0]]))
+        await expect
+          .poll(() => page.evaluate(() => window.__stage!.info().highlighted))
+          .toEqual(expect.arrayContaining([hint[0]]))
       }
 
       // b. A correct instance through the real widget.
@@ -221,7 +223,9 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     expect((await eventsOf(page, 'item.passed')).length).toBe(items.length)
   })
 
-  test('the hint ladder: L1 highlight, L2 worked example on another instance, L3 reveal and a fresh instance', async ({ page }) => {
+  test('the hint ladder: L1 highlight, L2 worked example on another instance, L3 reveal and a fresh instance', async ({
+    page,
+  }) => {
     await openGateLab(page)
     await assertLadder(page)
     const shows = await eventsOf(page, 'item.show')
@@ -304,7 +308,9 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await openGateLab(page)
     await advanceTo(page, 'double')
     const submits = (await eventsOf(page, 'item.submit')).length
-    await page.getByTestId('code-editor').fill('function double(x) {\n  const a = x\n  const b = a\n  const c = b\n  return c * 2\n}\n')
+    await page
+      .getByTestId('code-editor')
+      .fill('function double(x) {\n  const a = x\n  const b = a\n  const c = b\n  return c * 2\n}\n')
     await page.getByTestId('gate-prediction').fill('42')
     await page.getByTestId('code-run').click()
     await expect(page.getByTestId('code-result')).toHaveAttribute('data-status', 'too-long')
@@ -323,7 +329,9 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await configure(page, { minLatencyMs: 2000 })
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
-    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'lab-fixture/lab:main/toy-lamp', reason: 'fast' }])
+    expect(await eventsOf(page, 'gaming')).toEqual([
+      { type: 'gaming', item: 'lab-fixture/lab:main/toy-lamp', reason: 'fast' },
+    ])
     const c = await current(page)
     expect(c).toMatchObject({ itemId: 'toy-lamp', fallback: true, kind: 'set-machine' })
     await expect(page.getByTestId('item-toy-lamp')).toHaveAttribute('data-fallback', 'true')
@@ -362,7 +370,11 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
   test('configure({ now: +7 h }) shows the return check, which clears after its two items', async ({ page }) => {
     await enter(page, 'lab-fixture')
     // A completed Act I chapter makes Act I items eligible.
-    await editProgress(page, (p) => (p.chapters['i1-anatomy'] = { reached: 5, completed: true, tasks: [] }), '/lab/fixture')
+    await editProgress(
+      page,
+      (p) => (p.chapters['i1-anatomy'] = { reached: 5, completed: true, tasks: [] }),
+      '/lab/fixture',
+    )
     await expect.poll(async () => (await where(page)).scene).toBe('story')
     await expect(page.getByTestId('return-check')).toHaveCount(0)
     await configure(page, { now: Date.now() + 7 * 3600_000 })
@@ -375,13 +387,18 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
       await answerCorrect(page)
     }
     await expect(page.getByTestId('return-check')).toHaveCount(0)
-    expect((await gate(page))).toBeNull()
+    expect(await gate(page)).toBeNull()
   })
 
   test('the whole fixture walks to chapter.complete', async ({ page }) => {
     test.setTimeout(60_000)
     await enter(page, 'lab-fixture')
-    const focus: Record<string, string> = { 'bets-press': 'wire', 'bets-toggle': 'rotor-stack', gate: 'wire', puzzle: 'wire' }
+    const focus: Record<string, string> = {
+      'bets-press': 'wire',
+      'bets-toggle': 'rotor-stack',
+      gate: 'wire',
+      puzzle: 'wire',
+    }
     await walkChapter(page, {
       onScene: async (scene) => {
         if (focus[scene]) await assertFocus(page, focus[scene] as 'wire')
