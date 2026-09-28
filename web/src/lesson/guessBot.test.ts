@@ -11,7 +11,15 @@ import { describe, expect, it } from 'vitest'
 import type { GateRecord } from '../contracts/lesson'
 import { createRng, seedFor } from '../lib/rng'
 import { gateSources } from './__tests__/sources'
-import { EMPTY_GATE, currentItem, ensureCurrent, revealCurrent, shownInstance, submitAnswer, type GateCtx } from './gateEngine'
+import {
+  EMPTY_GATE,
+  currentItem,
+  ensureCurrent,
+  revealCurrent,
+  shownInstance,
+  submitAnswer,
+  type GateCtx,
+} from './gateEngine'
 import { hintLevel } from './rules'
 
 const RUNS = 1000

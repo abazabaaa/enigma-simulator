@@ -13,17 +13,23 @@ test.describe('course map and route guards', { tag: '@area:lesson' }, () => {
   test('the course map lists every chapter with its lock state', async ({ page }) => {
     await gotoApp(page, '/course')
     await expect(page.getByTestId('course-map')).toBeVisible()
-    for (const id of CHAPTER_IDS) await expect(page.getByTestId(`chapter-link-${id}`)).toHaveAttribute('href', `#/c/${id}`)
+    for (const id of CHAPTER_IDS)
+      await expect(page.getByTestId(`chapter-link-${id}`)).toHaveAttribute('href', `#/c/${id}`)
     await expect(page.getByTestId('chapter-link-prologue')).toHaveAttribute('data-locked', 'false')
     await expect(page.getByTestId('chapter-link-i1-anatomy')).toHaveAttribute('data-locked', 'true')
     await expect(page.getByTestId('bets-summary')).toHaveAttribute('data-made', '0')
   })
 
-  test('a deep link to a locked chapter shows locked-page; completing the previous one unlocks it', async ({ page }) => {
+  test('a deep link to a locked chapter shows locked-page; completing the previous one unlocks it', async ({
+    page,
+  }) => {
     await gotoApp(page, '/c/i1-anatomy')
     await expect(page.getByTestId('locked-page')).toBeVisible()
     expect(await where(page)).toMatchObject({ chapter: 'i1-anatomy', locked: true, scene: null })
-    await expect(page.getByTestId('locked-page').getByRole('link', { name: /A new key every day/ })).toHaveAttribute('href', '#/c/prologue')
+    await expect(page.getByTestId('locked-page').getByRole('link', { name: /A new key every day/ })).toHaveAttribute(
+      'href',
+      '#/c/prologue',
+    )
 
     await gotoApp(page, '/c/prologue')
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
@@ -64,7 +70,9 @@ test.describe('course map and route guards', { tag: '@area:lesson' }, () => {
     expect(errors).toEqual(['e2e only', 'e2e only', 'e2e only'])
   })
 
-  test('a deep link beyond reached (or to an unknown scene) redirects to the furthest scene reached', async ({ page }) => {
+  test('a deep link beyond reached (or to an unknown scene) redirects to the furthest scene reached', async ({
+    page,
+  }) => {
     await enter(page, 'lab-fixture', { scene: 'gate' })
     expect(await where(page)).toMatchObject({ scene: 'story', index: 0 })
     await expect(page).toHaveURL(/#\/lab\/fixture\/story$/)
@@ -81,7 +89,9 @@ test.describe('course map and route guards', { tag: '@area:lesson' }, () => {
     expect((await progress(page)).chapters['lab-fixture']).toMatchObject({ reached: 1 })
   })
 
-  test('the back button and scene-back move within the reached scenes; scene-next is a no-op when blocked', async ({ page }) => {
+  test('the back button and scene-back move within the reached scenes; scene-next is a no-op when blocked', async ({
+    page,
+  }) => {
     await enter(page, 'lab-fixture')
     await nextScene(page)
     expect((await where(page)).scene).toBe('bets-press')

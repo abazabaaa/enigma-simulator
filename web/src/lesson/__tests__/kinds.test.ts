@@ -72,7 +72,12 @@ describe('builder defaults (§3.6)', () => {
 })
 
 describe('set-machine (G8)', () => {
-  const inst = middleSteps.generate(createRng(5), { key: 'lab-fixture/main/middle-steps', attempt: 1, purpose: 'instance', previous: [] })
+  const inst = middleSteps.generate(createRng(5), {
+    key: 'lab-fixture/main/middle-steps',
+    attempt: 1,
+    purpose: 'instance',
+    previous: [],
+  })
 
   it('locks the keyboard, hides the lamps and unlocks only the listed controls', () => {
     expect(setMachineLocks(['positions'])).toEqual({
@@ -85,23 +90,48 @@ describe('set-machine (G8)', () => {
       keyboard: true,
       lampsHidden: true,
     })
-    expect(middleSteps.setup!(inst).locks).toMatchObject({ keyboard: true, lampsHidden: true, positions: false, rotors: true })
+    expect(middleSteps.setup!(inst).locks).toMatchObject({
+      keyboard: true,
+      lampsHidden: true,
+      positions: false,
+      rotors: true,
+    })
   })
 
   it('checks the predicate on the submitted config, and rejects changes to locked fields', () => {
     const good = middleSteps.solve(inst) as MachineConfig
     expect(middleSteps.check(inst, good).correct).toBe(true)
     const swapped = { ...good, rotors: [...good.rotors].reverse() }
-    expect(middleSteps.check(inst, swapped)).toMatchObject({ correct: false, rollback: { kind: 'machine', field: 'rotors' } })
-    expect(middleSteps.check(inst, { nope: true } as unknown as MachineConfig)).toMatchObject({ correct: false, rollback: { kind: 'machine' } })
+    expect(middleSteps.check(inst, swapped)).toMatchObject({
+      correct: false,
+      rollback: { kind: 'machine', field: 'rotors' },
+    })
+    expect(middleSteps.check(inst, { nope: true } as unknown as MachineConfig)).toMatchObject({
+      correct: false,
+      rollback: { kind: 'machine' },
+    })
     const wrong = middleSteps.mutate(inst, good, createRng(1)) as MachineConfig
-    expect(middleSteps.check(inst, wrong)).toMatchObject({ correct: false, rollback: { kind: 'machine', field: 'positions' } })
+    expect(middleSteps.check(inst, wrong)).toMatchObject({
+      correct: false,
+      rollback: { kind: 'machine', field: 'positions' },
+    })
   })
 })
 
 describe('rollback helpers', () => {
   it('ghostFromOutputs follows the learner’s letters and marks the first wrong hop', () => {
-    const ref = toyPress({ n: 6, rotors: [[1, 2, 0, 4, 5, 3]], notches: [0], reflector: [1, 0, 3, 2, 5, 4], plugs: [0, 1, 2, 3, 4, 5], positions: [0], stepping: false }, 'A').hops
+    const ref = toyPress(
+      {
+        n: 6,
+        rotors: [[1, 2, 0, 4, 5, 3]],
+        notches: [0],
+        reflector: [1, 0, 3, 2, 5, 4],
+        plugs: [0, 1, 2, 3, 4, 5],
+        positions: [0],
+        stepping: false,
+      },
+      'A',
+    ).hops
     const outputs = ref.map((h) => h.output as string)
     expect(ghostFromOutputs(ref, outputs).divergeAt).toBe(ref.length)
     const wrong = [...outputs]
@@ -113,7 +143,12 @@ describe('rollback helpers', () => {
 
   it('backwardGhost traces the wrong lamp back to a component on the path (never an empty plugboard)', () => {
     for (let s = 0; s < 200; s++) {
-      const i = toyLamp.generate(createRng(s), { key: 'lab-fixture/main/toy-lamp', attempt: 1, purpose: 'instance', previous: [] }) as {
+      const i = toyLamp.generate(createRng(s), {
+        key: 'lab-fixture/main/toy-lamp',
+        attempt: 1,
+        purpose: 'instance',
+        previous: [],
+      }) as {
         spec: Parameters<typeof toyPress>[0]
         key: 'A'
       }
@@ -127,7 +162,14 @@ describe('rollback helpers', () => {
   })
 
   it('windows: presses from a start, and the first wrong press', () => {
-    const from = { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: ['A', 'A', 'A'], positions: ['A', 'D', 'U'], plugboard: [] } as MachineConfig
+    const from = {
+      model: 'I',
+      reflector: 'B',
+      rotors: ['I', 'II', 'III'],
+      rings: ['A', 'A', 'A'],
+      positions: ['A', 'D', 'U'],
+      plugboard: [],
+    } as MachineConfig
     const expected = windowsAfterPresses(from, 3)
     expect(expected).toEqual(['ADV', 'AEW', 'BFX'])
     expect(splitWindows('ADVAEWBFX')).toEqual(expected)

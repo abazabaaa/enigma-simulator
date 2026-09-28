@@ -25,7 +25,9 @@ export function GateLabPage() {
       chapter === LAB_CHAPTER_ID
         ? import('../lesson/fixture').then((m) => m.default)
         : isChapterId(chapter)
-          ? chapterMeta(chapter)!.load().then((m) => m.default)
+          ? chapterMeta(chapter)!
+              .load()
+              .then((m) => m.default)
           : Promise.resolve('missing' as const)
     void load.then((d) => live && setDef(d))
     return () => {
@@ -49,9 +51,16 @@ export function GateLabPage() {
       {binding ? (
         <>
           {itemStage !== null ? (
-            <StageHost stage={itemStage ?? 'overview'} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" />
+            <StageHost
+              stage={itemStage ?? 'overview'}
+              className="min-h-24 overflow-hidden rounded-lg border border-stone-800"
+            />
           ) : null}
-          <GateRunner key={`${chapter}/${gate}`} gateKey={`${chapter as AnyChapterId}/lab:${gate}` as GateKey} binding={binding} />
+          <GateRunner
+            key={`${chapter}/${gate}`}
+            gateKey={`${chapter as AnyChapterId}/lab:${gate}` as GateKey}
+            binding={binding}
+          />
         </>
       ) : null}
     </main>

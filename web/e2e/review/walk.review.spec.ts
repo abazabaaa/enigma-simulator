@@ -41,7 +41,11 @@ const MOTIONS = ['reduce', 'full'] as const
 
 const consoleLog: { chapter: string; scene: string | null; type: string; text: string }[] = []
 const stageLog: { chapter: string; scene: string; renderer: string; info: unknown; stats: unknown }[] = []
-const axeLog: { chapter: string; scene: string; violations: { id: string; impact: string | null; help: string; targets: string[] }[] }[] = []
+const axeLog: {
+  chapter: string
+  scene: string
+  violations: { id: string; impact: string | null; help: string; targets: string[] }[]
+}[] = []
 
 async function shoot(page: Page, name: string): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
@@ -70,11 +74,18 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
   axeLog.push({
     chapter,
     scene,
-    violations: axe.violations.map((v) => ({ id: v.id, impact: v.impact ?? null, help: v.help, targets: v.nodes.map((n) => String(n.target)) })),
+    violations: axe.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact ?? null,
+      help: v.help,
+      targets: v.nodes.map((n) => String(n.target)),
+    })),
   })
 
   if (MACHINE_3D_READY && (await page.getByTestId('stage').count())) {
     await gotoApp(page, `${chapterPath(chapter)}/${scene}`, { stage: '3d' })
+    // A chapter loads lazily after the route: wait for its scene before the shots.
+    await expect.poll(async () => (await where(page)).scene).toBe(scene)
     for (const motion of MOTIONS) {
       await page.emulateMedia({ reducedMotion: motion === 'reduce' ? 'reduce' : 'no-preference' })
       await shoot(page, `${base}-1280-${motion}-3d`)
@@ -88,9 +99,12 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
     })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await gotoApp(page, `${chapterPath(chapter)}/${scene}`, { stage: '2d' })
+    // A chapter loads lazily after the route: wait for its scene (and gate) before going on. (Found by PR 07.)
+    await expect.poll(async () => (await where(page)).scene).toBe(scene)
   }
 
   const w = await where(page)
+  if (w.kind === 'gate' || w.kind === 'recall') await expect(page.getByTestId('gate').first()).toBeVisible()
   if ((w.kind === 'gate' || w.kind === 'recall') && (await page.getByTestId('gate').count())) {
     // The first item's rollback and its L2 hint, for the R4 teaching pass.
     const c = await current(page)

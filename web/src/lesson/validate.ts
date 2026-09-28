@@ -6,7 +6,15 @@
  */
 
 import type { AnyChapterId, ChapterId } from '../contracts/core'
-import type { ChapterDef, ChapterMeta, ItemLogic, ItemUiMap, MechanismTag, Rollback, SceneDef } from '../contracts/lesson'
+import type {
+  ChapterDef,
+  ChapterMeta,
+  ItemLogic,
+  ItemUiMap,
+  MechanismTag,
+  Rollback,
+  SceneDef,
+} from '../contracts/lesson'
 import { resolveStage } from '../contracts/stage'
 import { validateConfig } from '../engine'
 import { createRng, seedFor } from '../lib/rng'
@@ -51,7 +59,8 @@ export function itemUiProblems(where: string, items: readonly ItemLogic[], ui: I
     }
     if (l.kind === 'custom' && !entry.Answer) out.push(`${where}: custom item ${l.id} has no Answer`)
     const needs = [...rollbackKinds(l)].filter((k) => FEEDBACK_KINDS.includes(k))
-    if (needs.length && !entry.Feedback) out.push(`${where}: item ${l.id} rolls back as ${needs.join('/')} but has no Feedback`)
+    if (needs.length && !entry.Feedback)
+      out.push(`${where}: item ${l.id} rolls back as ${needs.join('/')} but has no Feedback`)
   }
   return out
 }
@@ -59,14 +68,21 @@ export function itemUiProblems(where: string, items: readonly ItemLogic[], ui: I
 /** V9, V10, V12 (items) for one item over its lint seeds. */
 export function itemProblems(where: string, l: ItemLogic, role: 'item' | 'fallback'): string[] {
   const out: string[] = []
-  if ((l.transfer || l.constantAnswer) && l.rule.kind !== 'once') out.push(`${where}: ${l.id} is transfer/constantAnswer but not once (V9)`)
+  if ((l.transfer || l.constantAnswer) && l.rule.kind !== 'once')
+    out.push(`${where}: ${l.id} is transfer/constantAnswer but not once (V9)`)
   if (role === 'fallback') {
     if (!l.inPage) out.push(`${where}: fallback ${l.id} is not inPage (V10)`)
-    if (!['set-machine', 'ghost-pick', 'custom'].includes(l.kind)) out.push(`${where}: fallback ${l.id} is a ${l.kind} item (V10)`)
+    if (!['set-machine', 'ghost-pick', 'custom'].includes(l.kind))
+      out.push(`${where}: fallback ${l.id} is a ${l.kind} item (V10)`)
   }
   const n = l.lintSeeds ?? 300
   for (let s = 0; s < n; s++) {
-    const i = l.generate(createRng(seedFor('lint', l.id, s)), { key: `lab-fixture/validate/${l.id}`, attempt: (s % 4) + 1, purpose: 'instance', previous: [] })
+    const i = l.generate(createRng(seedFor('lint', l.id, s)), {
+      key: `lab-fixture/validate/${l.id}`,
+      attempt: (s % 4) + 1,
+      purpose: 'instance',
+      previous: [],
+    })
     const setup = l.setup?.(i)
     if (setup?.machine) {
       const problems = validateConfig(setup.machine)
@@ -137,11 +153,18 @@ export function chapterProblems(c: ChapterUnderTest, introducedBefore: ReadonlyS
       if (k > 0 && def.scenes[k - 1]!.kind === 'story') out.push(`${at(s)}: two story scenes in a row (V3)`)
       if (words(s.story.text) > 120) out.push(`${at(s)}: story has ${words(s.story.text)} words (V3)`)
       const people = s.story.people.map((p) => facts.get(p))
-      if (people.length === 0 || people.some((p) => p?.kind !== 'person')) out.push(`${at(s)}: people must be person facts (V3)`)
+      if (people.length === 0 || people.some((p) => p?.kind !== 'person'))
+        out.push(`${at(s)}: people must be person facts (V3)`)
       if (facts.get(s.story.date)?.kind !== 'date') out.push(`${at(s)}: date must be a date fact (V3)`)
-      if (s.story.clock && facts.get(s.story.clock.date)?.kind !== 'date') out.push(`${at(s)}: clock date must be a date fact (V3)`)
+      if (s.story.clock && facts.get(s.story.clock.date)?.kind !== 'date')
+        out.push(`${at(s)}: clock date must be a date fact (V3)`)
       for (const f of s.story.facts ?? []) if (!facts.has(f)) out.push(`${at(s)}: fact ${f} does not resolve (V3)`)
-      for (const f of [...s.story.people, s.story.date, ...(s.story.facts ?? []), ...(s.story.clock ? [s.story.clock.date] : [])]) {
+      for (const f of [
+        ...s.story.people,
+        s.story.date,
+        ...(s.story.facts ?? []),
+        ...(s.story.clock ? [s.story.clock.date] : []),
+      ]) {
         referenced.add(f)
       }
       if (s.stage !== null) out.push(`${at(s)}: story scenes have no stage`)
@@ -183,7 +206,8 @@ export function chapterProblems(c: ChapterUnderTest, introducedBefore: ReadonlyS
     }
     if (s.freePress) {
       if (!s.shows?.length) out.push(`${at(s)}: freePress needs shows (V6)`)
-      for (const t of s.shows ?? []) if (!introduced.has(t)) out.push(`${at(s)}: shows '${t}' before it is introduced (V6)`)
+      for (const t of s.shows ?? [])
+        if (!introduced.has(t)) out.push(`${at(s)}: shows '${t}' before it is introduced (V6)`)
     }
     const animates = s.stage !== null && resolveStage(s.stage).trace === 'animate'
     if (s.panels?.keyboard && animates && !s.introduces?.length && !s.freePress) {
@@ -199,10 +223,14 @@ export function chapterProblems(c: ChapterUnderTest, introducedBefore: ReadonlyS
     // V7 fading.
     const order = c.meta?.order ?? 0
     const workedBefore = def.scenes.slice(0, firstGate === -1 ? undefined : firstGate).some((s) => s.worked)
-    if (order <= 5 && firstGate !== -1 && !workedBefore) out.push(`${id}: needs a worked scene before its first gate (V7)`)
+    if (order <= 5 && firstGate !== -1 && !workedBefore)
+      out.push(`${id}: needs a worked scene before its first gate (V7)`)
     if (order >= 6 && def.scenes.some((s) => s.worked)) out.push(`${id}: no worked scenes from II.6 on (V7)`)
     // V11 recall.
-    if ((['ii5-indicators', 'iii9-cribs', 'iv-capstone'] as string[]).includes(id) && def.scenes[0]?.kind !== 'recall') {
+    if (
+      (['ii5-indicators', 'iii9-cribs', 'iv-capstone'] as string[]).includes(id) &&
+      def.scenes[0]?.kind !== 'recall'
+    ) {
       out.push(`${id}: must start with a recall scene (V11)`)
     }
   }
@@ -223,13 +251,19 @@ export function actEndingProblems(chapters: readonly ChapterUnderTest[]): string
   const byId = new Map(chapters.map((c) => [c.id, c]))
   const ii8 = byId.get('ii8-sheets')
   const ii8HasGate = !!ii8 && !ii8.placeholder && ii8.def.scenes.at(-1)?.kind === 'gate'
-  const enders: ChapterId[] = ['i4-permutations', ii8HasGate ? 'ii8-sheets' : 'ii7-catalogue', 'iii12-checking', 'iv-capstone']
+  const enders: ChapterId[] = [
+    'i4-permutations',
+    ii8HasGate ? 'ii8-sheets' : 'ii7-catalogue',
+    'iii12-checking',
+    'iv-capstone',
+  ]
   for (const id of enders) {
     const c = byId.get(id)
     if (!c || c.placeholder) continue
     const last = c.def.scenes.at(-1)
     const gate = last?.kind === 'gate' && last.gate ? c.def.gates[last.gate] : undefined
-    if (!gate || !gate.logic.items.some((i) => i.compute)) out.push(`${id}: the act must end on a gate with a compute item (V2)`)
+    if (!gate || !gate.logic.items.some((i) => i.compute))
+      out.push(`${id}: the act must end on a gate with a compute item (V2)`)
   }
   return out
 }

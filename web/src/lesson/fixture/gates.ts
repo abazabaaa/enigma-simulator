@@ -149,7 +149,10 @@ export const windows = lettersItem<WindowsInstance>({
     const base = randomConfig(r, { plugs: 0 })
     const turnover = ROTORS[base.rotors[2]!].turnovers[0]!
     const right = L(mod(idx(turnover) - int(r, 3), 26))
-    return { length: 9, config: normalizeConfig({ ...base, positions: [base.positions[0]!, base.positions[1]!, right] }) }
+    return {
+      length: 9,
+      config: normalizeConfig({ ...base, positions: [base.positions[0]!, base.positions[1]!, right] }),
+    }
   },
   same: (a, b) => sameJson(a.config, b.config),
   solve: (i) => windowsAfterPresses(i.config, 3).join(''),
@@ -258,7 +261,13 @@ export const pressOrder = orderItem<{ blocks: readonly Choice[] }>({
   constantAnswer: true,
   generate(r) {
     let blocks = shuffle(r, PRESS_BLOCKS)
-    while (sameJson(blocks.map((b) => b.id), PRESS_ORDER)) blocks = shuffle(r, PRESS_BLOCKS)
+    while (
+      sameJson(
+        blocks.map((b) => b.id),
+        PRESS_ORDER,
+      )
+    )
+      blocks = shuffle(r, PRESS_BLOCKS)
     return { blocks }
   },
   same: (a, b) => sameJson(a.blocks, b.blocks),
@@ -296,12 +305,23 @@ export const toyChain = chainItem<ChainInstance>({
   check(i, a) {
     const ref = chainHops(i)
     const got = Array.isArray(a) ? a.map((t) => String(t).toUpperCase()) : []
-    return verdict(sameJson(got, ref.map((h) => h.output)), { kind: 'path', ghost: ghostFromOutputs(ref, got) })
+    return verdict(
+      sameJson(
+        got,
+        ref.map((h) => h.output),
+      ),
+      { kind: 'path', ghost: ghostFromOutputs(ref, got) },
+    )
   },
   setup: (i) => toySetup(i.spec),
   highlight(i, lastWrong) {
     const ref = chainHops(i)
-    const k = lastWrong ? firstDiff(ref.map((h) => h.output), lastWrong) : 0
+    const k = lastWrong
+      ? firstDiff(
+          ref.map((h) => h.output),
+          lastWrong,
+        )
+      : 0
     return [{ part: partForStage(ref[Math.max(0, Math.min(ref.length - 1, k))]!.stage), tone: 'hint' }]
   },
 })
@@ -378,11 +398,20 @@ export const leftSteps = stepsItem('left-steps', 'left')
 
 export interface GhostInstance {
   readonly options: readonly PartId[]
+  /**
+   * The faulty path as shown in the question. Its divergeAt is always −1: where the path goes wrong is the
+   * answer, so the question never carries it (solve() finds it from the tables; the rollback draws it).
+   */
   readonly ghost: Ghost
   readonly config: MachineConfig
   readonly key: Letter
   /** The correct substitution of each hop, in hop order (26 letters each). */
   readonly tables: readonly string[]
+}
+
+/** The first hop whose output does not match its table (the seeded fault). */
+export function faultyHop(i: GhostInstance): number {
+  return i.ghost.hops.findIndex((h, k) => i.tables[k]![h.inputIndex] !== h.output)
 }
 
 const PATH_PARTS: readonly PartId[] = ['plugboard', 'etw', 'rotor-right', 'rotor-middle', 'rotor-left', 'reflector']
@@ -433,14 +462,19 @@ export const whichWrong = ghostPickItem<GhostInstance>({
       })
       x = out
     })
-    return { options: PATH_PARTS, ghost: { hops, divergeAt: d }, config, key, tables: perms.map(permString) }
+    return { options: PATH_PARTS, ghost: { hops, divergeAt: -1 }, config, key, tables: perms.map(permString) }
   },
   same: (a, b) => a.key === b.key && sameJson(a.ghost, b.ghost),
-  solve: (i) => partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage),
-  check: (i, a) => verdict(a === partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage), { kind: 'path', ghost: i.ghost }),
+  solve: (i) => partForStage(i.ghost.hops[faultyHop(i)]!.stage),
+  // The divergence is drawn only in the rollback, after the answer.
+  check: (i, a) =>
+    verdict(a === partForStage(i.ghost.hops[faultyHop(i)]!.stage), {
+      kind: 'path',
+      ghost: { hops: i.ghost.hops, divergeAt: faultyHop(i) },
+    }),
   setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: 'wire' }),
-  // The last hop that is still right: the bug is after it.
-  highlight: (i) => [{ part: partForStage(i.ghost.hops[Math.max(0, i.ghost.divergeAt - 1)]!.stage), tone: 'hint' }],
+  // The last hop that is still right: the fault is after it.
+  highlight: (i) => [{ part: partForStage(i.ghost.hops[Math.max(0, faultyHop(i) - 1)]!.stage), tone: 'hint' }],
 })
 
 // ---------------------------------------------------------------------------
@@ -467,7 +501,9 @@ export const double = codeItem<{ seed: number }>(
   },
   {
     id: 'double',
-    rule: WINDOW,
+    // The probe is the literal double(21): the same answer every time, so a single right answer passes (V9).
+    rule: ONCE,
+    constantAnswer: true,
     generate: (r) => ({ seed: int(r, 2 ** 31) }),
     same: (a, b) => a.seed === b.seed,
     highlight: () => [],
@@ -509,7 +545,12 @@ export function toySetItem(id: string): ItemLogic<ToySetInstance, number> {
     check(i, p) {
       const pos = Number(p)
       if (!Number.isInteger(pos) || pos < 0 || pos >= i.spec.n) {
-        return verdict(false, { kind: 'machine', field: 'positions', message: 'Pick a rotor position.', highlight: ['rotor-right'] })
+        return verdict(false, {
+          kind: 'machine',
+          field: 'positions',
+          message: 'Pick a rotor position.',
+          highlight: ['rotor-right'],
+        })
       }
       const lamp = toyLampAt(i, pos)
       return verdict(lamp === i.target, {
@@ -552,10 +593,10 @@ export const puzzleLamps = lettersItem<LampsInstance>({
     const expected = i.keys.map((k) => toyPress(i.spec, k).lamp)
     const got = String(a).toUpperCase().split('')
     const k = Math.max(0, firstDiff(expected, got))
-    const press = toyPress(i.spec, i.keys[k]!)
+    // The first wrong lamp, traced backwards through the toy (as toy-lamp does).
     return verdict(got.join('') === expected.join(''), {
       kind: 'path',
-      ghost: ghostFromOutputs(press.hops, [...press.hops.slice(0, -1).map((h) => h.output), got[k] ?? '?']),
+      ghost: toyLampGhost({ spec: i.spec, key: i.keys[k]! }, got[k] ?? ''),
     })
   },
   setup: (i) => toySetup(i.spec),
@@ -568,7 +609,18 @@ export const puzzleSet = toySetItem('puzzle-set')
 
 export const GATES: ChapterGates = {
   main: {
-    items: [toyLamp, windows, lengths, selfChoice, pressOrder, toyChain, middleSteps, whichWrong, double, toySet] as ItemLogic[],
+    items: [
+      toyLamp,
+      windows,
+      lengths,
+      selfChoice,
+      pressOrder,
+      toyChain,
+      middleSteps,
+      whichWrong,
+      double,
+      toySet,
+    ] as ItemLogic[],
     fallback: leftSteps as ItemLogic,
   },
   puzzle: { items: [puzzleLamps as ItemLogic], fallback: puzzleSet as ItemLogic, puzzle: true },
