@@ -26,6 +26,48 @@ function memory(
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
+/** Values out of range are quarantined, never clamped (review m7). */
+function outOfRange(): [string, string][] {
+  const item = {
+    attempt: 2,
+    seed: 7,
+    redraw: 0,
+    shownAt: 5,
+    outcomes: [],
+    wrong: 0,
+    fallbackNext: false,
+    passed: false,
+  }
+  const outcome = { result: 'wrong', ms: 10, seed: 7, fallback: false, hintLevel: 0, at: 5 }
+  const withItem = (patch: object) =>
+    JSON.stringify({
+      ...freshProgress(1, 's'),
+      gates: { 'lab-fixture/main': { passed: false, items: { a: { ...item, ...patch } } } },
+    })
+  return [
+    ['wrong < 0', withItem({ wrong: -5 })],
+    ['a fractional attempt', withItem({ attempt: 1.5 })],
+    ['attempt 0', withItem({ attempt: 0 })],
+    ['a seed beyond 32 bits', withItem({ seed: 2 ** 33 })],
+    ['redraw > 20', withItem({ redraw: 21 })],
+    ['a negative outcome time', withItem({ outcomes: [{ ...outcome, ms: -1 }] })],
+    ['hint level 4', withItem({ outcomes: [{ ...outcome, hintLevel: 4 }] })],
+    ['more than 20 outcomes', withItem({ outcomes: Array.from({ length: 21 }, () => outcome) })],
+    [
+      'reached < 0',
+      JSON.stringify({
+        ...freshProgress(1, 's'),
+        chapters: { prologue: { reached: -4, completed: false, tasks: [] } },
+      }),
+    ],
+    ['a negative lastVisit', JSON.stringify({ ...freshProgress(1, 's'), lastVisit: -1 })],
+    [
+      'a bet with a bad verdict',
+      JSON.stringify({ ...freshProgress(1, 's'), bets: { 'lab-fixture/x': { value: 'A', correct: 'yes', at: 1 } } }),
+    ],
+  ]
+}
+
 describe('progress persistence', () => {
   it('starts fresh with the given salt and writes plain ProgressV1 JSON', () => {
     const s = memory()
@@ -70,6 +112,7 @@ describe('progress persistence', () => {
       JSON.stringify({ ...freshProgress(1, 's'), gates: { 'x/y': { passed: false, items: { a: { attempt: 'x' } } } } }),
     ],
     ['zustand-wrapped state', JSON.stringify({ state: freshProgress(1, 's'), version: 1 })],
+    ...outOfRange(),
   ])('quarantines %s and starts fresh with a notice', (_label, raw) => {
     const s = memory({ [PROGRESS_KEY]: raw })
     const store = createProgressStore({ storage: s, seed: 'fresh' })

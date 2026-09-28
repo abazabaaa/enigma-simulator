@@ -398,11 +398,20 @@ export const leftSteps = stepsItem('left-steps', 'left')
 
 export interface GhostInstance {
   readonly options: readonly PartId[]
+  /**
+   * The faulty path as shown in the question. Its divergeAt is always −1: where the path goes wrong is the
+   * answer, so the question never carries it (solve() finds it from the tables; the rollback draws it).
+   */
   readonly ghost: Ghost
   readonly config: MachineConfig
   readonly key: Letter
   /** The correct substitution of each hop, in hop order (26 letters each). */
   readonly tables: readonly string[]
+}
+
+/** The first hop whose output does not match its table (the seeded fault). */
+export function faultyHop(i: GhostInstance): number {
+  return i.ghost.hops.findIndex((h, k) => i.tables[k]![h.inputIndex] !== h.output)
 }
 
 const PATH_PARTS: readonly PartId[] = ['plugboard', 'etw', 'rotor-right', 'rotor-middle', 'rotor-left', 'reflector']
@@ -453,15 +462,19 @@ export const whichWrong = ghostPickItem<GhostInstance>({
       })
       x = out
     })
-    return { options: PATH_PARTS, ghost: { hops, divergeAt: d }, config, key, tables: perms.map(permString) }
+    return { options: PATH_PARTS, ghost: { hops, divergeAt: -1 }, config, key, tables: perms.map(permString) }
   },
   same: (a, b) => a.key === b.key && sameJson(a.ghost, b.ghost),
-  solve: (i) => partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage),
+  solve: (i) => partForStage(i.ghost.hops[faultyHop(i)]!.stage),
+  // The divergence is drawn only in the rollback, after the answer.
   check: (i, a) =>
-    verdict(a === partForStage(i.ghost.hops[i.ghost.divergeAt]!.stage), { kind: 'path', ghost: i.ghost }),
+    verdict(a === partForStage(i.ghost.hops[faultyHop(i)]!.stage), {
+      kind: 'path',
+      ghost: { hops: i.ghost.hops, divergeAt: faultyHop(i) },
+    }),
   setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: 'wire' }),
-  // The last hop that is still right: the bug is after it.
-  highlight: (i) => [{ part: partForStage(i.ghost.hops[Math.max(0, i.ghost.divergeAt - 1)]!.stage), tone: 'hint' }],
+  // The last hop that is still right: the fault is after it.
+  highlight: (i) => [{ part: partForStage(i.ghost.hops[Math.max(0, faultyHop(i) - 1)]!.stage), tone: 'hint' }],
 })
 
 // ---------------------------------------------------------------------------
@@ -488,7 +501,9 @@ export const double = codeItem<{ seed: number }>(
   },
   {
     id: 'double',
-    rule: WINDOW,
+    // The probe is the literal double(21): the same answer every time, so a single right answer passes (V9).
+    rule: ONCE,
+    constantAnswer: true,
     generate: (r) => ({ seed: int(r, 2 ** 31) }),
     same: (a, b) => a.seed === b.seed,
     highlight: () => [],
@@ -578,10 +593,10 @@ export const puzzleLamps = lettersItem<LampsInstance>({
     const expected = i.keys.map((k) => toyPress(i.spec, k).lamp)
     const got = String(a).toUpperCase().split('')
     const k = Math.max(0, firstDiff(expected, got))
-    const press = toyPress(i.spec, i.keys[k]!)
+    // The first wrong lamp, traced backwards through the toy (as toy-lamp does).
     return verdict(got.join('') === expected.join(''), {
       kind: 'path',
-      ghost: ghostFromOutputs(press.hops, [...press.hops.slice(0, -1).map((h) => h.output), got[k] ?? '?']),
+      ghost: toyLampGhost({ spec: i.spec, key: i.keys[k]! }, got[k] ?? ''),
     })
   },
   setup: (i) => toySetup(i.spec),

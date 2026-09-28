@@ -43,6 +43,19 @@ function run(seq: string, rule: PassRule, o: { ms?: number; puzzle?: boolean } =
   return out
 }
 
+/** Like run(), with one answer time per outcome. */
+function runMs(seq: string, ms: readonly number[], rule: PassRule = WINDOW, cfg = DEFAULT_RULES): ItemRecord[] {
+  let rec = newItemRecord(SALT, KEY, 0)
+  return [...seq.replace(/\s+/g, '')].map((c, k) => {
+    const now = rec.shownAt + ms[k]!
+    rec =
+      c === 'R'
+        ? reduceItem(rec, { type: 'reveal', now }, rule, { salt: SALT, key: KEY }, cfg)
+        : reduceItem(rec, { type: 'answer', correct: c === 'C', now }, rule, { salt: SALT, key: KEY }, cfg)
+    return rec
+  })
+}
+
 /** The 1-based step after which the item first passes, or null. */
 const passAfter = (seq: string, rule: PassRule = WINDOW) => {
   const k = run(seq, rule).findIndex((r) => r.passed)
@@ -151,6 +164,7 @@ describe('rule 5: gaming', () => {
     expect(isGaming(fast[1]!)).toBe('fast')
     expect(fast[1]!.fallbackNext).toBe(true)
     expect(fast[1]!.seed).toBe(fallbackSeed(SALT, KEY, 3))
+    expect(hintLevel(fast[1]!, false)).toBe(0)
     expect(isGaming(run('C W', WINDOW, { ms: 1_999 })[1]!)).toBe('fast')
     expect(isGaming(run('W W', WINDOW, { ms: 2_000 })[1]!)).toBe(false)
   })
@@ -162,12 +176,44 @@ describe('rule 5: gaming', () => {
     expect(isGaming(rec)).toBe(false)
   })
 
-  it('ladder: three wrong answers, each under burstMs, up to L3', () => {
-    const recs = run('W W W', WINDOW, { ms: 3_000 })
-    expect(recs.map((r) => isGaming(r))).toEqual([false, false, 'ladder'])
-    expect(recs[2]!.fallbackNext).toBe(true)
-    expect(isGaming(run('W W W', WINDOW, { ms: 5_000 })[2]!)).toBe(false)
-    expect(isGaming(run('C W W', WINDOW, { ms: 3_000 })[2]!)).toBe(false)
+  it('ladder: three wrong answers within burstMs in total (a rush up the ladder)', () => {
+    const rushed = runMs('W W W', [2100, 2100, 700])
+    expect(rushed.map((r) => isGaming(r))).toEqual([false, false, 'ladder'])
+    expect(rushed[2]!.fallbackNext).toBe(true)
+    // Honest answers of 2–5 s each never trip it: the ladder runs to L3 as usual.
+    for (const ms of [2000, 2500, 4900]) {
+      const honest = runMs('W W W', [ms, ms, ms])
+      expect(honest.map((r) => isGaming(r))).toEqual([false, false, false])
+      expect(hintLevel(honest[2]!, false)).toBe(3)
+    }
+    expect(isGaming(runMs('C W W', [2100, 2100, 700])[2]!)).toBe(false)
+    expect(isGaming(runMs('W R W', [2100, 100, 700])[2]!)).toBe(false)
+  })
+
+  it('a fallback always starts at hint level 0 with its own ladder (coordinator ruling, round 1)', () => {
+    // | outcomes (ms)                 | signal | fallback shown at |
+    // | W 500, W 500                  | fast   | L0 (not L2)       |
+    // | W 2100, W 2100, W 700         | ladder | L0 (not L3)       |
+    // | R, W, W, W, W, R (slow)       | reveals| L0                |
+    const cases: [string, number[], string][] = [
+      ['W W', [500, 500], 'fast'],
+      ['W W W', [2100, 2100, 700], 'ladder'],
+      ['R W W W W R', [SLOW, SLOW, SLOW, SLOW, SLOW, SLOW], 'reveals'],
+    ]
+    for (const [seq, ms, reason] of cases) {
+      const last = runMs(seq, ms).at(-1)!
+      expect(isGaming(last)).toBe(reason)
+      expect(last).toMatchObject({ fallbackNext: true, wrong: 0 })
+      expect(hintLevel(last, false)).toBe(0)
+      expect(hintLevel(last, true)).toBe(0)
+      // A wrong fallback answer starts the fallback's own ladder at L1.
+      const after = reduceItem(last, { type: 'answer', correct: false, now: last.shownAt + SLOW }, WINDOW, {
+        salt: SALT,
+        key: KEY,
+      })
+      expect(after.outcomes.at(-1)).toMatchObject({ fallback: true, hintLevel: 0 })
+      expect(hintLevel(after, false)).toBe(1)
+    }
   })
 
   it('reveals: two reveals among the last six outcomes', () => {
@@ -179,6 +225,7 @@ describe('rule 5: gaming', () => {
   it('custom thresholds: configure({ minLatencyMs: 0, burstMs: 0 }) switches fast and ladder off', () => {
     const cfg = { minLatencyMs: 0, burstMs: 0 }
     expect(isGaming(run('W W W', WINDOW, { ms: 0 })[2]!, cfg)).toBe(false)
+    expect(isGaming(runMs('W W W', [0, 0, 0], WINDOW, cfg)[2]!, cfg)).toBe(false)
     expect(DEFAULT_RULES).toEqual({ minLatencyMs: 2000, burstMs: 5000 })
   })
 

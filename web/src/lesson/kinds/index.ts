@@ -382,6 +382,12 @@ export function setMachineItem<I extends SetMachineInstance>(
 // ghost-pick
 // ---------------------------------------------------------------------------
 
+/**
+ * Pick the part where a faulty path first goes wrong. The question must not carry the answer: keep the
+ * instance's ghost.divergeAt at −1 (the lint enforces it) and derive the fault in solve()/check() from the
+ * instance's own data; put the real divergence in the rollback ({ kind: 'path', ghost }), which the stage draws
+ * after the answer. The generic widget never draws a ghost during the question.
+ */
 export function ghostPickItem<I extends { options: readonly PartId[]; ghost: Ghost }>(
   s: Base<I, PartId>,
 ): ItemLogic<I, PartId> {
