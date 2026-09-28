@@ -94,7 +94,7 @@ const pressThrows = (page: Page, key = 'A') =>
 
 /** AD, BE, CF: letter 1 → 4, 2 → 5, 3 → 6 (option values are 0-based letter places). */
 async function choosePairing(page: Page): Promise<void> {
-  for (const [k, n] of (['AD', 'BE', 'CF'] as const).entries()) await page.getByTestId(`pairing-${n}`).selectOption(String(k + 3))
+  for (const [k, n] of (['AD', 'BE', 'CF'] as const).entries()) await page.getByTestId(`pairing-${n}`).selectOption({ value: String(k + 3) })
 }
 
 /** Type a characteristic 'AD:… BE:… CF:…' into the three key fields. */
