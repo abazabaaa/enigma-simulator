@@ -303,7 +303,7 @@ const britishMenu = {
         The crib <Mono>{instance.crib}</Mono> stands in this body at an offset from {instance.window[0]} to {instance.window[1]} (the
         offset counts the body&apos;s letters before the crib; the strip numbers them). Slide it to the offset where no crib letter
         sits under the same cipher letter, then build a menu for the bombe from its links: at most {MAX_LINKS} links, in one connected
-        piece, with at least 2 closures. The middle rotor does not move before the crib ends, so every link may be used.
+        piece, with at least 2 closures. The middle rotor does not move during the crib, so every link may be used.
       </p>
       <p className="font-mono break-all text-stone-300" data-testid="intercept-body">
         {instance.cipher}
