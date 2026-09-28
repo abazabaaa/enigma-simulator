@@ -1,0 +1,4 @@
+# The py-enigma venv (npm run setup:py) and Python bytecode stay local.
+.venv/
+__pycache__/
+node_modules/
