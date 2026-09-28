@@ -52,7 +52,7 @@ test.describe('home', { tag: '@area:home' }, () => {
     const lamp = pressKey(createMachine(START), 'H').output
     await expect.poll(() => page.evaluate(() => window.__stage!.info().litLamp)).toBe(lamp)
     await expect(page.getByTestId(`lamp-${lamp}`)).toHaveAttribute('data-lit', 'true')
-    await expect(page.getByTestId('announcer')).toContainText(`H lights ${lamp}`)
+    await expect(page.getByTestId('announcer')).toContainText(`H lit ${lamp}.`)
     // The physical keyboard types too.
     await page.keyboard.press('i')
     await expect.poll(() => tape(page, 'tape-input')).toBe('HI')
