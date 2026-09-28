@@ -42,6 +42,7 @@ import {
   wrongAnswer,
 } from '../helpers/course'
 import { CHAPTERS } from '../../src/content/registry'
+import { partList } from '../../src/lesson/partNames'
 import type { MachineConfig } from '../../src/contracts/core'
 import { dimmedParts } from '../../src/contracts/stage'
 import {
@@ -104,7 +105,11 @@ async function typeKey(page: Page, key: string): Promise<void> {
 }
 
 /** Set rotors (selects), windows (spinbuttons, by typing the letter) and cables (plug-input) through the controls. */
-async function setMachineUi(page: Page, cfg: Pick<MachineConfig, 'rotors' | 'positions' | 'plugboard'>, o: { rotors?: boolean } = {}): Promise<void> {
+async function setMachineUi(
+  page: Page,
+  cfg: Pick<MachineConfig, 'rotors' | 'positions' | 'plugboard'>,
+  o: { rotors?: boolean; global?: boolean } = {},
+): Promise<void> {
   if (o.rotors !== false) {
     for (let pass = 0; pass < 2; pass++) {
       for (const [k, slot] of SLOTS.entries()) await page.getByTestId(`rotor-select-${slot}`).selectOption(cfg.rotors[k]!)
@@ -121,6 +126,8 @@ async function setMachineUi(page: Page, cfg: Pick<MachineConfig, 'rotors' | 'pos
     await page.getByTestId('plug-input').fill(cfg.plugboard.join(' '))
     await page.getByTestId('plug-add').click()
   }
+  // The tool scenes work on a private machine; the gate items on the course machine (__enigma).
+  if (o.global === false) return
   const state = await page.evaluate(() => window.__enigma!.getState())
   expect(state.config.rotors).toEqual([...cfg.rotors])
   expect(state.positions).toBe(cfg.positions.join(''))
@@ -128,14 +135,25 @@ async function setMachineUi(page: Page, cfg: Pick<MachineConfig, 'rotors' | 'pos
 }
 
 /** Slide the crib to `offset` (arrow keys on the strip) and add `links` to the menu. */
-async function menuUi(page: Page, answer: MenuAnswer): Promise<void> {
+async function menuUi(page: Page, answer: MenuAnswer, cribLength: number): Promise<void> {
   const slider = page.getByTestId('crib-strip-slider')
+  const strip = page.getByTestId('crib-strip')
   await slider.focus()
   await page.keyboard.press('Home')
-  for (let k = 0; k < answer.offset; k++) await page.keyboard.press('ArrowRight')
-  await expect(page.getByTestId('crib-strip')).toHaveAttribute('data-offset', String(answer.offset))
-  await page.getByTestId('menu-clear').click()
-  for (const pos of answer.links) await page.getByTestId(`menu-graph-add-${pos}`).click()
+  await expect(strip).toHaveAttribute('data-offset', '0')
+
+  // One key at a time (each moves the crib from the offset the strip shows): PageUp moves it 5, ArrowRight 1.
+  for (let at = 0; at < answer.offset; ) {
+    const step = answer.offset - at >= 5 ? 5 : 1
+    // The scene's focus-on-enter settles a few frames late: keep the slider focused for every key.
+    await slider.focus()
+    await page.keyboard.press(step === 5 ? 'PageUp' : 'ArrowRight')
+    at += step
+    await expect(strip).toHaveAttribute('data-offset', String(at))
+  }
+  // Every link, then the ones the menu leaves out.
+  await page.getByTestId('menu-all').click()
+  for (let pos = 1; pos <= cribLength; pos++) if (!answer.links.includes(pos)) await page.getByTestId(`menu-graph-remove-${pos}`).click()
   await expect(page.getByTestId('menu-builder')).toHaveAttribute('data-links', [...answer.links].sort((a, b) => a - b).join(','))
 }
 
@@ -146,7 +164,8 @@ async function answerThroughUi(page: Page, itemId: string, answer: unknown): Pro
     await choosePairing(page)
     await typeKey(page, String(answer))
   } else if (itemId === 'british-menu') {
-    await menuUi(page, answer as MenuAnswer)
+    const c = await current(page)
+    await menuUi(page, answer as MenuAnswer, (c.instance as BritishMenuInstance).crib.length)
   } else if (itemId === 'read-intercepts') {
     await answerViaUi(page, 'letters', answer)
     return
@@ -156,6 +175,13 @@ async function answerThroughUi(page: Page, itemId: string, answer: unknown): Pro
   }
   await expect(submit).toBeEnabled()
   await submit.click()
+}
+
+/** A gate alone (#/lab/gate), with the e2e configuration: the same GateRunner and item bindings as the chapter. */
+async function openGateLab(page: Page, id: 'polish' | 'british'): Promise<void> {
+  await gotoApp(page, `/lab/gate/${CHAPTER}/${id}`, { stage: '2d' })
+  await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+  await current(page)
 }
 
 /** From the chapter's start (entered) to a scene: recall and gates through the API, tasks marked. */
@@ -180,7 +206,6 @@ async function templateItem(page: Page, id: string): Promise<void> {
   expect(c.itemId).toBe(id)
   const item = page.getByTestId(`item-${id}`)
   await expect(item).toHaveAttribute('data-current', 'true')
-  expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
 
   if (c.kind === 'set-machine') {
     // 6. Keyboard locked, lamps hidden, and moving the controls submits nothing.
@@ -200,7 +225,8 @@ async function templateItem(page: Page, id: string): Promise<void> {
   const wrong = await wrongAnswer(page)
   await answerThroughUi(page, id, wrong)
   await assertRollback(page, ROLLBACK[id]!)
-  expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
+  // The chapter's own rollback views (cycles, crib); set-machine and letters use the lesson's shared rollback.
+  if (c.kind === 'custom') expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
   await continueGate(page)
   // Puzzle gate: no hint after one wrong answer, and a new day.
   const second = await current(page)
@@ -208,16 +234,18 @@ async function templateItem(page: Page, id: string): Promise<void> {
   expect(second.seed).not.toBe(c.seed)
   await expect(page.getByTestId('hint-panel')).toHaveCount(0)
   await expect(page.getByTestId('item-hint')).toHaveCount(0)
-  // A second wrong answer: now L1.
+  // A second wrong answer: now L1, highlighted from the day that was answered (review round 3), not the fresh one.
   const wrong2 = await wrongAnswer(page, 7)
+  const answered = second.instance
   await answerViaApi(page, id, wrong2)
   const l1 = await current(page)
   expect(l1).toMatchObject({ itemId: id, hintLevel: 1, passed: false })
   await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
   await expect(page.getByTestId('item-hint')).toBeVisible()
   const logic = await logicFor(l1.gateKey, id, false)
-  const hint = logic.highlight(l1.instance, wrong2).map((h) => h.part)
-  if (hint.length) await expect.poll(() => page.evaluate(() => window.__stage!.info().highlighted)).toEqual(expect.arrayContaining(hint))
+  const hint = logic.highlight(answered, wrong2).map((h) => h.part)
+  await expect.poll(() => page.evaluate(() => [...window.__stage!.info().highlighted].sort())).toEqual([...hint].sort())
+  await expect(page.getByTestId('hint-panel')).toContainText(hint.length ? `look at the highlighted ${partList(hint)}` : 'take it one step at a time')
   expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
 
   // b. A correct instance through the real controls.
@@ -242,9 +270,24 @@ async function templateItem(page: Page, id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 test.describe('chapter iv-capstone', { tag: '@chapter:iv-capstone' }, () => {
-  test('scenes in order: recall, the story, both routes run end to end on the practice days', async ({ page }) => {
+  test('unlocked after III.12; scenes in order: recall, the story, both routes end to end; chapter.complete', async ({ page }) => {
     test.setTimeout(90_000)
-    await enter(page, CHAPTER)
+    // A fresh learner: the capstone is locked until III.12 (the last required chapter before it) is complete.
+    // stage=2d here and none in editProgress: every edit starts from a full page load (the progress is re-read).
+    await gotoApp(page, '/course', { stage: '2d' })
+    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'true')
+    await page.evaluate(() => localStorage.setItem('enigma.progress.v1', JSON.stringify(window.__course!.progress())))
+    const before = CHAPTERS.filter((c) => c.id !== CHAPTER && c.id !== 'iii12-checking').map((c) => c.id)
+    // editProgress runs the edit's source in the page, so the ids are written into it.
+    const completeAll = new Function('p', `for (const id of ${JSON.stringify(before)}) p.chapters[id] = { reached: 0, completed: true, tasks: [] }`)
+    await editProgress(page, completeAll as (p: Record<string, any>) => void, '/course')
+    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'true')
+    await gotoApp(page, '/course', { stage: '2d' })
+    await editProgress(page, (p) => void (p.chapters['iii12-checking'] = { reached: 0, completed: true, tasks: [] }), '/course')
+    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'false')
+    await page.getByTestId(`chapter-link-${CHAPTER}`).click()
+    await settled(page)
+    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
     // Recall: one item from each act; Next waits for the gate.
     expect(await where(page)).toMatchObject({ scene: 'recall', kind: 'recall', index: 0, canNext: false })
     await expectNextDisabled(page)
@@ -297,7 +340,7 @@ test.describe('chapter iv-capstone', { tag: '@chapter:iv-capstone' }, () => {
     expect(await where(page)).toMatchObject({ scene: 'british-tools', kind: 'explore' })
     await expectNextDisabled(page)
     const bd = britishDay(PRACTICE_BRITISH_SEED)
-    await menuUi(page, { offset: bd.offset, links: bd.menu })
+    await menuUi(page, { offset: bd.offset, links: [...bd.menu] }, bd.crib.length)
     await page.getByTestId('bombe-run').click()
     await expect(page.getByTestId('bombe-bench')).toHaveAttribute('data-state', 'done', { timeout: 45_000 })
     const trueId = `${bd.key.rotors.join('-')}@${bd.stop.positions}`
@@ -310,62 +353,84 @@ test.describe('chapter iv-capstone', { tag: '@chapter:iv-capstone' }, () => {
     expect(falseId).toBeDefined()
     await page.getByTestId(`stop-check-${falseId}`).click()
     await expect(page.getByTestId(`stop-${falseId}`)).toHaveAttribute('data-consistent', 'false')
-    // Use the true stop, wind back to the message key, add the cables the reading gives.
+    // Use the true stop: its rotors and the checked cables go in; the enciphered key then reads as the message key.
     await page.getByTestId(`stop-use-${trueId}`).click()
+    await expect(page.getByTestId('enc-key-read')).toContainText(bd.messageKey)
+    for (const [k, slot] of SLOTS.entries()) {
+      await page.getByTestId(`rotor-pos-${slot}`).focus()
+      await page.keyboard.press(bd.messageKey[k]!)
+    }
+    // The cables the reading adds (II.7's rule: the letter shown and the letter the word needs).
     const sol = britishSolution(bd)
-    await setMachineUi(page, sol, { rotors: true })
+    const extra = sol.plugboard.filter((c) => !bd.checked.includes(c))
+    expect(extra.length).toBeGreaterThanOrEqual(1)
+    await expect(page.getByTestId('trial-preview-text')).not.toHaveText(bd.plain)
+    await page.getByTestId('plug-input').fill(extra.join(' '))
+    await page.getByTestId('plug-add').click()
     await expect(page.getByTestId('trial-preview-text')).toHaveText(bd.plain)
     await expect(page.getByTestId('enc-key-read')).toContainText(bd.messageKey)
     await nextScene(page)
     expect(await where(page)).toMatchObject({ scene: 'british', kind: 'gate', canNext: false })
-  })
-
-  test('gate polish: each item wrong through the UI, no hint after 1, L1 after 2, right through the controls', async ({ page }) => {
-    test.setTimeout(60_000)
-    await enter(page, CHAPTER)
-    await walkTo(page, 'polish')
-    expect((await gate(page))!.items.map((i) => i.itemId)).toEqual(['polish-card', 'polish-key'])
-    await templateItem(page, 'polish-card')
-    await templateItem(page, 'polish-key')
-    await expect(page.getByTestId('gate-passed')).toBeVisible()
-    expect((await eventsOf(page, 'gate.passed')).map((e) => e.gate)).toEqual([`${CHAPTER}/recall`, `${CHAPTER}/polish`])
-  })
-
-  test('gate british: each item through the UI; chapter.complete completes the course', async ({ page }) => {
-    test.setTimeout(60_000)
-    await enter(page, CHAPTER)
-    await walkTo(page, 'british')
-    expect((await gate(page))!.items.map((i) => i.itemId)).toEqual(['british-menu', 'british-key', 'read-intercepts'])
-    await templateItem(page, 'british-menu')
-    await templateItem(page, 'british-key')
-    await templateItem(page, 'read-intercepts')
-    await expect(page.getByTestId('gate-passed')).toBeVisible()
+    await passGate(page)
     // 8. chapter.complete: the last chapter, so no next link; the course map shows the course complete.
     await nextScene(page)
     expect((await eventsOf(page, 'chapter.complete')).map((e) => e.chapter)).toEqual([CHAPTER])
     await expect(page.getByTestId('chapter-complete')).toBeVisible()
     await expect(page.getByTestId('chapter-next-link')).toHaveCount(0)
     expect((await progress(page)).chapters[CHAPTER]).toMatchObject({ completed: true })
+    expect((await eventsOf(page, 'gate.passed')).map((e) => e.gate)).toEqual(
+      ['recall', 'polish', 'british'].map((g) => `${CHAPTER}/${g}`),
+    )
     await gotoApp(page, '/course')
     await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-completed', 'true')
   })
 
+  test('gate polish (gate lab): each item wrong through the UI, no hint after 1, L1 after 2, right through the controls', async ({
+    page,
+  }) => {
+    await openGateLab(page, 'polish')
+    expect((await gate(page))!.items.map((i) => i.itemId)).toEqual(['polish-card', 'polish-key'])
+    await templateItem(page, 'polish-card')
+    await templateItem(page, 'polish-key')
+    await expect(page.getByTestId('gate-passed')).toBeVisible()
+    expect((await eventsOf(page, 'gate.passed')).map((e) => e.gate)).toEqual([`${CHAPTER}/lab:polish`])
+  })
+
+  test('gate british (gate lab): each item wrong through the UI, no hint after 1, L1 after 2, right through the controls', async ({
+    page,
+  }) => {
+    await openGateLab(page, 'british')
+    expect((await gate(page))!.items.map((i) => i.itemId)).toEqual(['british-menu', 'british-key', 'read-intercepts'])
+    await templateItem(page, 'british-menu')
+    await templateItem(page, 'british-key')
+    await templateItem(page, 'read-intercepts')
+    await expect(page.getByTestId('gate-passed')).toBeVisible()
+    expect((await eventsOf(page, 'gate.passed')).map((e) => e.gate)).toEqual([`${CHAPTER}/lab:british`])
+  })
+
   test('the puzzle ladder on polish-card: no hint at attempts 1–2, then L1, L2 on another day, L3 and a fresh day', async ({ page }) => {
-    await gotoApp(page, '/lab/gate/iv-capstone/polish', { stage: '2d' })
-    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+    await openGateLab(page, 'polish')
     await assertLadder(page, { puzzle: true })
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/polish-card'))
     expect(shows.map((s) => s.hintLevel)).toEqual([0, 0, 1, 2, 3, 0])
     // Every show is a new day: the five attempts and the fresh one after "Got it".
     expect(new Set(shows.map((s) => s.seed)).size).toBe(shows.length)
+    // Axe on the worked examples: L2 (another day) and L3 (this day's solution).
+    for (let k = 0; k < 3; k++) await answerViaApi(page, 'polish-card', await wrongAnswer(page, 20 + k))
+    await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '2')
+    await expect(page.getByTestId('worked-polish-card')).toBeVisible()
+    expect(await axeSerious(page, '[data-testid="item-polish-card"]')).toEqual([])
+    await answerViaApi(page, 'polish-card', await wrongAnswer(page, 30))
+    await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '3')
+    expect(await axeSerious(page, '[data-testid="item-polish-card"]')).toEqual([])
   })
 
   test('a reload keeps the day; a retry draws a new day; gaming brings the cables-only fallback', async ({ page }) => {
-    await gotoApp(page, '/lab/gate/iv-capstone/british', { stage: '2d' })
-    await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+    await openGateLab(page, 'british')
     const first = await current(page)
     await reloadKeepsSeed(page)
-    await configure(page, { minLatencyMs: 2000 })
+    // Every answer counts as fast (a generous threshold: the box may be loaded, and the rule is "under minLatencyMs").
+    await configure(page, { minLatencyMs: 60_000 })
     // Two instant wrong answers: a new day each time, then the gaming fallback.
     await answerViaApi(page, 'british-menu', await wrongAnswer(page))
     const retry = await current(page)
@@ -387,24 +452,6 @@ test.describe('chapter iv-capstone', { tag: '@chapter:iv-capstone' }, () => {
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
   })
 
-  test('the capstone unlocks only after III.12', async ({ page }) => {
-    // stage=2d here and none in editProgress: every edit starts from a full page load (the progress is re-read).
-    await gotoApp(page, '/course', { stage: '2d' })
-    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'true')
-    // A fresh learner's progress, stored so that it can be edited.
-    await page.evaluate(() => localStorage.setItem('enigma.progress.v1', JSON.stringify(window.__course!.progress())))
-    const before = CHAPTERS.filter((c) => c.id !== CHAPTER && c.id !== 'iii12-checking').map((c) => c.id)
-    // editProgress runs the edit's source in the page, so the ids are written into it.
-    const completeAll = new Function('p', `for (const id of ${JSON.stringify(before)}) p.chapters[id] = { reached: 0, completed: true, tasks: [] }`)
-    await editProgress(page, completeAll as (p: Record<string, any>) => void, '/course')
-    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'true')
-    await gotoApp(page, '/course', { stage: '2d' })
-    await editProgress(page, (p) => void (p.chapters['iii12-checking'] = { reached: 0, completed: true, tasks: [] }), '/course')
-    await expect(page.getByTestId(`chapter-link-${CHAPTER}`)).toHaveAttribute('data-locked', 'false')
-    await page.getByTestId(`chapter-link-${CHAPTER}`).click()
-    await settled(page)
-    expect(await where(page)).toMatchObject({ chapter: CHAPTER, scene: 'recall' })
-  })
 })
 
 test.describe('chapter iv-capstone in 3D', { tag: ['@3d', '@chapter:iv-capstone'] }, () => {
