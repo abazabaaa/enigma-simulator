@@ -23,6 +23,7 @@ import {
   assertRollback,
   commitBet,
   completeScene,
+  completeTasks,
   configure,
   continueGate,
   current,
@@ -130,6 +131,8 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     ] as const
     for (const [k, r] of steps.entries()) {
       await assertRevealGated(page, r)
+      // While the next bet is open the windows show the machine as it is now, not the last press's "before".
+      if (k > 0) await expect(page.getByTestId('rotor-pos-right')).toHaveAttribute('aria-valuetext', want[k - 1]![1][2]!)
       expect(await pressThrows(page), 'the keyboard stays locked: only Step presses').toBe(true)
       // A fired Step cannot press again while this bet is open.
       if (k > 0) await expect(page.getByTestId(`reveal-${steps[k - 1]!.bet}`)).toBeDisabled()
@@ -363,12 +366,8 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
 })
 
 test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'] }, () => {
-  test('the first mechanism scene reports focus pawls and dimmedParts; its bet gates the press', async ({ page }) => {
-    test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
-    test.setTimeout(60_000)
-    await enter(page, CHAPTER, { stage: '3d' })
-    await nextScene(page)
-    expect((await where(page)).scene).toBe('step-first')
+  /** The 3D view reports this focus (and stays the 3D view: no fallback to 2D). */
+  async function in3d(page: Page, focus: string): Promise<void> {
     await expect
       .poll(
         async () => {
@@ -377,8 +376,17 @@ test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'
         },
         { timeout: 30_000 },
       )
-      .toBe('webgl2:pawls')
-    expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts('pawls', 'I'))
+      .toBe(`webgl2:${focus}`)
+    expect(await page.evaluate(() => window.__stage!.info().dimmed)).toEqual(dimmedParts(focus as 'pawls', 'I'))
+  }
+
+  test('the mechanism scenes stay in 3D across scene changes: focus and dimmedParts; the bet gates the press', async ({ page }) => {
+    test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
+    test.setTimeout(120_000)
+    await enter(page, CHAPTER, { stage: '3d' })
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('step-first')
+    await in3d(page, 'pawls')
     // The live scene dims exactly those parts.
     await expect
       .poll(
@@ -396,5 +404,17 @@ test.describe('chapter i2-stepping in 3D', { tag: ['@3d', '@chapter:i2-stepping'
     await commitBet(page, 'first-press', 'right')
     await fireReveal(page, press!)
     await expect.poll(() => page.evaluate(() => window.__stage!.info().windows)).toBe('AAB')
+    await completeTasks(page)
+    await nextScene(page)
+
+    // Scene change 1: the 3D view is kept (no context loss, no fall back to 2D).
+    expect((await where(page)).scene).toBe('double-step')
+    await in3d(page, 'pawls')
+    await completeScene(page)
+
+    // Scene change 2: the ring layers, still in 3D.
+    expect((await where(page)).scene).toBe('ring-vs-core')
+    await in3d(page, 'ring-right')
+    await expect(page.getByTestId('stage')).toHaveAttribute('data-renderer', 'webgl2')
   })
 })

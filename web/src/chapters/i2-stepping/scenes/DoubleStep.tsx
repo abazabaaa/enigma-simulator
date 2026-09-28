@@ -8,7 +8,6 @@ import { useStore } from 'zustand'
 import type { SceneProps } from '../../../contracts/lesson'
 import { positionsToString, type RotorName } from '../../../engine'
 import { Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
-import { usePlaybackStore } from '../../../state/playbackStore'
 import { DOUBLE_START, movedChoice, stepsFrom, turnoversOf } from '../gates'
 import { PressLog, usePressLog, type PressEntry } from './PressLog'
 
@@ -66,18 +65,6 @@ export function DoubleStepView(p: SceneProps): JSX.Element {
       bet(id).resolve(movedChoice(DOUBLE_SEQUENCE[k]!))
     })
   })
-
-  // When the learner starts the next bet the playback is gated (t pinned at 0), and every window display
-  // would fall back to the previous press's `before`. Settle the machine at its current windows first.
-  useEffect(
-    () =>
-      usePlaybackStore.subscribe((s, prev) => {
-        if (!s.gated || prev.gated) return
-        const m = store.getState()
-        if (m.last) m.setConfig(m.snapshot())
-      }),
-    [store],
-  )
 
   const reached = count === 3 && windows === DOUBLE_SEQUENCE[2]!.after
   useEffect(() => {
