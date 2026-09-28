@@ -1,17 +1,22 @@
 /**
- * step-first (worked): the bet on the first press of A at AAA, then a worked example of "step first, then encipher",
- * and one more press of the learner's own.
+ * step-first (worked): the bet on the first key press at AAA (any key fires the reveal: every key is unlocked once
+ * the bet is committed), then a worked example of "step first, then encipher", and one more press of the learner's
+ * own.
  */
 
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { SceneProps } from '../../../contracts/lesson'
 import { Mono, useRevealFired } from '../../../lesson'
+import { ROTORS } from '../../../engine'
 import { START, movedChoice, stepsFrom, turnoversOf } from '../gates'
 import { PressLog, usePressLog } from './PressLog'
 
-/** What the first press from AAA does (the bet's truth), from the engine. */
+/** What the first press from AAA does (the bet's truth), from the engine: the same for every key. */
 const FIRST = stepsFrom(START, 1)[0]!
+
+/** Where each notch is cut in the ring, against the turnover letter it produces (8 letters on). */
+const NOTCHES = START.rotors.map((r) => `${r} at ${ROTORS[r].notches} (turnover ${ROTORS[r].turnovers})`).join(', ')
 
 export function StepFirstView(p: SceneProps): JSX.Element {
   const fired = useRevealFired('first-press')
@@ -40,14 +45,18 @@ export function StepFirstView(p: SceneProps): JSX.Element {
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="step-first-view">
       <p>
         Rotors <Mono>{START.rotors.join(' ')}</Mono>, rings <Mono>01 01 01</Mono>, windows <Mono>AAA</Mono>. On the stage each rotor has
-        a pawl on its right-hand side and a notch cut into its alphabet ring. Bet first, then press <Mono>A</Mono>.
+        a pawl on its right-hand side and a notch cut into its alphabet ring. Bet first, then press any key.
+      </p>
+      <p data-testid="notch-offset">
+        The stage draws each notch where it is cut in the ring: {NOTCHES}. The pawl meets the ring 8 letters away from the
+        window, so a notch sits under its pawl exactly when the window shows the turnover letter.
       </p>
       {fired ? (
         <section data-testid="step-first-worked" className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3">
           <h3 className="font-semibold text-stone-100">Worked example: one key press</h3>
           <ol className="list-decimal pl-5">
             <li>
-              <strong>Step.</strong> The key pushes the pawls. The right pawl always catches the right rotor:{' '}
+              <strong>Step.</strong> Your key {log[0] ? <Mono>{log[0].key}</Mono> : null} pushed the pawls. The right pawl always catches the right rotor:{' '}
               <Mono>
                 {FIRST.before} → {FIRST.after}
               </Mono>

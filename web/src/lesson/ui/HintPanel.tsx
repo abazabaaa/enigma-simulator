@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 import type { HintLevel, ItemUi } from '../../contracts/lesson'
 import type { Highlight } from '../../contracts/stage'
-import { partName } from '../kinds/widgets'
+import { partList } from '../partNames'
 import { BUTTON } from './controls'
 
 /**
@@ -29,7 +29,7 @@ export function HintPanel(p: {
         <p className="text-sky-200">
           Hint:{' '}
           {p.highlights.length
-            ? `look at the highlighted ${p.highlights.map((h) => partName(h.part)).join(', ')}.`
+            ? `look at the highlighted ${partList(p.highlights.map((h) => h.part))}.`
             : 'take it one step at a time.'}
         </p>
       ) : null}

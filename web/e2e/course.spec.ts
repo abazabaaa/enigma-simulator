@@ -6,7 +6,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
-import { configure, enter, eventsOf, nextScene, progress, where } from './helpers/course'
+import { configure, enter, eventsOf, nextScene, progress, settled, walkChapter, where } from './helpers/course'
 import { CHAPTER_IDS } from '../src/contracts/core'
 
 test.describe('course map and route guards', { tag: '@area:lesson' }, () => {
@@ -33,7 +33,8 @@ test.describe('course map and route guards', { tag: '@area:lesson' }, () => {
 
     await gotoApp(page, '/c/prologue')
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
-    for (let k = 0; k < 20 && !(await eventsOf(page, 'chapter.complete')).length; k++) await nextScene(page)
+    await settled(page)
+    await walkChapter(page)
     expect((await eventsOf(page, 'chapter.complete')).map((e) => e.chapter)).toEqual(['prologue'])
     await expect(page.getByTestId('chapter-next-link')).toHaveAttribute('href', '#/c/i1-anatomy')
     await page.getByTestId('chapter-next-link').click()

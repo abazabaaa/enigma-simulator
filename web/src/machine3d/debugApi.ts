@@ -13,6 +13,16 @@ export interface ClientRect {
   h: number
 }
 
+/**
+ * Share of a label's box height taken by its font size: labels.tsx draws names in 50 px type on an
+ * 88 px texture and symbols in 84 px type on 128 px.
+ */
+export const LABEL_FONT_RATIO = { name: 50 / 88, symbol: 84 / 128 } as const
+/** Labels never draw their type smaller than this on screen (CSS px), however far the camera. */
+export const MIN_LABEL_FONT_PX = 9.5
+/** Share of a glyph cell taken by the type: letters are set at 100 px, ring numbers at 78 px, in 128 px cells. */
+export const GLYPH_FONT_RATIO = { letter: 100 / 128, number: 78 / 128 } as const
+
 /** What screenPoints() can project. */
 export type PointKind = 'key' | 'lamp' | 'socket' | 'window' | 'pawl' | 'core-index' | 'reflector'
 
@@ -48,8 +58,26 @@ export interface Machine3DDebugApi {
    * slot (window letters, pawl tips = pawl–notch contacts, core indexes) or 'U' (reflector).
    */
   screenPoints(kind: PointKind): Record<string, { x: number; y: number }>
-  /** The labels as laid out on screen, and the keep-out boxes they avoid (pawl–notch contacts). */
-  labels(): { labels: (ClientRect & { key: string; text: string })[]; keepOut: ClientRect[] }
+  /**
+   * The labels as laid out on screen (with their leader line, from the label's edge to the part, if
+   * any), the keep-out boxes they must avoid (pawl–notch contacts, the ring-setting number) and the
+   * soft ones they avoid when they can (the rings, while the pawls are labelled).
+   */
+  labels(): {
+    labels: (ClientRect & {
+      key: string
+      text: string
+      symbol: boolean
+      leader: { x1: number; y1: number; x2: number; y2: number } | null
+    })[]
+    keepOut: ClientRect[]
+    soft: ClientRect[]
+  }
+  /**
+   * The on-screen size (CSS px) of a ring's glyph cells: the window letter (its width shrinks when it
+   * is seen edge-on) and, in the exploded view, the smallest dial number facing the camera.
+   */
+  glyphs(slot: string): { window: { w: number; h: number } | null; dialMin: number | null }
 }
 
 declare global {
