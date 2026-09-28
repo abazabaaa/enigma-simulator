@@ -256,6 +256,8 @@ export const whyNoSelf = choiceItem<{ options: readonly Choice[] }>({
       { kind: 'none' },
       SELF_FEEDBACK[String(a)] ?? 'The reflector pairs every contact with a different one, so no letter comes back as itself.',
     ),
+  // The reflector on the stage (its hint highlights it); nothing to press.
+  setup: () => ({ locks: READ_ONLY, stage: 'reflector' }),
   highlight: () => [{ part: 'reflector', tone: 'hint' }],
 })
 

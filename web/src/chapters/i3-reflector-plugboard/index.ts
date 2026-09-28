@@ -63,7 +63,7 @@ const scenes: readonly SceneDef[] = [
         options: [
           { id: 'once', label: 'Once, on its way in', misconception: true },
           { id: 'twice', label: 'Twice: on its way in and on its way out' },
-          { id: 'if-plugged', label: 'Only if the key it passes has a cable', misconception: true },
+          { id: 'if-plugged', label: 'Only when the pressed key has a cable', misconception: true },
         ],
       },
     ],

@@ -330,6 +330,15 @@ export function drawWhichWrong(r: Rng, bug: (typeof BUGS)[number]): WhichWrongIn
   }
 }
 
+const PART_NAME: Readonly<Partial<Record<PartId, string>>> = {
+  plugboard: 'plugboard',
+  etw: 'entry wheel',
+  'rotor-right': 'right rotor',
+  'rotor-middle': 'middle rotor',
+  'rotor-left': 'left rotor',
+  reflector: 'reflector',
+}
+
 export const whichWrong = ghostPickItem<WhichWrongInstance>({
   id: 'which-wrong',
   rule: WINDOW,
@@ -341,11 +350,13 @@ export const whichWrong = ghostPickItem<WhichWrongInstance>({
     const part = partForStage(STAGES[k]!)
     const ref = keypressHops(i.config, i.key, null)[k]!
     const got = i.ghost.hops[k]!
+    const picked = PART_NAME[a as PartId] ?? String(a)
     return verdict(
       a === part,
       { kind: 'path', ghost: { hops: i.ghost.hops, divergeAt: k } },
-      `Hop ${k + 1} (${STAGES[k]}) is the first that disagrees with its table: ${ref.input} should leave as ${ref.output}, ` +
-        `the path shows ${got.output}. Every hop before it matches, so the fault is in the ${part.replace('-', ' ')}.`,
+      `You picked the ${picked}. Hop ${k + 1} (${STAGES[k]}) is the first that disagrees with its table: ${ref.input} ` +
+        `should leave as ${ref.output}, the path shows ${got.output}. Every hop before it matches, so the fault is in the ` +
+        `${PART_NAME[part]}.`,
     )
   },
   // The machine after the press's step: the rollback draws the buggy path against the engine's.
