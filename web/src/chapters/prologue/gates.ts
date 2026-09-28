@@ -24,7 +24,14 @@ export const START: MachineConfig = normalizeConfig({
 })
 
 /** Everything but the keyboard is locked: the learner only types (the positions too, so a rewind is a reset). */
-export const TYPE_ONLY: MachineLocks = { model: true, rotors: true, reflector: true, rings: true, positions: true, plugboard: true }
+export const TYPE_ONLY: MachineLocks = {
+  model: true,
+  rotors: true,
+  reflector: true,
+  rings: true,
+  positions: true,
+  plugboard: true,
+}
 
 // ---------------------------------------------------------------------------
 // type-a-word: bet `own-letter`
@@ -59,7 +66,9 @@ export const ROUNDTRIP_MIN = 3
  */
 export function roundtripDone(earlier: readonly Tape[], current: Tape): boolean {
   if (current.input.length < ROUNDTRIP_MIN) return false
-  return earlier.some((t) => t.input.length >= ROUNDTRIP_MIN && t.output === current.input && t.input === current.output)
+  return earlier.some(
+    (t) => t.input.length >= ROUNDTRIP_MIN && t.output === current.input && t.input === current.output,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -98,9 +107,27 @@ export function keyspaceLines(): KeyspaceLine[] {
   const total = keyspace()
   const withRings = keyspace({ rings: true })
   return [
-    { id: 'orders', label: 'Rotor orders: three of the five rotors, in order', factors: ['5', '4', '3'], value: ROTOR_ORDERS, shown: grouped(ROTOR_ORDERS) },
-    { id: 'positions', label: 'Start positions: a letter in each window', factors: ['26', '26', '26'], value: START_POSITIONS, shown: grouped(START_POSITIONS) },
-    { id: 'plugboard', label: `Plugboard: ${CABLES} cables, each pairing two of the 26 letters`, factors: [], value: plugs, shown: grouped(plugs) },
+    {
+      id: 'orders',
+      label: 'Rotor orders: three of the five rotors, in order',
+      factors: ['5', '4', '3'],
+      value: ROTOR_ORDERS,
+      shown: grouped(ROTOR_ORDERS),
+    },
+    {
+      id: 'positions',
+      label: 'Start positions: a letter in each window',
+      factors: ['26', '26', '26'],
+      value: START_POSITIONS,
+      shown: grouped(START_POSITIONS),
+    },
+    {
+      id: 'plugboard',
+      label: `Plugboard: ${CABLES} cables, each pairing two of the 26 letters`,
+      factors: [],
+      value: plugs,
+      shown: grouped(plugs),
+    },
     {
       id: 'total',
       label: 'Together',

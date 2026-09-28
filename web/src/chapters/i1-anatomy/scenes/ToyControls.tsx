@@ -12,14 +12,15 @@ import { isTextEntry, letterOf } from '../../../machine-ui/Keyboard'
 import { useMachineStore } from '../../../state/machineStore'
 import { useToyStore } from '../../../state/toyStore'
 
-/** Press a toy key unless the keyboard is locked (a pending bet, a gate). */
-export function pressToy(letter: Letter): void {
-  if (useMachineStore.getState().locks.keyboard) return
+/** Press a toy key unless the keyboard is locked (a pending bet, a gate) or the key is not the one offered. */
+export function pressToy(letter: Letter, only: Letter | null = null): void {
+  if (useMachineStore.getState().locks.keyboard || (only !== null && letter !== only)) return
   const { spec, press } = useToyStore.getState()
   if (LETTERS.indexOf(letter) < spec.n) press(letter)
 }
 
-export function ToyKeyboard(): JSX.Element {
+/** The toy's keys; with `only`, just that key works (a reveal bound to one key has not fired yet). */
+export function ToyKeyboard({ only = null }: { only?: Letter | null }): JSX.Element {
   const n = useToyStore((s) => s.spec.n)
   const locked = useMachineStore((s) => !!s.locks.keyboard)
 
@@ -29,18 +30,19 @@ export function ToyKeyboard(): JSX.Element {
       const letter = letterOf(e)
       if (!letter || LETTERS.indexOf(letter) >= useToyStore.getState().spec.n) return
       e.preventDefault()
-      pressToy(letter)
+      pressToy(letter, only)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [only])
 
   return (
     <div
       role="group"
-      aria-label={locked ? 'Toy keyboard (locked: bet first)' : 'Toy keyboard'}
+      aria-label={locked ? 'Toy keyboard (locked: bet first)' : only ? `Toy keyboard (press ${only})` : 'Toy keyboard'}
       data-testid="toy-keyboard"
       data-locked={String(locked)}
+      data-only={only ?? ''}
       className="flex flex-wrap justify-center gap-1"
     >
       {LETTERS.slice(0, n).map((letter) => (
@@ -48,8 +50,8 @@ export function ToyKeyboard(): JSX.Element {
           key={letter}
           type="button"
           data-testid={`toy-key-${letter}`}
-          disabled={locked}
-          onClick={() => pressToy(letter)}
+          disabled={locked || (only !== null && letter !== only)}
+          onClick={() => pressToy(letter, only)}
           className="h-9 w-9 rounded-md border border-stone-600 bg-stone-800 font-mono text-sm text-stone-100 shadow-sm hover:bg-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {letter}
@@ -64,7 +66,12 @@ export function ToyLampboard(): JSX.Element {
   const hidden = view.lampsHidden
   const on = view.lit && !hidden ? view.lamp : null
   return (
-    <div data-testid="toy-lampboard" data-hidden={String(hidden)} aria-hidden="true" className="flex flex-wrap justify-center gap-1">
+    <div
+      data-testid="toy-lampboard"
+      data-hidden={String(hidden)}
+      aria-hidden="true"
+      className="flex flex-wrap justify-center gap-1"
+    >
       {LETTERS.slice(0, view.n).map((letter) => {
         const lit = on === letter
         return (
@@ -73,7 +80,9 @@ export function ToyLampboard(): JSX.Element {
             data-testid={`toy-lamp-${letter}`}
             data-lit={String(lit)}
             className={`flex h-9 w-9 items-center justify-center rounded-full border font-mono text-sm ${
-              lit ? 'border-amber-200 bg-amber-300 text-stone-950 shadow-[0_0_14px_var(--color-amber-300)]' : 'border-stone-700 bg-stone-900 text-stone-400'
+              lit
+                ? 'border-amber-200 bg-amber-300 text-stone-950 shadow-[0_0_14px_var(--color-amber-300)]'
+                : 'border-stone-700 bg-stone-900 text-stone-400'
             }`}
           >
             {letter}
@@ -85,11 +94,20 @@ export function ToyLampboard(): JSX.Element {
 }
 
 /** Lamps above keys, as on the machine, with the announcer's reading below. */
-export function ToyMachine({ children }: { children?: JSX.Element | null }): JSX.Element {
+export function ToyMachine({
+  only = null,
+  children,
+}: {
+  only?: Letter | null
+  children?: JSX.Element | null
+}): JSX.Element {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-stone-800 bg-stone-900/40 p-3" data-testid="toy-machine">
+    <div
+      className="flex flex-col items-center gap-2 rounded-xl border border-stone-800 bg-stone-900/40 p-3"
+      data-testid="toy-machine"
+    >
       <ToyLampboard />
-      <ToyKeyboard />
+      <ToyKeyboard only={only} />
       {children}
     </div>
   )

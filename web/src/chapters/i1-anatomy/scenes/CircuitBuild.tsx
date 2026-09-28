@@ -40,7 +40,16 @@ function Bulb({ x, y, lit, label }: { x: number; y: number; lit: boolean; label:
 function Key({ x, y, label, down }: { x: number; y: number; label: string; down: boolean }): JSX.Element {
   return (
     <g>
-      <rect x={x - 11} y={y - 11} width={22} height={22} rx={3} fill="#292524" stroke={down ? 'var(--sym-signal)' : '#78716c'} strokeWidth={down ? 2 : 1} />
+      <rect
+        x={x - 11}
+        y={y - 11}
+        width={22}
+        height={22}
+        rx={3}
+        fill="#292524"
+        stroke={down ? 'var(--sym-signal)' : '#78716c'}
+        strokeWidth={down ? 2 : 1}
+      />
       <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fill="currentColor">
         {label}
       </text>
@@ -48,7 +57,11 @@ function Key({ x, y, label, down }: { x: number; y: number; label: string; down:
   )
 }
 
-const wire = (lit: boolean) => ({ fill: 'none', stroke: lit ? 'var(--sym-signal)' : '#78716c', strokeWidth: lit ? 2.5 : 1.2 })
+const wire = (lit: boolean) => ({
+  fill: 'none',
+  stroke: lit ? 'var(--sym-signal)' : '#78716c',
+  strokeWidth: lit ? 2.5 : 1.2,
+})
 
 export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
   const [step, setStep] = useState(1)
@@ -87,7 +100,15 @@ export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
     drawing = (
       <>
         {step === 3 ? (
-          <rect x={ROTOR.x0} y={14} width={ROTOR.x1 - ROTOR.x0} height={ROW(n - 1) + 4} rx={6} fill="none" stroke="var(--sym-N)" />
+          <rect
+            x={ROTOR.x0}
+            y={14}
+            width={ROTOR.x1 - ROTOR.x0}
+            height={ROW(n - 1) + 4}
+            rx={6}
+            fill="none"
+            stroke="var(--sym-N)"
+          />
         ) : null}
         {rows.map((i) => {
           const j = map[i]!
@@ -110,7 +131,15 @@ export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
     const reflector = perms[2]!
     drawing = (
       <>
-        <rect x={ROTOR.x0} y={14} width={ROTOR.x1 - ROTOR.x0} height={ROW(n - 1) + 4} rx={6} fill="none" stroke="var(--sym-N)" />
+        <rect
+          x={ROTOR.x0}
+          y={14}
+          width={ROTOR.x1 - ROTOR.x0}
+          height={ROW(n - 1) + 4}
+          rx={6}
+          fill="none"
+          stroke="var(--sym-N)"
+        />
         <rect x={40} y={14} width={50} height={ROW(n - 1) + 4} rx={6} fill="none" stroke="var(--sym-U)" />
         {rows.map((i) => (
           <path key={`r${i}`} d={`M ${ROTOR.x1} ${ROW(i)} L ${ROTOR.x0} ${ROW(rotor[i]!)}`} {...wire(false)} />
@@ -120,10 +149,22 @@ export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
           .map((a) => {
             const b = reflector[a]!
             const x = 84 - ((a * 9) % 36)
-            return <path key={`u${a}`} d={`M 90 ${ROW(a)} L ${x} ${ROW(a)} L ${x} ${ROW(b)} L 90 ${ROW(b)}`} fill="none" stroke="var(--sym-U)" strokeWidth={1.4} />
+            return (
+              <path
+                key={`u${a}`}
+                d={`M 90 ${ROW(a)} L ${x} ${ROW(a)} L ${x} ${ROW(b)} L 90 ${ROW(b)}`}
+                fill="none"
+                stroke="var(--sym-U)"
+                strokeWidth={1.4}
+              />
+            )
           })}
         {rows.map((i) => (
-          <path key={`w${i}`} d={`M ${ROTOR.x0} ${ROW(i)} L 90 ${ROW(i)} M ${ROTOR.x1} ${ROW(i)} L ${KEY_X - 14} ${ROW(i)}`} {...wire(false)} />
+          <path
+            key={`w${i}`}
+            d={`M ${ROTOR.x0} ${ROW(i)} L 90 ${ROW(i)} M ${ROTOR.x1} ${ROW(i)} L ${KEY_X - 14} ${ROW(i)}`}
+            {...wire(false)}
+          />
         ))}
         {rows.map((i) => (
           <Key key={`k${i}`} x={KEY_X} y={ROW(i)} label={LETTERS[i]!} down={false} />
@@ -142,12 +183,22 @@ export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
   }
 
   return (
-    <section data-testid="circuit-build" data-step={step} className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/40 p-3">
+    <section
+      data-testid="circuit-build"
+      data-step={step}
+      className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/40 p-3"
+    >
       <h3 className="text-sm font-semibold text-stone-100">
         Worked example: build the circuit ({step} of {BUILD_STEPS})
       </h3>
-      <p data-testid="circuit-caption">{CAPTION[step]}</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto h-auto w-full max-w-md font-mono text-stone-300" aria-hidden="true">
+      <p data-testid="circuit-caption" aria-live="polite">
+        {CAPTION[step]}
+      </p>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="mx-auto h-auto w-full max-w-md font-mono text-stone-300"
+        aria-hidden="true"
+      >
         {drawing}
       </svg>
       {step < 4 ? (
@@ -164,21 +215,33 @@ export function CircuitBuild({ spec }: { spec: ToySpec }): JSX.Element {
               {step === 1 ? 'Press the key' : LETTERS[i]}
             </button>
           ))}
-          <span className="ml-2 text-xs text-stone-400" data-testid="build-lamp">
+          <span className="ml-2 text-xs text-stone-300" data-testid="build-lamp" role="status" aria-live="polite">
             {down === null ? '' : step === 1 ? 'The bulb lights.' : `${LETTERS[down]} lights ${LETTERS[map[down]!]}.`}
           </span>
         </div>
       ) : (
         <p className="text-xs text-stone-400">
-          On the way back the current crosses the rotor&apos;s wires in the other direction: from {LETTERS[0]}&apos;s contact on the left it
-          comes out where the wire that lands on {LETTERS[0]} started, {LETTERS[back[0]!]}.
+          On the way back the current crosses the rotor&apos;s wires in the other direction: from {LETTERS[0]}&apos;s
+          contact on the left it comes out where the wire that lands on {LETTERS[0]} started, {LETTERS[back[0]!]}.
         </p>
       )}
       <div className="flex gap-2">
-        <button type="button" className={QUIET_BUTTON} data-testid="build-prev" disabled={step === 1} onClick={() => go(step - 1)}>
+        <button
+          type="button"
+          className={QUIET_BUTTON}
+          data-testid="build-prev"
+          disabled={step === 1}
+          onClick={() => go(step - 1)}
+        >
           Back
         </button>
-        <button type="button" className={QUIET_BUTTON} data-testid="build-next" disabled={step === BUILD_STEPS} onClick={() => go(step + 1)}>
+        <button
+          type="button"
+          className={QUIET_BUTTON}
+          data-testid="build-next"
+          disabled={step === BUILD_STEPS}
+          onClick={() => go(step + 1)}
+        >
           Next step
         </button>
       </div>

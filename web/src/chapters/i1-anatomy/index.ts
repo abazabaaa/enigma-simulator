@@ -7,7 +7,18 @@
 import type { ChapterDef, SceneDef } from '../../contracts/lesson'
 import { bindGates } from '../../lesson/bind'
 import { FACTS } from './facts'
-import { GATES, GATE_MACHINE, HELD, MACHINE, PATH_KEY, READ_ONLY, TOY_ONE, TOY_TRACE_KEY, TOY_TWO, TOY_WIRE_KEY } from './gates'
+import {
+  GATES,
+  GATE_MACHINE,
+  HELD,
+  MACHINE,
+  PATH_KEY,
+  READ_ONLY,
+  TOY_ONE,
+  TOY_TRACE_KEY,
+  TOY_TWO,
+  TOY_WIRE_KEY,
+} from './gates'
 import { ITEM_UI } from './items'
 import { Path26View, ToyTraceView, ToyWireView, WorkedChainView } from './scenes'
 
@@ -77,7 +88,8 @@ const scenes: readonly SceneDef[] = [
     title: 'Twenty-six letters',
     stage: 'wire-noplug',
     setup: { machine: MACHINE, locks: HELD },
-    panels: { keyboard: true, lamps: true, trace: true, playback: true },
+    // The keyboard is the View's: only Q until Q has been pressed (the reveal is bound to that key), then all 26.
+    panels: { lamps: true, trace: true, playback: true },
     introduces: ['machine-path'],
     bets: [{ id: 'q-lamp', prompt: `You will press ${PATH_KEY}. Which lamp lights?`, kind: 'letter' }],
     reveals: [{ bet: 'q-lamp', trigger: 'press', key: PATH_KEY }],

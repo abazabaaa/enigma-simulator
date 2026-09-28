@@ -4,11 +4,21 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { GenCtx, ItemLogic } from '../../../contracts/lesson'
+import type { GateRecord, GenCtx, ItemLogic } from '../../../contracts/lesson'
 import type { ToySpec } from '../../../contracts/machine'
 import { LETTERS, createMachine, encodeLetter, validateConfig, type Letter } from '../../../engine'
 import { createRng, seedFor } from '../../../lib/rng'
 import { toyPress } from '../../../lib/toy'
+import {
+  EMPTY_GATE,
+  currentItem,
+  ensureCurrent,
+  revealCurrent,
+  shownInstance,
+  submitAnswer,
+  type GateCtx,
+} from '../../../lesson/gateEngine'
+import { hintLevel } from '../../../lesson/rules'
 import chapter from '../index'
 import {
   CHAIN_KEY,
@@ -24,6 +34,8 @@ import {
   TOY_WIRE_KEY,
   explainToyLamp,
   hopChain,
+  naiveChains,
+  naiveLamps,
   pathBlocks,
   pathOrder,
   pathOrderM4,
@@ -41,8 +53,14 @@ import {
 } from '../gates'
 
 const idx = (l: string) => LETTERS.indexOf(l as Letter)
-const ctx = (id: string, attempt: number): GenCtx => ({ key: `i1-anatomy/anatomy/${id}`, attempt, purpose: 'instance', previous: [] })
-const gen = <I>(l: ItemLogic<I, unknown>, s: number): I => l.generate(createRng(seedFor('i1-test', l.id, s)), ctx(l.id, (s % 4) + 1))
+const ctx = (id: string, attempt: number): GenCtx => ({
+  key: `i1-anatomy/anatomy/${id}`,
+  attempt,
+  purpose: 'instance',
+  previous: [],
+})
+const gen = <I>(l: ItemLogic<I, unknown>, s: number): I =>
+  l.generate(createRng(seedFor('i1-test', l.id, s)), ctx(l.id, (s % 4) + 1))
 const SEEDS = 300
 
 /** The letter a toy press gives when the learner makes one slip at hop d and reads every other hop right. */
@@ -79,7 +97,9 @@ describe('the chapter machines: held, no cables, rings 01 (G14)', () => {
     const chain = traceOf(MACHINE, CHAIN_KEY)
     expect(chain.map((h) => h.stage)).toEqual(STAGES)
     expect(chain.filter((h) => h.input !== h.output)).toHaveLength(7)
-    expect(chain.filter((h) => h.kind === 'plugboard' || h.kind === 'etw').every((h) => h.input === h.output)).toBe(true)
+    expect(chain.filter((h) => h.kind === 'plugboard' || h.kind === 'etw').every((h) => h.input === h.output)).toBe(
+      true,
+    )
   })
 
   it('every scene and item setup holds the rotors; the gate scene locks the keyboard and hides the lamps', () => {
@@ -166,7 +186,9 @@ describe('toy-lamp', () => {
     const wrong = LETTERS.slice(0, 6).find((l) => l !== lamp)!
     const e = explainToyLamp(i.spec, i.key, wrong)
     const part = e.ghost.hops[e.ghost.divergeAt]!.stage
-    expect(toyLamp.highlight(i, wrong)[0]!.part).toBe(part === 'reflector' ? 'reflector' : `rotor-${part.split('-')[1]}`)
+    expect(toyLamp.highlight(i, wrong)[0]!.part).toBe(
+      part === 'reflector' ? 'reflector' : `rotor-${part.split('-')[1]}`,
+    )
   })
 })
 
@@ -210,9 +232,20 @@ describe('hop-chain', () => {
       expect(res.correct).toBe(false)
       expect(res.rollback).toMatchObject({ kind: 'path', ghost: { divergeAt: k } })
       const stage = STAGES[k]!
-      const part = stage.startsWith('rotor') ? `rotor-${stage.split('-')[1]}` : stage.startsWith('etw') ? 'etw' : stage.startsWith('plug') ? 'plugboard' : 'reflector'
+      const part = stage.startsWith('rotor')
+        ? `rotor-${stage.split('-')[1]}`
+        : stage.startsWith('etw')
+          ? 'etw'
+          : stage.startsWith('plug')
+            ? 'plugboard'
+            : 'reflector'
       expect(hopChain.highlight(i, bad)).toEqual([{ part, tone: 'hint' }])
-      expect(hopChain.check(i, good.map((t) => t.toLowerCase())).correct).toBe(true)
+      expect(
+        hopChain.check(
+          i,
+          good.map((t) => t.toLowerCase()),
+        ).correct,
+      ).toBe(true)
     }
   })
 })
@@ -233,13 +266,20 @@ describe('path-order and path-order-m4', () => {
     for (const item of [pathOrder, pathOrderM4]) {
       for (let s = 0; s < SEEDS; s++) {
         const i = gen(item, s) as OrderInstance
-        expect(item.check(i, i.blocks.map((b) => b.id)).correct).toBe(false)
+        expect(
+          item.check(
+            i,
+            i.blocks.map((b) => b.id),
+          ).correct,
+        ).toBe(false)
       }
       const i = gen(item, 1) as OrderInstance
       const good = item.solve(i) as string[]
       expect(item.check(i, good).correct).toBe(true)
       // The two plugboard blocks swapped: the same order of parts.
-      const swapped = good.map((id) => (id === 'plugboard-1' ? 'plugboard-2' : id === 'plugboard-2' ? 'plugboard-1' : id))
+      const swapped = good.map((id) =>
+        id === 'plugboard-1' ? 'plugboard-2' : id === 'plugboard-2' ? 'plugboard-1' : id,
+      )
       expect(item.check(i, swapped).correct).toBe(true)
       // The reflector moved one place: wrong, and the rollback marks the first misplaced part.
       const moved = [...good]
@@ -248,7 +288,12 @@ describe('path-order and path-order-m4', () => {
       expect(item.check(i, moved).rollback).toEqual({ kind: 'order', firstWrong: r - 1 })
       // A block twice, or an unknown block, is wrong.
       expect(item.check(i, [...good.slice(0, -1), good[0]!]).correct).toBe(false)
-      expect(item.check(i, good.map((x) => (x === 'etw-1' ? 'etw-3' : x))).correct).toBe(false)
+      expect(
+        item.check(
+          i,
+          good.map((x) => (x === 'etw-1' ? 'etw-3' : x)),
+        ).correct,
+      ).toBe(false)
     }
   })
 
@@ -279,9 +324,14 @@ describe('toy-set (the fallback)', () => {
     const bad = toySet.mutate(i, toySet.solve(i), createRng(1))
     const res = toySet.check(i, bad)
     expect(res.correct).toBe(false)
-    expect(res.rollback).toMatchObject({ kind: 'machine', field: 'positions', highlight: ['rotor-middle', 'rotor-right'] })
+    expect(res.rollback).toMatchObject({
+      kind: 'machine',
+      field: 'positions',
+      highlight: ['rotor-middle', 'rotor-right'],
+    })
     expect((res.rollback as { message: string }).message).toMatch(/^At windows [A-F]{2}, C lights [A-F], not E\.$/)
-    for (const a of [null, [], [1], [0, 6], [0, -1], ['a', 'b'], [0.5, 1]]) expect(toySet.check(i, a as never).correct).toBe(false)
+    for (const a of [null, [], [1], [0, 6], [0, -1], ['a', 'b'], [0.5, 1]])
+      expect(toySet.check(i, a as never).correct).toBe(false)
   })
 
   it('is the gate’s in-page fallback; the gate holds its four items in order', () => {
@@ -289,5 +339,126 @@ describe('toy-set (the fallback)', () => {
     expect(g.items.map((x) => x.id)).toEqual(['toy-lamp', 'hop-chain', 'path-order', 'path-order-m4'])
     expect(g.items.map((x) => x.rule.kind)).toEqual(['window', 'window', 'once', 'once'])
     expect(g.fallback).toMatchObject({ id: 'toy-set', kind: 'custom', inPage: true })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The misconception bot: a learner with one of the misconceptions, through the real gate engine
+// ---------------------------------------------------------------------------
+
+/**
+ * Run gate `anatomy` answering the current item with `answer` until it passes or `maxAttempts` answers have been
+ * given (the ladder's L3 is revealed, as the guess bot does). Fallback instances (after a gaming signal) are
+ * answered with the toy-set's start setting, the "turn nothing" strategy. Returns whether `itemId` passed.
+ */
+function misconceptionBotPasses(
+  itemId: string,
+  answer: (instance: unknown) => unknown,
+  run: number,
+  maxAttempts = 12,
+): boolean {
+  const ctx: GateCtx = { key: 'i1-anatomy/anatomy', logic: GATES.anatomy!, salt: `misconception:${itemId}:${run}` }
+  let rec: GateRecord = EMPTY_GATE
+  let now = 1
+  for (;;) {
+    rec = ensureCurrent(ctx, rec, now)
+    const item = currentItem(ctx.logic, rec)
+    if (!item || item.id !== itemId) return rec.items[itemId]?.passed ?? false
+    const it = rec.items[item.id]!
+    if (it.attempt > maxAttempts) return false
+    now += 10_000
+    if (hintLevel(it, false) === 3) {
+      rec = revealCurrent(ctx, rec, item.id, now).gate
+      continue
+    }
+    const shown = shownInstance(ctx, item, it)
+    const a = shown.fallback ? [...(shown.instance as ToySetInstance).spec.positions] : answer(shown.instance)
+    rec = submitAnswer(ctx, rec, item.id, JSON.parse(JSON.stringify(a)), now).gate
+  }
+}
+
+describe('the misconception bot never passes (300 runs per misconception)', () => {
+  const MISCONCEPTIONS_LAMP = [
+    'stops before the reflector',
+    'stops after the reflector',
+    'reads the tables downwards on the way back',
+    'the reflector does not swap',
+    'reads every table the wrong way',
+    'forgets the middle rotor',
+    'forgets the right rotor',
+  ]
+
+  it('toy-lamp: every instance needs the whole round trip (no misconception gives the lamp)', () => {
+    for (let s = 0; s < SEEDS; s++) {
+      for (const attempt of [1, 2, 3, 4]) {
+        const i = toyLamp.generate(createRng(seedFor('naive', s, attempt)), ctx('toy-lamp', attempt)) as ToyLampInstance
+        const naive = naiveLamps(i.spec, i.key)
+        expect(naive).toHaveLength(MISCONCEPTIONS_LAMP.length)
+        for (const [k, lamp] of naive.entries())
+          expect(toyLamp.check(i, lamp).correct, `${MISCONCEPTIONS_LAMP[k]} (seed ${s})`).toBe(false)
+      }
+    }
+  })
+
+  it.each(MISCONCEPTIONS_LAMP.map((m, k) => [m, k] as const))('toy-lamp: a learner who %s never passes', (_m, k) => {
+    for (let run = 0; run < SEEDS; run++) {
+      expect(
+        misconceptionBotPasses(
+          'toy-lamp',
+          (i) => naiveLamps((i as ToyLampInstance).spec, (i as ToyLampInstance).key)[k],
+          run,
+        ),
+      ).toBe(false)
+    }
+  })
+
+  it('the naive lamps are what the misconceptions give (checked on the one-rotor-each-way path by hand)', () => {
+    // TOY_TWO, key A: A → right F → middle E → reflector B → middle back A → right back D.
+    const naive = naiveLamps(TOY_TWO, 'A')
+    expect(naive[0]).toBe('E') // stops before the reflector
+    expect(naive[1]).toBe('B') // stops after it
+    expect(naive[3]).toBe(toyPress({ ...TOY_TWO, reflector: [0, 1, 2, 3, 4, 5] }, 'A').lamp) // no swap
+  })
+
+  const MISCONCEPTIONS_CHAIN = [
+    'reads the strips downwards on the way back',
+    'crosses the rotors left to right on the way in',
+  ]
+
+  it.each(MISCONCEPTIONS_CHAIN.map((m, k) => [m, k] as const))('hop-chain: a learner who %s never passes', (_m, k) => {
+    // Reach hop-chain first: toy-lamp answered right.
+    for (let run = 0; run < SEEDS; run++) {
+      const ctxG: GateCtx = {
+        key: 'i1-anatomy/anatomy',
+        logic: GATES.anatomy!,
+        salt: `misconception-chain:${k}:${run}`,
+      }
+      let rec: GateRecord = EMPTY_GATE
+      let now = 1
+      let passed = false
+      for (let step = 0; step < 40; step++) {
+        rec = ensureCurrent(ctxG, rec, now)
+        const item = currentItem(ctxG.logic, rec)
+        if (!item) break
+        if (item.id !== 'toy-lamp' && item.id !== 'hop-chain') break
+        const it = rec.items[item.id]!
+        if (item.id === 'hop-chain' && it.attempt > 12) break
+        now += 10_000
+        if (hintLevel(it, false) === 3) {
+          rec = revealCurrent(ctxG, rec, item.id, now).gate
+          continue
+        }
+        const shown = shownInstance(ctxG, item, it)
+        const a = shown.fallback
+          ? [...(shown.instance as ToySetInstance).spec.positions]
+          : item.id === 'toy-lamp'
+            ? toyLamp.solve(shown.instance as ToyLampInstance)
+            : naiveChains((shown.instance as ChainInstance).config, (shown.instance as ChainInstance).key)[k]
+        rec = submitAnswer(ctxG, rec, item.id, JSON.parse(JSON.stringify(a)), now).gate
+        passed = rec.items['hop-chain']?.passed ?? false
+      }
+      expect(rec.items['toy-lamp']?.passed, `run ${run}`).toBe(true)
+      expect(passed, `run ${run}`).toBe(false)
+    }
   })
 })

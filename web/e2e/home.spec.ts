@@ -13,7 +13,8 @@ import { START } from '../src/chapters/prologue/gates'
 import { createMachine, encipher, pressKey } from '../src/engine'
 import { MACHINE_3D_READY } from '../src/machine3d/ready'
 
-const tape = async (page: Page, id: 'tape-input' | 'tape-output') => ((await page.getByTestId(id).textContent()) ?? '').replace(/\s/g, '')
+const tape = async (page: Page, id: 'tape-input' | 'tape-output') =>
+  ((await page.getByTestId(id).textContent()) ?? '').replace(/\s/g, '')
 
 async function typeKeys(page: Page, word: string): Promise<void> {
   for (const ch of word) await page.getByTestId(`key-${ch}`).click()
@@ -61,7 +62,10 @@ test.describe('home', { tag: '@area:home' }, () => {
     expect(await where(page)).toMatchObject({ scene: 'scherbius', index: 0 })
   })
 
-  test('the round trip: type a word, clear and rewind the tape, type the ciphertext, and the word comes back', async ({ page, stage }) => {
+  test('the round trip: type a word, clear and rewind the tape, type the ciphertext, and the word comes back', async ({
+    page,
+    stage,
+  }) => {
     await gotoApp(page, '/', { stage })
     const note = page.getByTestId('home-roundtrip')
     await expect(note).toHaveAttribute('data-done', 'false')
@@ -79,7 +83,10 @@ test.describe('home', { tag: '@area:home' }, () => {
     await expect(note).toContainText('ENIGM A')
   })
 
-  test('resume where you left off: after the prologue, Resume opens I.1 at the scene reached', async ({ page, stage }) => {
+  test('resume where you left off: after the prologue, Resume opens I.1 at the scene reached', async ({
+    page,
+    stage,
+  }) => {
     test.setTimeout(60_000)
     await gotoApp(page, '/', { stage })
     await page.getByTestId('home-begin').click()

@@ -63,8 +63,8 @@ export function HomePage(): JSX.Element {
           Type a word.
         </h2>
         <p className="text-sm text-stone-300">
-          Use your keyboard or click the keys: every key lights a lamp. Then clear and rewind the tape and type
-          what lit: your word comes back.
+          Use your keyboard or click the keys: every key lights a lamp. Then clear and rewind the tape and type what
+          lit: your word comes back.
         </p>
         <StageHost stage={stage} className="min-w-0 overflow-hidden rounded-xl border border-stone-800 bg-stone-950" />
         <div className="flex flex-col gap-1">

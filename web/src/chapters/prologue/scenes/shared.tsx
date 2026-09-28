@@ -57,13 +57,17 @@ export interface Roundtrip {
 
 /** Watch `store`'s paper tape: every cleared tape is remembered, and the current one is compared with them. */
 export function useRoundtrip(store: MachineStoreHook): Roundtrip {
-  const current = useStore(store, useShallow((s) => ({ input: s.input, output: s.output })))
+  const current = useStore(
+    store,
+    useShallow((s) => ({ input: s.input, output: s.output })),
+  )
   const [earlier, setEarlier] = useState<readonly Tape[]>([])
   const [done, setDone] = useState(false)
   useEffect(
     () =>
       store.subscribe((s, prev) => {
-        if (s.input === '' && prev.input !== '') setEarlier((e) => [...e, { input: prev.input, output: prev.output }].slice(-8))
+        if (s.input === '' && prev.input !== '')
+          setEarlier((e) => [...e, { input: prev.input, output: prev.output }].slice(-8))
       }),
     [store],
   )

@@ -15,11 +15,8 @@ import { Sym } from '../../../lib/Sym'
 import { symForStage } from '../../../lib/symbols'
 import { usePlaybackStore } from '../../../state/playbackStore'
 import { useStageStore } from '../../../state/stageStore'
-import { CHAIN_KEY, MACHINE, STAGE_LABEL, traceOf } from '../gates'
+import { CHAIN, CHAIN_KEY, MACHINE, STAGE_LABEL, changesOf } from '../gates'
 import { Strips } from '../items'
-
-/** The chain this scene fills: key K through the held machine at SUN. */
-export const CHAIN = traceOf(MACHINE, CHAIN_KEY)
 
 /** How each hop is read. */
 function howRead(stage: string): string {
@@ -69,15 +66,16 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
   if (current && current.kind !== 'plugboard' && current.kind !== 'etw') {
     mark[partForStage(current.stage)] = current.stage.endsWith('-bwd') ? current.outputIndex : current.inputIndex
   }
-  const changes = CHAIN.filter((h) => h.input !== h.output).length
+  const changes = changesOf(CHAIN)
   const lamp = CHAIN.at(-1)!.output
 
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="worked-chain-view">
       <p>
-        The full machine, 26 letters: rotors <Mono>{MACHINE.rotors.join(' ')}</Mono>, rings <Mono>01 01 01</Mono>, windows{' '}
-        <Mono>{MACHINE.positions.join('')}</Mono>, no cables, the rotors held still. Follow key <Mono>{CHAIN_KEY}</Mono> through
-        all eleven stages, one hop at a time. You may press other keys on the stage too.
+        The full machine, 26 letters: rotors <Mono>{MACHINE.rotors.join(' ')}</Mono>, rings <Mono>01 01 01</Mono>,
+        windows <Mono>{MACHINE.positions.join('')}</Mono>, no cables, the rotors held still. Follow key{' '}
+        <Mono>{CHAIN_KEY}</Mono> through all eleven stages, one hop at a time. You may press other keys on the stage
+        too.
       </p>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Strips config={MACHINE} highlight={mark} testId="chain-strip" />
@@ -89,7 +87,7 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
                 data-testid={`chain-hop-${k}`}
                 data-shown={String(k < shown)}
                 className={`flex flex-wrap items-center gap-2 rounded px-1.5 py-0.5 ${k === shown - 1 ? 'bg-amber-300/15 ring-1 ring-amber-300/60' : ''} ${
-                  k < shown ? 'text-stone-100' : 'text-stone-500'
+                  k < shown ? 'text-stone-100' : 'text-stone-400'
                 }`}
               >
                 <span className="w-6 text-center">
@@ -101,19 +99,37 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
               </li>
             ))}
           </ol>
+          <p role="status" aria-live="polite" data-testid="chain-status" className="min-h-5 font-sans text-stone-200">
+            {current
+              ? `Hop ${shown} of ${CHAIN.length}, ${STAGE_LABEL[current.stage]}: ${current.input} → ${current.output} (${howRead(current.stage)}).`
+              : ''}
+          </p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={BUTTON} data-testid="chain-next" disabled={shown >= CHAIN.length} onClick={() => show(shown + 1)}>
+            <button
+              type="button"
+              className={BUTTON}
+              data-testid="chain-next"
+              disabled={shown >= CHAIN.length}
+              onClick={() => show(shown + 1)}
+            >
               Next hop
             </button>
-            <button type="button" className={QUIET_BUTTON} data-testid="chain-reset" disabled={shown === 0} onClick={() => show(0)}>
+            <button
+              type="button"
+              className={QUIET_BUTTON}
+              data-testid="chain-reset"
+              disabled={shown === 0}
+              onClick={() => show(0)}
+            >
               Start again
             </button>
           </div>
           {shown >= CHAIN.length ? (
             <p data-testid="chain-summary" className="rounded-md border border-stone-700 bg-stone-900/60 p-2 font-sans">
-              <Mono>{CHAIN_KEY}</Mono> lights <Mono>{lamp}</Mono>. On the way the letter changed {changes} times: at the three rotors on
-              the way in, at the reflector, and at the three rotors on the way back. The plugboard and the entry wheel are crossed
-              twice too, but with no cables they pass it straight through. The reflector joins the 26 contacts in 13 pairs:{' '}
+              <Mono>{CHAIN_KEY}</Mono> lights <Mono>{lamp}</Mono>. On the way the letter changed {changes} times: at the
+              three rotors on the way in, at the reflector, and at the three rotors on the way back. The plugboard and
+              the entry wheel are crossed twice too, but with no cables they pass it straight through. The reflector
+              joins the 26 contacts in 13 pairs:{' '}
               <Mono>{reflectorPairs(REFLECTOR_PERMS[MACHINE.reflector]).join(' ')}</Mono>.
             </p>
           ) : null}

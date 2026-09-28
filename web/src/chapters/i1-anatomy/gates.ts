@@ -18,10 +18,26 @@ import type { Choice, Letter, MachineConfig, TraceStage } from '../../contracts/
 import type { ChapterGates, CheckResult, ItemLogic, ItemSetup } from '../../contracts/lesson'
 import type { MachineLocks, ToySpec } from '../../contracts/machine'
 import type { Ghost, Highlight, PartId, PathHop, StageRef } from '../../contracts/stage'
-import { LETTERS, REFLECTOR_PERMS, createMachine, encodeLetter, normalizeConfig, rotorPermutation, type RotorName } from '../../engine'
+import {
+  LETTERS,
+  REFLECTOR_PERMS,
+  createMachine,
+  encodeLetter,
+  normalizeConfig,
+  rotorPermutation,
+  type RotorName,
+} from '../../engine'
 import { int, randLetter, sample, shuffle, type Rng } from '../../lib/rng'
 import { randomToy, toyPress, toySlots } from '../../lib/toy'
-import { chainItem, firstDiff, ghostFromOutputs, letterItem, orderItem, partForStage, verdict } from '../../lesson/kinds'
+import {
+  chainItem,
+  firstDiff,
+  ghostFromOutputs,
+  letterItem,
+  orderItem,
+  partForStage,
+  verdict,
+} from '../../lesson/kinds'
 
 const WINDOW = { kind: 'window' } as const
 const ONCE = { kind: 'once' } as const
@@ -112,6 +128,28 @@ export const PATH_KEY: Letter = 'Q'
 /** The gate scene's machine (each item sets its own). */
 export const GATE_MACHINE: MachineConfig = normalizeConfig({ ...MACHINE, positions: 'AAA' })
 
+/** The trace of `key` on a held machine (no stepping). */
+export const traceOf = (config: MachineConfig, key: Letter) => encodeLetter(createMachine(config), key).trace
+
+/** The index of the reflector hop in a press's hops. */
+export const reflectorHop = (hops: readonly PathHop[]): number => hops.findIndex((h) => h.kind === 'reflector')
+
+/**
+ * The scenes' truths, constant and computed once from lib/toy and the engine at each scene's fixed setup, so the
+ * bets, the scenes' explanations and the tests agree (a revisit may fire a reveal again).
+ */
+export const TOY_WIRE_PRESS = toyPress(TOY_ONE, TOY_WIRE_KEY)
+export const TOY_TRACE_PRESS = toyPress(TOY_TWO, TOY_TRACE_KEY)
+/** toy-trace's bet: the letter that enters the reflector. */
+export const TOY_TRACE_REFLECTOR = TOY_TRACE_PRESS.hops[reflectorHop(TOY_TRACE_PRESS.hops)]!
+/** worked-chain: K through the held machine, 11 hops. */
+export const CHAIN = traceOf(MACHINE, CHAIN_KEY)
+/** path-26's bet: the lamp of Q. */
+export const PATH_TRACE = traceOf(MACHINE, PATH_KEY)
+export const PATH_LAMP: Letter = PATH_TRACE.at(-1)!.output
+/** Hops at which the letter actually changes (with no cables the plugboard and entry wheel pass it through). */
+export const changesOf = (hops: readonly PathHop[]): number => hops.filter((h) => h.input !== h.output).length
+
 // ---------------------------------------------------------------------------
 // Toy helpers (shown in prompts and scenes)
 // ---------------------------------------------------------------------------
@@ -151,9 +189,6 @@ export function toyPathLetters(spec: ToySpec, key: Letter): Letter[] {
   return [key, ...press.hops.map((h) => h.output)]
 }
 
-/** The index of the reflector hop in a press's hops. */
-export const reflectorHop = (hops: readonly PathHop[]): number => hops.findIndex((h) => h.kind === 'reflector')
-
 // ---------------------------------------------------------------------------
 // toy-lamp: letter(6), rollback 'path' (a single-slip ghost)
 // ---------------------------------------------------------------------------
@@ -190,7 +225,12 @@ export function explainToyLamp(spec: ToySpec, key: Letter, lamp: string): LampEx
   const n = spec.n
   const wrong = idx(String(lamp).toUpperCase())
   const last = reference.length - 1
-  if (wrong < 0 || wrong >= n) return { ghost: { hops: [...reference], divergeAt: 0 }, slip: 'unknown', needed: reference.map((h) => h.outputIndex) }
+  if (wrong < 0 || wrong >= n)
+    return {
+      ghost: { hops: [...reference], divergeAt: 0 },
+      slip: 'unknown',
+      needed: reference.map((h) => h.outputIndex),
+    }
   const needed: number[] = []
   needed[last] = wrong
   for (let k = last - 1; k >= 0; k--) needed[k] = perms[k + 1]!.indexOf(needed[k + 1]!)
@@ -222,7 +262,9 @@ export function explainToyLamp(spec: ToySpec, key: Letter, lamp: string): LampEx
     if (ref.kind !== 'rotor' || ref.offset === undefined) return hop
     const entryContact = mod(inputIndex + ref.offset, n)
     const i = ref.slotIndex ?? 0
-    const exitContact = ref.stage.endsWith('-fwd') ? spec.rotors[i]![entryContact]! : invert(spec.rotors[i]!)[entryContact]!
+    const exitContact = ref.stage.endsWith('-fwd')
+      ? spec.rotors[i]![entryContact]!
+      : invert(spec.rotors[i]!)[entryContact]!
     return { ...hop, entryContact, exitContact }
   })
   return { ghost: { hops, divergeAt }, slip, needed }
@@ -259,11 +301,50 @@ export function slipText(i: ToyLampInstance, lamp: string, e: LampExplanation): 
   }
 }
 
+/**
+ * The lamps the misconceptions predict (the misconception bot's answers): stopping before or after the reflector,
+ * reading every table downwards on the way back, a reflector that does not swap, forgetting one rotor, and every
+ * table read the wrong way round. The generator draws only toys where none of them is the true lamp, so every
+ * instance needs the whole round trip.
+ */
+export function naiveLamps(spec: ToySpec, key: Letter): Letter[] {
+  const perms = toyStagePerms(spec)
+  const k = spec.rotors.length
+  const ident = perms[0]!.map((_, x) => x)
+  const refl = 1 + k
+  const run = (ps: readonly (readonly number[])[], upTo = ps.length) => {
+    let x = idx(key)
+    for (let j = 0; j < upTo; j++) x = ps[j]![x]!
+    return L(x)
+  }
+  const fwdOf = (j: number) => perms[refl - (j - refl)]! // the forward table of the rotor a return hop crosses
+  const out: Letter[] = [
+    run(perms, refl), // stops before the reflector
+    run(perms, refl + 1), // stops after the reflector (no way back)
+    run(perms.map((p, j) => (j > refl && j < perms.length - 1 ? fwdOf(j) : p))), // tables read downwards on the way back
+    run(perms.map((p, j) => (j === refl ? ident : p))), // the reflector passes the letter straight back
+    run(perms.map((p, j) => (j > 0 && j < perms.length - 1 && j !== refl ? invert(p) : p))), // every table the wrong way
+  ]
+  // One rotor forgotten, both ways.
+  for (let i = 0; i < k; i++) {
+    const fwd = refl - 1 - i // the way in crosses the rotors right to left
+    const bwd = refl + 1 + i // the way back, left to right
+    out.push(run(perms.map((p, j) => (j === fwd || j === bwd ? ident : p))))
+  }
+  return out
+}
+
 export const toyLamp = letterItem<ToyLampInstance>({
   id: 'toy-lamp',
   rule: WINDOW,
   alphabet: 6,
-  generate: (r) => ({ spec: randomToy(r, 6, 2, { stepping: false }), key: randLetter(r, 6) }),
+  generate(r) {
+    for (;;) {
+      const spec = randomToy(r, 6, 2, { stepping: false })
+      const key = randLetter(r, 6)
+      if (!naiveLamps(spec, key).includes(toyPress(spec, key).lamp)) return { spec, key }
+    }
+  },
   same: (a, b) => a.key === b.key && sameJson(a.spec, b.spec),
   solve: (i) => toyPress(i.spec, i.key).lamp,
   check(i, a) {
@@ -339,9 +420,6 @@ export function chainConfig(r: Rng): MachineConfig {
   })
 }
 
-/** The trace of `key` on a held machine (no stepping). */
-export const traceOf = (config: MachineConfig, key: Letter) => encodeLetter(createMachine(config), key).trace
-
 /**
  * The substitution strip of one component at its current offset: plugboard and entry wheel (identity here),
  * each rotor FORWARD (read upwards on the way back), and the reflector.
@@ -358,25 +436,60 @@ export function strips(config: MachineConfig): { part: PartId; perm: number[] }[
   ]
 }
 
+/**
+ * The chains the misconceptions predict (the misconception bot's answers): every strip read downwards on the way
+ * back, and the rotors crossed left to right on the way in (and right to left on the way back).
+ */
+export function naiveChains(config: MachineConfig, key: Letter): string[][] {
+  const tables = Object.fromEntries(strips(config).map((x) => [x.part, x.perm])) as Record<string, number[]>
+  const walk = (order: readonly TraceStage[], read: (stage: TraceStage, x: number) => number) => {
+    let x = idx(key)
+    return order.map((stage) => L((x = read(stage, x))))
+  }
+  const part = (stage: TraceStage) => (stage.startsWith('rotor') ? `rotor-${stage.split('-')[1]}` : partForStage(stage))
+  const down = (stage: TraceStage, x: number) => tables[part(stage)]![x]!
+  const right = (stage: TraceStage, x: number) =>
+    stage.endsWith('-bwd') ? tables[part(stage)]!.indexOf(x) : down(stage, x)
+  const swapped: TraceStage[] = [...STAGES]
+  ;[swapped[2], swapped[4]] = [swapped[4]!, swapped[2]!]
+  ;[swapped[6], swapped[8]] = [swapped[8]!, swapped[6]!]
+  return [walk(STAGES, down), walk(swapped, right)]
+}
+
 export const hopChain = chainItem<ChainInstance>({
   id: 'hop-chain',
   rule: WINDOW,
-  generate: (r) => ({
-    config: chainConfig(r),
-    key: randLetter(r),
-    stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id]! })),
-  }),
+  generate(r) {
+    for (;;) {
+      const config = chainConfig(r)
+      const key = randLetter(r)
+      const truth = traceOf(config, key).map((h) => h.output)
+      if (naiveChains(config, key).some((c) => sameJson(c, truth))) continue
+      return { config, key, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id]! })) }
+    }
+  },
   same: (a, b) => a.key === b.key && sameJson(a.config, b.config),
   solve: (i) => traceOf(i.config, i.key).map((h) => h.output),
   check(i, a) {
     const ref = traceOf(i.config, i.key)
     const got = Array.isArray(a) ? a.map((t) => String(t ?? '').toUpperCase()) : []
-    return verdict(sameJson(got, ref.map((h) => h.output)), { kind: 'path', ghost: ghostFromOutputs(ref, got) })
+    return verdict(
+      sameJson(
+        got,
+        ref.map((h) => h.output),
+      ),
+      { kind: 'path', ghost: ghostFromOutputs(ref, got) },
+    )
   },
   setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: WIRE_STAGE }),
   highlight(i, lastWrong) {
     const ref = traceOf(i.config, i.key)
-    const k = Array.isArray(lastWrong) ? firstDiff(ref.map((h) => h.output), lastWrong.map((t) => String(t).toUpperCase())) : -1
+    const k = Array.isArray(lastWrong)
+      ? firstDiff(
+          ref.map((h) => h.output),
+          lastWrong.map((t) => String(t).toUpperCase()),
+        )
+      : -1
     return [{ part: k >= 0 && k < ref.length ? partForStage(ref[k]!.stage) : 'rotor-right', tone: 'hint' }]
   },
 })
@@ -398,7 +511,19 @@ const COMPONENT_LABEL: Readonly<Record<Component, string>> = {
 }
 
 /** The components a key press crosses, in order: Enigma I (11) and M4 (13). */
-export const PATH_I: readonly Component[] = ['plugboard', 'etw', 'right', 'middle', 'left', 'reflector', 'left', 'middle', 'right', 'etw', 'plugboard']
+export const PATH_I: readonly Component[] = [
+  'plugboard',
+  'etw',
+  'right',
+  'middle',
+  'left',
+  'reflector',
+  'left',
+  'middle',
+  'right',
+  'etw',
+  'plugboard',
+]
 export const PATH_M4: readonly Component[] = [
   'plugboard',
   'etw',
@@ -436,7 +561,12 @@ export interface OrderInstance {
  * Order the crossings. Blocks of one component are interchangeable (same label), so the check compares the
  * sequence of components; the rollback's firstWrong is the first misplaced component.
  */
-function pathOrderItem(id: string, path: readonly Component[], reflector: string, transfer: boolean): ItemLogic<OrderInstance, string[]> {
+function pathOrderItem(
+  id: string,
+  path: readonly Component[],
+  reflector: string,
+  transfer: boolean,
+): ItemLogic<OrderInstance, string[]> {
   const solution = pathBlocks(path, reflector).map((b) => b.id)
   const want = path as readonly string[]
   return orderItem<OrderInstance>({
@@ -446,7 +576,13 @@ function pathOrderItem(id: string, path: readonly Component[], reflector: string
     ...(transfer ? { transfer: true as const } : {}),
     generate(r) {
       let blocks = shuffle(r, pathBlocks(path, reflector))
-      while (sameJson(blocks.map((b) => componentOf(b.id)), want)) blocks = shuffle(r, pathBlocks(path, reflector))
+      while (
+        sameJson(
+          blocks.map((b) => componentOf(b.id)),
+          want,
+        )
+      )
+        blocks = shuffle(r, pathBlocks(path, reflector))
       return { blocks }
     },
     same: (a, b) => sameJson(a.blocks, b.blocks),
@@ -454,14 +590,19 @@ function pathOrderItem(id: string, path: readonly Component[], reflector: string
     check(_i, a) {
       const ids = Array.isArray(a) ? a.map(String) : []
       const got = ids.map(componentOf)
-      const ok = ids.length === want.length && new Set(ids).size === ids.length && ids.every((x) => solution.includes(x)) && sameJson(got, want)
+      const ok =
+        ids.length === want.length &&
+        new Set(ids).size === ids.length &&
+        ids.every((x) => solution.includes(x)) &&
+        sameJson(got, want)
       return verdict(ok, { kind: 'order', firstWrong: Math.max(0, firstDiff(want, got)) })
     },
     // A swap of two crossings of the same component changes nothing: swap two different components.
     mutate(_i, a, r) {
       const out = [...a]
       const pairs: [number, number][] = []
-      for (let x = 0; x < out.length; x++) for (let y = x + 1; y < out.length; y++) if (componentOf(out[x]!) !== componentOf(out[y]!)) pairs.push([x, y])
+      for (let x = 0; x < out.length; x++)
+        for (let y = x + 1; y < out.length; y++) if (componentOf(out[x]!) !== componentOf(out[y]!)) pairs.push([x, y])
       if (!pairs.length) return [...out, '?']
       const [x, y] = pairs[int(r, pairs.length)]!
       ;[out[x], out[y]] = [out[y]!, out[x]!]
@@ -532,10 +673,21 @@ export const toySet: ItemLogic<ToySetInstance, number[]> = {
   solve: (i) => toySetSolutions(i.spec, i.key, i.target)[0]!,
   check(i, a): CheckResult {
     const p = validPositions(i, a)
-    if (!p) return verdict(false, { kind: 'machine', field: 'positions', message: 'Set a window for each rotor.', highlight: ['rotor-right'] })
+    if (!p)
+      return verdict(false, {
+        kind: 'machine',
+        field: 'positions',
+        message: 'Set a window for each rotor.',
+        highlight: ['rotor-right'],
+      })
     const lamp = toyLampAt(i.spec, i.key, p)
     const message = `At windows ${windowsOf(p)}, ${i.key} lights ${lamp}, not ${i.target}.`
-    return verdict(lamp === i.target, { kind: 'machine', field: 'positions', message, highlight: ['rotor-middle', 'rotor-right'] })
+    return verdict(lamp === i.target, {
+      kind: 'machine',
+      field: 'positions',
+      message,
+      highlight: ['rotor-middle', 'rotor-right'],
+    })
   },
   sampleAnswer: (i, r) => i.spec.rotors.map(() => int(r, i.spec.n)),
   // The nearest setting (turning the right rotor on, then the middle one) at which the key lights another lamp.

@@ -52,7 +52,7 @@ export function TypeAWordView(p: SceneProps): JSX.Element {
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="type-a-word-view">
       <p className="text-base text-stone-100" data-testid="type-hint">
-        <strong>Type a word</strong> on your keyboard, or click the keys. Every key lights a lamp.
+        <strong>Type a word</strong> on your keyboard, or click the keys.
       </p>
       <div className="flex flex-col gap-1">
         <LidSlider value={lid} onChange={setLid} />
@@ -60,8 +60,8 @@ export function TypeAWordView(p: SceneProps): JSX.Element {
       </div>
       {fired && first ? (
         <p data-testid="own-letter-result" className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
-          <Mono>{first.key}</Mono> lit <Mono>{first.lamp}</Mono>, not <Mono>{first.key}</Mono>. Keep typing: the same key soon
-          lights a different lamp, because the rotors turn at every press.
+          <Mono>{first.key}</Mono> lit <Mono>{first.lamp}</Mono>, not <Mono>{first.key}</Mono>. Keep typing: the same
+          key can light a different lamp next time, because the rotors turn at every press.
         </p>
       ) : null}
       {fired ? <RoundtripNote trip={trip} /> : null}

@@ -12,8 +12,8 @@ import { ITEM_UI } from './items'
 import { BruteForceView, TypeAWordView } from './scenes'
 
 const STORY =
-  'On 23 February 1918 Arthur Scherbius filed a patent for a cipher machine. Press a key and a lamp lights: always a ' +
-  'different letter. Wired wheels inside turn at every key press, so the same key pressed again lights another lamp. ' +
+  'On 23 February 1918 Arthur Scherbius filed a patent for a cipher machine. Press a key and a lamp lights up with a ' +
+  'letter. Wired wheels inside turn at every key press, so the same key pressed again can light another lamp. ' +
   'Approximately 40,000 Enigma machines were built. Their operators set them to a new key every day, and without that ' +
   "day's key a message was letter salad. This course takes the machine apart, then follows the people who broke it " +
   'anyway. First, the machine itself: type a word.'

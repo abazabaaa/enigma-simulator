@@ -24,7 +24,12 @@ import {
 describe('the machine and the bets', () => {
   it('types on Enigma I, I II III, rings 01 01 01, windows AAA, no cables', () => {
     expect(validateConfig(START)).toEqual([])
-    expect(START).toMatchObject({ rotors: ['I', 'II', 'III'], rings: ['A', 'A', 'A'], positions: ['A', 'A', 'A'], plugboard: [] })
+    expect(START).toMatchObject({
+      rotors: ['I', 'II', 'III'],
+      rings: ['A', 'A', 'A'],
+      positions: ['A', 'A', 'A'],
+      plugboard: [],
+    })
   })
 
   it('own-letter: whichever key is pressed first, another letter lights', () => {
@@ -66,7 +71,9 @@ describe('the key-space figure', () => {
   it('the years a search takes, computed', () => {
     expect(yearsToTry(keyspace(), 10n ** 9n)).toBe(5037n)
     expect(formatYears(5037n)).toBe('5,037 years')
-    expect(formatYears(yearsToTry(keyspace({ rings: true }), 10n ** 9n))).toBe(formatSci(yearsToTry(keyspace({ rings: true }), 10n ** 9n)) + ' years')
+    expect(formatYears(yearsToTry(keyspace({ rings: true }), 10n ** 9n))).toBe(
+      formatSci(yearsToTry(keyspace({ rings: true }), 10n ** 9n)) + ' years',
+    )
     expect(formatYears(0n)).toBe('less than a year')
     expect(() => yearsToTry(1n, 0n)).toThrow(RangeError)
   })
@@ -90,6 +97,14 @@ describe('the round trip', () => {
     expect(roundtripDone([{ input: 'HELLO', output: 'MFNCZ' }], { input: 'MFNC', output: 'HELL' })).toBe(false)
     expect(roundtripDone([{ input: 'HI', output: 'XY' }], { input: 'XY', output: 'HI' })).toBe(false)
     expect(roundtripDone([{ input: 'HELLO', output: 'MFNCZ' }], { input: 'MFNCZ', output: 'HELLP' })).toBe(false)
-    expect(roundtripDone([{ input: 'A', output: 'B' }, { input: 'HELLO', output: 'MFNCZ' }], { input: 'MFNCZ', output: 'HELLO' })).toBe(true)
+    expect(
+      roundtripDone(
+        [
+          { input: 'A', output: 'B' },
+          { input: 'HELLO', output: 'MFNCZ' },
+        ],
+        { input: 'MFNCZ', output: 'HELLO' },
+      ),
+    ).toBe(true)
   })
 })

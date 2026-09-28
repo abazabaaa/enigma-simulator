@@ -79,45 +79,49 @@ export function BruteForceView(p: SceneProps): JSX.Element {
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="brute-force-view">
       <p>
-        A day&apos;s key sets three rotors in order, a start letter in each window, the ring of each rotor and the plugboard
-        cables. Anyone who captured a machine but not the key could, in principle, try every key until the message made sense.
+        A day&apos;s key sets three rotors in order, a start letter in each window, the ring of each rotor and the
+        plugboard cables. Anyone who captured a machine but not the key could, in principle, try every key until the
+        message made sense.
       </p>
-      {fired ? <KeyspaceFigure shown={shown} /> : null}
-      {all ? (
-        <section className="flex flex-col gap-3" data-testid="brute-force-result">
-          <p>
-            <strong>Why only {grouped(RING_SETTINGS)} ring settings?</strong> Turn a ring and its rotor by the same amount and the
-            wiring sits exactly where it was; the window just shows another letter. So a ring only changes <em>when</em> its
-            notch carries the next rotor along. The right rotor&apos;s notch moves the middle rotor and the middle rotor&apos;s notch
-            moves the left one, but the left rotor&apos;s notch has nothing to move: only the right and the middle ring count,
-            26 × 26 = {grouped(RING_SETTINGS)}.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <label htmlFor={rateId}>Settings tried per second:</label>
-            <input
-              id={rateId}
-              type="range"
-              min={0}
-              max={RATES.length - 1}
-              step={1}
-              value={RATES.indexOf(rate)}
-              data-testid="rate-slider"
-              aria-valuetext={`${RATE_TEXT[rate]} per second`}
-              onChange={(e) => setRate(RATES[Number(e.target.value)] ?? 9)}
-              className="w-40 accent-amber-300"
-            />
-            <Mono>{RATE_TEXT[rate]}</Mono>
-          </div>
-          <p data-testid="brute-force-years">
-            At {RATE_TEXT[rate]} settings a second, trying them all takes <strong>{formatYears(yearsToTry(total, perSecond))}</strong>,
-            and <strong>{formatYears(yearsToTry(withRings, perSecond))}</strong> once the ring settings count.
-          </p>
-          <p className="text-stone-200">
-            So the answer is no: nobody broke Enigma by trying every key. This course follows the people who found how to throw
-            almost all of them away without trying them. First, the machine itself.
-          </p>
-        </section>
-      ) : null}
+      <div aria-live="polite" className="flex flex-col gap-3">
+        {fired ? <KeyspaceFigure shown={shown} /> : null}
+        {all ? (
+          <section className="flex flex-col gap-3" data-testid="brute-force-result">
+            <p>
+              <strong>Why only {grouped(RING_SETTINGS)} ring settings?</strong> Turn a ring and its rotor by the same
+              amount and the wiring sits exactly where it was; the window just shows another letter. So a ring only
+              changes <em>when</em> its notch carries the next rotor along. The right rotor&apos;s notch moves the
+              middle rotor and the middle rotor&apos;s notch moves the left one, but the left rotor&apos;s notch has
+              nothing to move: only the right and the middle ring count, 26 × 26 = {grouped(RING_SETTINGS)}.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <label htmlFor={rateId}>Settings tried per second:</label>
+              <input
+                id={rateId}
+                type="range"
+                min={0}
+                max={RATES.length - 1}
+                step={1}
+                value={RATES.indexOf(rate)}
+                data-testid="rate-slider"
+                aria-valuetext={`${RATE_TEXT[rate]} per second`}
+                onChange={(e) => setRate(RATES[Number(e.target.value)] ?? 9)}
+                className="w-40 accent-amber-300"
+              />
+              <Mono>{RATE_TEXT[rate]}</Mono>
+            </div>
+            <p data-testid="brute-force-years">
+              At {RATE_TEXT[rate]} settings a second, trying them all takes{' '}
+              <strong>{formatYears(yearsToTry(total, perSecond))}</strong>, and{' '}
+              <strong>{formatYears(yearsToTry(withRings, perSecond))}</strong> once the ring settings count.
+            </p>
+            <p className="text-stone-200">
+              So the answer is no: nobody broke Enigma by trying every key. This course follows the people who found how
+              to throw almost all of them away without trying them. First, the machine itself.
+            </p>
+          </section>
+        ) : null}
+      </div>
     </div>
   )
 }

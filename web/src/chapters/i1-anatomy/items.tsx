@@ -29,7 +29,12 @@ import {
 } from './gates'
 
 const L = (i: number): Letter => LETTERS[i]!
-const SLOT_TEXT: Readonly<Record<string, string>> = { left: 'Left', middle: 'Middle', right: 'Right', reflector: 'Reflector' }
+const SLOT_TEXT: Readonly<Record<string, string>> = {
+  left: 'Left',
+  middle: 'Middle',
+  right: 'Right',
+  reflector: 'Reflector',
+}
 const symOf = (part: string): Sym | undefined => SYM_FOR_PART[part as PartId]
 
 /** The toy's tables: each rotor's forward table at its window (right first), then the reflector. */
@@ -46,15 +51,19 @@ export function ToyTables({ spec, testId = 'toy-table' }: { spec: ToySpec; testI
               perm={t.perm}
               n={spec.n}
               {...(sym ? { sym } : {})}
-              label={t.slot === 'reflector' ? 'Reflector (swaps pairs)' : `${SLOT_TEXT[t.slot]} rotor at window ${L(spec.positions[toySlots(spec.rotors.length).indexOf(t.slot as never)]!)}`}
+              label={
+                t.slot === 'reflector'
+                  ? 'Reflector (swaps pairs)'
+                  : `${SLOT_TEXT[t.slot]} rotor at window ${L(spec.positions[toySlots(spec.rotors.length).indexOf(t.slot as never)]!)}`
+              }
               testId={`${testId}-${t.slot}`}
             />
           )
         })}
       </div>
       <p className="text-xs text-stone-400">
-        On the way in, find the letter in the upper row and read the letter below it. On the way back through a rotor, find the
-        letter in the lower row and read the letter above it.
+        On the way in, find the letter in the upper row and read the letter below it. On the way back through a rotor,
+        find the letter in the lower row and read the letter above it.
       </p>
     </div>
   )
@@ -84,8 +93,9 @@ const toyLamp = {
   Prompt: ({ instance }: { instance: ToyLampInstance }) => (
     <div className="flex flex-col gap-2">
       <p>
-        A toy machine on the letters A–F: two rotors that do not turn, a reflector, no cables. The current goes from the key
-        through the right rotor, the middle rotor, the reflector, back through the middle rotor and the right rotor, to a lamp.
+        A toy machine on the letters A–F: two rotors that do not turn, a reflector, no cables. The current goes from the
+        key through the right rotor, the middle rotor, the reflector, back through the middle rotor and the right rotor,
+        to a lamp.
       </p>
       <p>
         Press <Mono>{instance.key}</Mono>. Which lamp lights?
@@ -109,10 +119,19 @@ const toyLamp = {
 
 // ---------------------------------------------------------------------------
 
-const ringText = (rings: readonly string[]) => rings.map((r) => String(LETTERS.indexOf(r as Letter) + 1).padStart(2, '0')).join(' ')
+const ringText = (rings: readonly string[]) =>
+  rings.map((r) => String(LETTERS.indexOf(r as Letter) + 1).padStart(2, '0')).join(' ')
 
 /** The strips of a machine at its offsets: plugboard and entry wheel (straight through), R, M, L, reflector. */
-export function Strips({ config, highlight = {}, testId = 'strip' }: { config: ChainInstance['config']; highlight?: Partial<Record<PartId, number>>; testId?: string }): JSX.Element {
+export function Strips({
+  config,
+  highlight = {},
+  testId = 'strip',
+}: {
+  config: ChainInstance['config']
+  highlight?: Partial<Record<PartId, number>>
+  testId?: string
+}): JSX.Element {
   const shown = strips(config).filter((s) => s.part !== 'plugboard' && s.part !== 'etw')
   const name = (part: PartId) =>
     part === 'reflector'
@@ -121,7 +140,8 @@ export function Strips({ config, highlight = {}, testId = 'strip' }: { config: C
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-stone-400">
-        The plugboard has no cables and the entry wheel is wired A to A, B to B…: both pass every letter straight through.
+        The plugboard has no cables and the entry wheel is wired A to A, B to B…: both pass every letter straight
+        through.
       </p>
       {shown.map((s) => {
         const sym = symOf(s.part)
@@ -138,8 +158,8 @@ export function Strips({ config, highlight = {}, testId = 'strip' }: { config: C
         )
       })}
       <p className="text-xs text-stone-400">
-        Each rotor strip is read downwards on the way in (upper row → lower row) and upwards on the way back (find the letter in
-        the lower row, read the one above it). The reflector swaps pairs.
+        Each rotor strip is read downwards on the way in (upper row → lower row) and upwards on the way back (find the
+        letter in the lower row, read the one above it). The reflector swaps pairs.
       </p>
     </div>
   )
@@ -149,8 +169,8 @@ function MachineLine({ config }: { config: ChainInstance['config'] }): JSX.Eleme
   return (
     <p>
       Enigma I, reflector UKW-{config.reflector}, rotors <Mono>{config.rotors.join(' ')}</Mono> (left to right), rings{' '}
-      <Mono>{ringText(config.rings)}</Mono>, windows <Mono>{config.positions.join('')}</Mono>, no cables. The rotors are held:
-      they do not step.
+      <Mono>{ringText(config.rings)}</Mono>, windows <Mono>{config.positions.join('')}</Mono>, no cables. The rotors are
+      held: they do not step.
     </p>
   )
 }
@@ -195,8 +215,8 @@ const OrderWorked = ({ instance, solution }: { instance: OrderInstance; solution
 const pathOrder = {
   Prompt: () => (
     <p>
-      A key closes the circuit and the current sets off from the battery. Put the parts it crosses in order, from the key to the
-      lamp. Some parts are crossed more than once: their blocks look the same.
+      A key closes the circuit and the current sets off from the battery. Put the parts it crosses in order, from the
+      key to the lamp. Some parts are crossed more than once: their blocks look the same.
     </p>
   ),
   Worked: OrderWorked,
@@ -206,8 +226,8 @@ const pathOrderM4 = {
   Prompt: () => (
     <div className="flex flex-col gap-1">
       <p>
-        The navy&apos;s M4 has a fourth rotor. This Greek rotor sits between the left rotor and a thin reflector, and never steps.
-        Everything else is as on the Enigma I.
+        The navy&apos;s M4 has a fourth rotor. This Greek rotor sits between the left rotor and a thin reflector, and
+        never steps. Everything else is as on the Enigma I.
       </p>
       <p>Put the parts one key press crosses on an M4 in order, from the key to the lamp.</p>
     </div>
@@ -220,13 +240,16 @@ const pathOrderM4 = {
 /** The toy-set fallback's prompt: the tables follow the rotors as the learner turns them. */
 function ToySetPrompt({ instance }: { instance: ToySetInstance }): JSX.Element {
   const live = useToyStore((s) => s.spec)
-  const spec = live.n === instance.spec.n && live.rotors.length === instance.spec.rotors.length ? { ...instance.spec, positions: live.positions } : instance.spec
+  const spec =
+    live.n === instance.spec.n && live.rotors.length === instance.spec.rotors.length
+      ? { ...instance.spec, positions: live.positions }
+      : instance.spec
   return (
     <div className="flex flex-col gap-2">
       <p>
-        A toy on A–F with two rotors, held. The keyboard is locked and the lamps are covered. Turn the rotors so that key{' '}
-        <Mono>{instance.key}</Mono> lights lamp <Mono>{instance.target}</Mono>, then submit. The tables and the stage follow the
-        rotors as you turn them.
+        A toy on A–F with two rotors, held. The keyboard is locked and the lamps are covered. Turn the rotors so that
+        key <Mono>{instance.key}</Mono> lights lamp <Mono>{instance.target}</Mono>, then submit. The tables and the
+        stage follow the rotors as you turn them.
       </p>
       <ToyTables spec={spec} testId="toy-set-table" />
     </div>
@@ -248,13 +271,32 @@ function ToySetAnswer({ instance, disabled, submit }: AnswerProps<ToySetInstance
         {slots.map((slot, k) => (
           <div key={slot} className="flex items-center gap-2" role="group" aria-label={`${SLOT_TEXT[slot]} rotor`}>
             <span className="text-sm text-stone-300">{SLOT_TEXT[slot]} rotor</span>
-            <button type="button" className={QUIET_BUTTON} data-testid={`toy-set-${slot}-dec`} aria-label={`Turn the ${slot} rotor back`} disabled={disabled} onClick={() => turn(k, -1)}>
+            <button
+              type="button"
+              className={QUIET_BUTTON}
+              data-testid={`toy-set-${slot}-dec`}
+              aria-label={`Turn the ${slot} rotor back`}
+              disabled={disabled}
+              onClick={() => turn(k, -1)}
+            >
               −
             </button>
-            <span data-testid={`toy-set-${slot}-window`} className="w-8 text-center font-mono text-lg" aria-live="polite" aria-label={`${SLOT_TEXT[slot]} window ${L(pos[k]!)}`}>
+            <span
+              data-testid={`toy-set-${slot}-window`}
+              className="w-8 text-center font-mono text-lg"
+              aria-live="polite"
+              aria-label={`${SLOT_TEXT[slot]} window ${L(pos[k]!)}`}
+            >
               {L(pos[k]!)}
             </span>
-            <button type="button" className={QUIET_BUTTON} data-testid={`toy-set-${slot}-inc`} aria-label={`Turn the ${slot} rotor on`} disabled={disabled} onClick={() => turn(k, 1)}>
+            <button
+              type="button"
+              className={QUIET_BUTTON}
+              data-testid={`toy-set-${slot}-inc`}
+              aria-label={`Turn the ${slot} rotor on`}
+              disabled={disabled}
+              onClick={() => turn(k, 1)}
+            >
               +
             </button>
           </div>
@@ -276,9 +318,7 @@ const toySet = {
         At windows <Mono>{solution.map(L).join('')}</Mono>, key {instance.key} follows this path:
       </p>
       <ToyPath spec={{ ...instance.spec, positions: solution }} keyLetter={instance.key} />
-      <p>
-        It lights {toyLampAt(instance.spec, instance.key, solution)}.
-      </p>
+      <p>It lights {toyLampAt(instance.spec, instance.key, solution)}.</p>
     </div>
   ),
 }

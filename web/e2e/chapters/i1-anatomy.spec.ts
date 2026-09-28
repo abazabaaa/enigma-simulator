@@ -66,7 +66,12 @@ import { MACHINE_3D_READY } from '../../src/machine3d/ready'
 const CHAPTER = 'i1-anatomy'
 
 /** §4.1 G5 table: the rollback kind of each item. */
-const ROLLBACK: Record<string, string> = { 'toy-lamp': 'path', 'hop-chain': 'path', 'path-order': 'order', 'path-order-m4': 'order' }
+const ROLLBACK: Record<string, string> = {
+  'toy-lamp': 'path',
+  'hop-chain': 'path',
+  'path-order': 'order',
+  'path-order-m4': 'order',
+}
 
 const WIRE = dimmedParts('wire', 'I')
 
@@ -85,10 +90,14 @@ const betResults = async (page: Page) =>
   Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
 const info = (page: Page) => page.evaluate(() => window.__stage!.info())
 const playbackAtEnd = (page: Page) =>
-  expect.poll(() => page.evaluate(() => {
-    const p = window.__stage!.playback()
-    return !p.playing && p.hops > 0 && p.t === 1 + p.hops
-  })).toBe(true)
+  expect
+    .poll(() =>
+      page.evaluate(() => {
+        const p = window.__stage!.playback()
+        return !p.playing && p.hops > 0 && p.t === 1 + p.hops
+      }),
+    )
+    .toBe(true)
 
 /** Serious or critical axe findings inside one element (the lesson.spec pattern). */
 async function axeSerious(page: Page, selector: string): Promise<string[]> {
@@ -143,8 +152,13 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await expect(page.getByTestId(`toy-key-${TOY_WIRE_KEY}`)).toBeDisabled()
     const lamp1 = toyPress(TOY_ONE, TOY_WIRE_KEY).lamp
     await commitBet(page, 'toy-lamp', lamp1)
+    // The reveal is bound to C: until C has been pressed it is the only key (the stage's keys are off).
     await expect(page.getByTestId(`toy-key-${TOY_WIRE_KEY}`)).toBeEnabled()
+    await expect(page.getByTestId('toy-key-A')).toBeDisabled()
+    expect((await info(page)).directive?.interactive).toBe(false)
     await fireReveal(page, wire!)
+    await expect(page.getByTestId('toy-key-A')).toBeEnabled()
+    await expect.poll(async () => (await info(page)).directive?.interactive).toBe(true)
     expect(await page.evaluate(() => window.__stage!.playback().hops)).toBe(5)
     expect((await info(page)).litLamp).toBe(lamp1)
     await expect(page.getByTestId(`toy-lamp-${lamp1}`)).toHaveAttribute('data-lit', 'true')
@@ -168,6 +182,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     const press2 = toyPress(TOY_TWO, TOY_TRACE_KEY)
     const r = reflectorHop(press2.hops)
     await commitBet(page, 'toy-path', 'A')
+    await expect(page.getByTestId('toy-key-B')).toBeDisabled()
     await fireReveal(page, trace!)
     expect((await betResults(page))['toy-path']).toBe(false)
     await expect(page.getByTestId(`trace-row-${r}`)).toHaveAttribute('data-stage', 'reflector')
@@ -189,6 +204,7 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await assertFocus(page, 'wire')
     expect(await page.evaluate(() => window.__stage!.playback().gated)).toBe(false)
     expect(await pressThrows(page, 'A')).toBe(false)
+    expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
     const chain = traceOf(MACHINE, CHAIN_KEY)
     for (const [k, hop] of chain.entries()) {
       await page.getByTestId('chain-next').click()
@@ -215,7 +231,13 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await assertRevealGated(page, q!)
     const qLamp = traceOf(MACHINE, PATH_KEY).at(-1)!.output
     await commitBet(page, 'q-lamp', qLamp)
+    // Q is the only key until it has been pressed; then the whole keyboard.
+    await expect(page.getByTestId(`key-${PATH_KEY}`)).toBeEnabled()
+    await expect(page.getByTestId('key-A')).toHaveCount(0)
+    expect((await info(page)).directive?.interactive).toBe(false)
     await fireReveal(page, q!)
+    await expect(page.getByTestId('key-A')).toBeEnabled()
+    expect((await info(page)).directive?.interactive).toBe(true)
     expect((await betResults(page))['q-lamp']).toBe(true)
     await expect(page.getByTestId(`lamp-${qLamp}`)).toHaveAttribute('data-lit', 'true')
     await expect(page.getByTestId('trace-row-10')).toHaveAttribute('data-output', qLamp)
@@ -274,7 +296,10 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       await assertRollback(page, ROLLBACK[id]!)
       if (ROLLBACK[id] === 'path') {
         // The learner's path (red) against the reference (gold), with the divergence marked.
-        const rb = (await page.evaluate(() => window.__course!.lastCheck()))!.result.rollback as Extract<Rollback, { kind: 'path' }>
+        const rb = (await page.evaluate(() => window.__course!.lastCheck()))!.result.rollback as Extract<
+          Rollback,
+          { kind: 'path' }
+        >
         expect((await info(page)).ghost).toBe(true)
         await expect(page.getByTestId('stage2d-ghost')).toBeVisible()
         await expect(page.getByTestId('stage2d-reference')).toBeVisible()
@@ -293,7 +318,8 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       await expect(page.getByTestId('hint-panel')).toHaveAttribute('data-hint-level', '1')
       const logic = await logicFor(l1.gateKey, id, false)
       const hint = logic.highlight(l1.instance, wrong).map((h) => h.part)
-      if (hint.length) await expect.poll(async () => (await info(page)).highlighted).toEqual(expect.arrayContaining(hint))
+      if (hint.length)
+        await expect.poll(async () => (await info(page)).highlighted).toEqual(expect.arrayContaining(hint))
 
       // b. A correct instance through the real widget.
       await assertNoAnswerLeak(page)
@@ -332,7 +358,9 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await expect(page.getByTestId('chapter-link-i2-stepping')).toHaveAttribute('data-locked', 'false')
   })
 
-  test('the hint ladder on toy-lamp: L1 highlight, L2 worked example on another instance, L3 reveal', async ({ page }) => {
+  test('the hint ladder on toy-lamp: L1 highlight, L2 worked example on another instance, L3 reveal', async ({
+    page,
+  }) => {
     await enter(page, CHAPTER)
     await toGate(page)
     await assertLadder(page)
@@ -369,7 +397,9 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await configure(page, { minLatencyMs: 2000 })
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
     await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
-    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'i1-anatomy/anatomy/toy-lamp', reason: 'fast' }])
+    expect(await eventsOf(page, 'gaming')).toEqual([
+      { type: 'gaming', item: 'i1-anatomy/anatomy/toy-lamp', reason: 'fast' },
+    ])
     const c = await current(page)
     expect(c).toMatchObject({ itemId: 'toy-lamp', fallback: true, kind: 'custom' })
     await expect(page.getByTestId('item-toy-lamp')).toHaveAttribute('data-fallback', 'true')
@@ -414,7 +444,9 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
 })
 
 test.describe('chapter i1-anatomy in 3D', { tag: ['@3d', '@chapter:i1-anatomy'] }, () => {
-  test('the first mechanism scene reports focus wire and dimmedParts in 3D; its bet gates the toy', async ({ page }) => {
+  test('the first mechanism scene reports focus wire and dimmedParts in 3D; its bet gates the toy', async ({
+    page,
+  }) => {
     test.skip(!MACHINE_3D_READY, 'the 3D machine is not ready')
     test.setTimeout(60_000)
     await enter(page, CHAPTER, { stage: '3d' })
@@ -448,5 +480,13 @@ test.describe('chapter i1-anatomy in 3D', { tag: ['@3d', '@chapter:i1-anatomy'] 
     await fireReveal(page, press!)
     await playbackAtEnd(page)
     await expect.poll(async () => (await info(page)).litLamp).toBe(toyPress(TOY_ONE, TOY_WIRE_KEY).lamp)
+    // Across a scene change the 3D view stays (two rotors now), with the same focus.
+    await page.evaluate(() => window.__course!.completeTasks())
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('toy-trace')
+    await expect
+      .poll(async () => `${(await info(page)).renderer}:${(await info(page)).focus}`, { timeout: 30_000 })
+      .toBe('webgl2:wire')
+    expect((await info(page)).windows).toBe('AA')
   })
 })

@@ -39,7 +39,8 @@ const CHAPTER = 'prologue'
 const betResults = async (page: Page) =>
   Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
 
-const tape = async (page: Page, id: 'tape-input' | 'tape-output') => ((await page.getByTestId(id).textContent()) ?? '').replace(/\s/g, '')
+const tape = async (page: Page, id: 'tape-input' | 'tape-output') =>
+  ((await page.getByTestId(id).textContent()) ?? '').replace(/\s/g, '')
 
 /** Serious or critical axe findings inside one element (the lesson.spec pattern). */
 async function axeSerious(page: Page, selector: string): Promise<string[]> {
@@ -65,7 +66,13 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await enter(page, CHAPTER)
 
     // 1. The story: Scherbius, the static act clock; Next is always enabled.
-    expect(await where(page)).toMatchObject({ chapter: CHAPTER, scene: 'scherbius', kind: 'story', index: 0, canNext: true })
+    expect(await where(page)).toMatchObject({
+      chapter: CHAPTER,
+      scene: 'scherbius',
+      kind: 'story',
+      index: 0,
+      canNext: true,
+    })
     await expect(page.getByTestId('story-card')).toContainText('Arthur Scherbius')
     await expect(page.getByTestId('act-clock')).toBeVisible()
     await expect(page.getByTestId('stage')).toHaveCount(0)
@@ -196,5 +203,18 @@ test.describe('chapter prologue in 3D', { tag: ['@3d', '@chapter:prologue'] }, (
     await expect.poll(() => page.evaluate(() => window.__stage!.info().litLamp)).toBe(lamp)
     await page.getByTestId('lid-slider').fill('2')
     await expect.poll(() => page.evaluate(() => window.__stage!.info().directive?.lid)).toBe('cutaway')
+    // Across a scene change the 3D view stays: the whole machine for the brute-force question.
+    await page.evaluate(() => window.__course!.completeTasks())
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('brute-force')
+    await expect
+      .poll(
+        async () => {
+          const i = await page.evaluate(() => window.__stage!.info())
+          return `${i.renderer}:${i.focus}:${i.directive?.lid}`
+        },
+        { timeout: 30_000 },
+      )
+      .toBe('webgl2:overview:closed')
   })
 })
