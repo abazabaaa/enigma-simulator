@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { LETTERS, createMachine, isAtTurnover, pressKey, withPositions, type MachineConfigInput } from '../engine'
 import { createRng } from '../lib/rng'
 import { randomToy, toyPress } from '../lib/toy'
-import { machineView, toyView, turnAt } from './view'
+import { machineView, playbackFor, toyView, turnAt } from './view'
 
 const I: MachineConfigInput = { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU' }
 const END = { t: 1e9, hops: 11 }
@@ -16,6 +16,25 @@ describe('turnAt', () => {
     expect(turnAt(7, 7, 0.4, 26)).toBe(7)
     const samples = [0, 0.1, 0.3, 0.6, 0.9, 0.999].map((t) => turnAt(5, 6, t, 26))
     expect([...samples].sort((a, b) => a - b)).toEqual(samples)
+  })
+})
+
+describe('playbackFor', () => {
+  it("passes this source's clock through, and shows its last press finished while the other source plays", () => {
+    expect(playbackFor('machine', { source: 'machine', t: 3.5, hops: 11 }, 11)).toEqual({ t: 3.5, hops: 11 })
+    // a 6-hop toy press playing: the machine's 11-step press is over (hop 10, lamp lit)
+    const machine = playbackFor('machine', { source: 'toy', t: 2, hops: 6 }, 11)
+    expect(machine).toEqual({ t: 12, hops: 11 })
+    const toy = playbackFor('toy', { source: 'machine', t: 0.2, hops: 11 }, 6)
+    expect(toy).toEqual({ t: 7, hops: 6 })
+    expect(playbackFor('toy', { source: 'machine', t: 0.2, hops: 11 }, 0)).toEqual({ t: 1, hops: 0 })
+  })
+
+  it('a toy press after a machine press reports the machine view finished, hop 10', () => {
+    const last = pressKey(createMachine(I), 'A')
+    const pb = playbackFor('machine', { source: 'toy', t: 0.3, hops: 6 }, last.trace.length)
+    const v = machineView({ machine: last.state, last, lampsHidden: false }, pb)
+    expect(v).toMatchObject({ windows: 'ADV', hop: 10, litLamp: LETTERS.indexOf(last.output) })
   })
 })
 
