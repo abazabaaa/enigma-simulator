@@ -16,7 +16,7 @@ import { DECK, socketPosition, type Layout } from '../layout'
 import { swatch } from '../palette'
 import { mergeColored, tubeAlong } from '../signal/mesh'
 import { PLUG_FRONT_Z, cablePath, wirePairs } from '../signal/route'
-import { hopShown, useSignal, type SignalState } from '../signal/useSignal'
+import { crossedCables, useSignal } from '../signal/useSignal'
 
 export interface CablesProps {
   readonly layout: Layout
@@ -46,14 +46,6 @@ function plugGeometry(layout: Layout, k: number) {
   ]
 }
 
-/** The cable a plugboard hop crosses once the signal gets there, or null (an unplugged letter). */
-function crossed(s: SignalState, index: number): [number, number] | null {
-  if (!hopShown(s, index)) return null
-  const h = s.hops[index]!
-  if (h.kind !== 'plugboard' || h.inputIndex === h.outputIndex) return null
-  return [Math.min(h.inputIndex, h.outputIndex), Math.max(h.inputIndex, h.outputIndex)]
-}
-
 export const Cables = memo(function Cables({ layout, plugs }: CablesProps): JSX.Element {
   const plugKey = plugs.join()
   const pairs = useMemo(() => wirePairs(plugs), [plugKey])
@@ -74,13 +66,7 @@ export const Cables = memo(function Cables({ layout, plugs }: CablesProps): JSX.
     () => new MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.2 }),
   )
 
-  // The way in (hop 0) and the way out (the last hop); the same cable when key and lamp are partners.
-  const signal = useSignal()
-  const lit: [number, number][] = []
-  for (const index of [0, signal.hops.length - 1]) {
-    const pair = crossed(signal, index)
-    if (pair && !lit.some(([a, b]) => a === pair[0] && b === pair[1])) lit.push(pair)
-  }
+  const lit = crossedCables(useSignal())
 
   return (
     <mesh name="cables" geometry={merged.geometry} material={material} userData={{ part: 'plugboard', pairs, lit }} />

@@ -29,7 +29,29 @@ export interface SignalDebugApi {
     /** The tube and head colours (the signal swatch), and whether they glow (emissive > 1, not tone mapped). */
     color: string
     glow: boolean
+    /** The see-through copy of the path is drawn (not when a single part is in focus). */
+    xray: boolean
+    /** The head's on-screen diameter in CSS px (at least HEAD_MIN_PX while shown), 0 when hidden. */
+    headPx: number
+    /**
+     * The tag at the head: the part's symbol (⁻¹ on the way back) and letters ('N  E → W'), and the
+     * change count ('change 4 of 7' / 'no change'); null when the head is hidden.
+     */
+    tag: {
+      title: string
+      detail: string
+      sym: string
+      inverse: boolean
+      input: string
+      output: string
+      change: number | null
+      changes: number
+      color: string
+      px: number
+    } | null
   }
+  /** Cables drawn faintly while the plugboard is hidden (the ones the path runs along), or null. */
+  faintCables(): { pairs: string[]; shown: string[] } | null
   /** The ghost against the reference (null when the stage store has no ghost). */
   ghost(): {
     divergeAt: number

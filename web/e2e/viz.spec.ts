@@ -90,12 +90,17 @@ test.describe('viz lab', { tag: ['@area:crypto', '@area:viz'] }, () => {
       await page.getByTestId(`menu-graph-add-${pos}`).focus()
       await page.keyboard.press('Enter')
       await expect(graph).toHaveAttribute('data-closures', want)
+      // focus follows the link to its new "−" button instead of falling to <body>
+      await expect(page.getByTestId(`menu-graph-remove-${pos}`)).toBeFocused()
     }
     await expect(graph).toHaveAttribute('data-loops', 'NST AKLT ATNCW')
     await expect(page.getByTestId('menu-graph-closures')).toContainText('Closures: 3')
     await page.getByTestId('menu-graph-remove-2').focus()
     await page.keyboard.press('Delete')
     await expect(graph).toHaveAttribute('data-closures', '2')
+    await expect(page.getByTestId('menu-graph-add-2')).toBeFocused()
+    await expect(page.getByTestId('menu-graph-closures')).toHaveText(
+      'Closures: 2 — 11 links, 10 letters, 1 piece (links − letters + pieces = 2)')
   })
 
   test('getCatalogue(\'A\') builds in the browser in under 10 s', async ({ page, stage }) => {
@@ -112,6 +117,41 @@ test.describe('viz lab', { tag: ['@area:crypto', '@area:viz'] }, () => {
     const histogram = page.getByTestId('catalogue-histogram')
     await expect(histogram).toHaveAttribute('data-entries', '105456')
     expect(Number(await build.getAttribute('data-candidates'))).toBeGreaterThan(0)
+  })
+
+  test('at 390 px the read-only, overflowing views are focusable scrollers and axe finds nothing', async ({
+    page,
+    stage,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await gotoApp(page, '/lab/viz', { stage })
+    await page.getByTestId('catalogue-build-button').click()
+    await expect(page.getByTestId('catalogue-build')).toHaveAttribute('data-state', 'done', { timeout: 20_000 })
+    await page.getByText('Table view').click()
+    const scrollers = ['crib-strip-rollback-scroller', 'wire-grid-26-scroller', 'menu-graph-16-drawing',
+      'catalogue-histogram-scroller']
+    for (const id of scrollers) {
+      const el = page.getByTestId(id)
+      const box = await el.evaluate((e) => ({
+        scroll: e.scrollWidth,
+        client: e.clientWidth,
+        tab: (e as HTMLElement).tabIndex,
+        role: e.getAttribute('role'),
+      }))
+      expect(box.scroll, `${id} overflows at 390 px`).toBeGreaterThan(box.client)
+      expect(box, id).toMatchObject({ tab: 0, role: 'region' })
+    }
+    // the page itself never scrolls sideways
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0)
+    // a keyboard-only learner can reach the off-screen crash columns of a read-only strip
+    const strip = page.getByTestId('crib-strip-rollback-scroller')
+    await strip.evaluate((e) => (e.scrollLeft = 0))
+    await strip.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect.poll(() => strip.evaluate((e) => e.scrollLeft)).toBeGreaterThan(0)
+    expect(Number(await page.getByTestId('crib-strip-rollback').getAttribute('data-crash-count'))).toBeGreaterThan(0)
+    const results = await new AxeBuilder({ page }).analyze()
+    expect(results.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} nodes`)).toEqual([])
   })
 
   test('axe finds no violations on #/lab/viz', async ({ page, stage }) => {
