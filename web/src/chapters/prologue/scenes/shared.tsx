@@ -40,9 +40,46 @@ export function showBet(bet: string, reducedMotion: boolean): void {
   })
 }
 
+/** Where a bet panel sits against the window: in view, above it or below it (unknown until observed). */
+type PanelPlace = 'in' | 'above' | 'below'
+
 /**
- * Until a bet is committed the keys are locked (G10) and the bet may sit below the fold. A pointer stays in view
- * at the foot of the window, and a letter typed on the locked keyboard (or a click on it) brings the bet into view.
+ * Watch the bet panel against the window. The bottom 64 px do not count as in view: the pointer sits there.
+ * Without IntersectionObserver (jsdom), the panel counts as below.
+ */
+function usePanelPlace(bet: string, active: boolean): PanelPlace {
+  const [place, setPlace] = useState<PanelPlace>('below')
+  useEffect(() => {
+    if (!active || typeof IntersectionObserver === 'undefined') return
+    let observer: IntersectionObserver | null = null
+    let raf = 0
+    const attach = () => {
+      const panel = document.querySelector(`[data-testid="bet-${bet}"]`)
+      if (!panel) {
+        raf = requestAnimationFrame(attach)
+        return
+      }
+      observer = new IntersectionObserver(
+        ([e]) => {
+          if (e) setPlace(e.isIntersecting ? 'in' : e.boundingClientRect.top < 0 ? 'above' : 'below')
+        },
+        { rootMargin: '0px 0px -64px 0px' },
+      )
+      observer.observe(panel)
+    }
+    attach()
+    return () => {
+      cancelAnimationFrame(raf)
+      observer?.disconnect()
+    }
+  }, [bet, active])
+  return place
+}
+
+/**
+ * Until a bet is committed the keys are locked (G10) and the bet may sit out of view. While it does, a pointer
+ * stays at the foot of the window; a letter typed on the locked keyboard (or a click on it) brings the bet into
+ * view and focuses its first option.
  */
 export function BetPointer(p: {
   bet: string
@@ -51,6 +88,7 @@ export function BetPointer(p: {
   reducedMotion: boolean
 }): JSX.Element | null {
   const { bet, pending, reducedMotion } = p
+  const place = usePanelPlace(bet, pending)
   useEffect(() => {
     if (!pending) return
     const onKey = (e: KeyboardEvent) => {
@@ -76,7 +114,7 @@ export function BetPointer(p: {
       window.removeEventListener('pointerdown', onPointer)
     }
   }, [bet, pending, reducedMotion])
-  if (!pending) return null
+  if (!pending || place === 'in') return null
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-4">
       <button
@@ -85,7 +123,7 @@ export function BetPointer(p: {
         onClick={() => showBet(bet, reducedMotion)}
         className="pointer-events-auto rounded-full border border-violet-400/70 bg-violet-950/95 px-4 py-2 text-sm text-violet-100 shadow-lg hover:bg-violet-900"
       >
-        ↓ {p.text}
+        <span aria-hidden="true">{place === 'above' ? '↑' : '↓'}</span> {p.text}
       </button>
     </div>
   )

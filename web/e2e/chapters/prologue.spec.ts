@@ -90,7 +90,6 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await assertFocus(page, 'overview')
     expect(dimmedParts('overview', 'I')).toEqual([])
     await expect(page.getByTestId('type-hint')).toContainText('first bet below')
-    await expect(page.getByTestId('bet-pointer')).toBeVisible()
     await expectNextDisabled(page)
     const [press] = await sceneReveals(page)
     expect(press).toMatchObject({ bet: 'own-letter', trigger: 'press' })
@@ -200,10 +199,13 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await expect(panel).toBeInViewport()
     await expect(page.getByTestId('bet-option-own-letter-own')).toBeFocused()
     expect(await page.evaluate(() => window.__enigma!.getState().input)).toBe('')
-    // The pointer does the same from anywhere on the page.
+    // With the bet in view the pointer steps aside; back at the top it returns, and a click on it does the same.
+    await expect(pointer).toHaveCount(0)
     await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(pointer).toContainText('↓')
     await pointer.click()
     await expect(panel).toBeInViewport()
+    await expect(pointer).toHaveCount(0)
     await commitBet(page, 'own-letter', 'other')
     await expect(pointer).toHaveCount(0)
     await expect(page.getByTestId('type-hint')).toContainText('Your bet is in')
