@@ -16,7 +16,7 @@
  * After every change of what is shown it calls onReport with renderer 'svg'.
  */
 
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type JSX, type ReactNode } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { MachineStoreHook, ToySpec } from '../contracts/machine'
 import {
@@ -45,7 +45,7 @@ import {
 } from '../engine'
 import { SYM_FOR_PART, type Sym } from '../lib/symbols'
 import { toyPress, toySlots } from '../lib/toy'
-import { usePressView } from '../machine-ui/hooks'
+import { usePressView, useScrollable } from '../machine-ui/hooks'
 import { useMachine, useMachineApi } from '../state/activeMachine'
 import { useMachineStore } from '../state/machineStore'
 import { useStageStore } from '../state/stageStore'
@@ -815,22 +815,6 @@ export const STAGE_MAX_VH = 70
 export function stageMaxWidth(l: CircuitLayout): string {
   const aspect = (l.width / l.height).toFixed(4)
   return `min(${Math.round(l.width * 1.25)}px, calc(${STAGE_MAX_VH}vh * ${aspect}))`
-}
-
-/** Whether the element scrolls sideways (its content is wider than its box). */
-function useScrollable(ref: RefObject<HTMLElement | null>): boolean {
-  const [scrollable, setScrollable] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const measure = () => setScrollable(el.scrollWidth > el.clientWidth + 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [ref])
-  return scrollable
 }
 
 /**

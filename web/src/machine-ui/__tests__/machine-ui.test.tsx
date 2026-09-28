@@ -620,3 +620,59 @@ describe('review round 4', () => {
     for (const el of [...notText, ...text]) el.remove()
   })
 })
+
+describe('review round 5: PermTable editable subset and onChange', () => {
+  const perm = [1, 0, null, null, 5, null] as const
+
+  it('makes only editableCells into inputs and keeps the rest read-only', () => {
+    mount(<PermTable perm={perm} editableCells={[2, 3, 5]} testId="ad" />)
+    expect(byTestId('ad').dataset.editable).toBe('some')
+    const inputs = [0, 1, 2, 3, 4, 5].map((i) => byTestId(`ad-cell-${i}`).querySelector('input') !== null)
+    expect(inputs).toEqual([false, false, true, true, false, true])
+    expect(byTestId('ad-cell-0').textContent).toBe('B')
+    expect(byTestId('ad-cell-4').dataset.value).toBe('F')
+  })
+
+  it('sends the whole table to onChange alongside onEdit', () => {
+    const onEdit = vi.fn()
+    const onChange = vi.fn()
+    mount(<PermTable perm={perm} editableCells={[2, 3]} onEdit={onEdit} onChange={onChange} testId="ad" />)
+    keyDown(byTestId('ad-cell-2').querySelector('input')!, 'd')
+    expect(onEdit).toHaveBeenLastCalledWith(2, 3)
+    expect(onChange).toHaveBeenLastCalledWith([1, 0, 3, null, 5, null])
+    keyDown(byTestId('ad-cell-3').querySelector('input')!, 'Backspace')
+    expect(onChange).toHaveBeenLastCalledWith([1, 0, null, null, 5, null])
+    expect(onChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('arrow keys, Home, End and typing move between editable cells only', () => {
+    mount(<PermTable perm={perm} editableCells={[1, 3, 5]} onEdit={() => {}} testId="ad" />)
+    const input = (i: number) => byTestId(`ad-cell-${i}`).querySelector('input')!
+    const focused = () => (document.activeElement?.closest('td') as HTMLElement | null)?.dataset.testid
+    input(1).focus()
+    keyDown(input(1), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-3') // skips read-only 2
+    keyDown(input(3), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-5')
+    keyDown(input(5), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-5') // stays on the last editable cell
+    keyDown(input(5), 'ArrowLeft')
+    expect(focused()).toBe('ad-cell-3')
+    keyDown(input(3), 'Home')
+    expect(focused()).toBe('ad-cell-1')
+    keyDown(input(1), 'End')
+    expect(focused()).toBe('ad-cell-5')
+    keyDown(input(1), 'c') // typing moves on to the next editable cell
+    expect(focused()).toBe('ad-cell-3')
+  })
+
+  it('is a plain wrapper (no tab stop) while it fits; editable still means every cell', () => {
+    mount(<PermTable perm={perm} editable testId="all" />)
+    expect(byTestId('all').dataset.editable).toBe('true')
+    expect(byTestId('all').querySelectorAll('input')).toHaveLength(6)
+    const scroll = byTestId('all-scroll')
+    expect(scroll.dataset.scrollable).toBe('false')
+    expect(scroll.hasAttribute('tabindex')).toBe(false)
+    expect(scroll.hasAttribute('role')).toBe(false)
+  })
+})

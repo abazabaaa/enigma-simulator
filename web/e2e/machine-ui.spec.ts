@@ -1,5 +1,15 @@
 import AxeBuilder from '@axe-core/playwright'
-import { createMachine, encipher, normalizeConfig, positionsToString, pressKey, type MachineConfigInput } from '../src/engine'
+import {
+  createMachine,
+  encipher,
+  machinePermutation,
+  normalizeConfig,
+  positionsToString,
+  pressKey,
+  step,
+  withPositions,
+  type MachineConfigInput,
+} from '../src/engine'
 import { encodeConfig } from '../src/machine-ui/urlCodec'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
@@ -233,9 +243,22 @@ test.describe('machine UI', { tag: '@area:machine-ui' }, () => {
     o = await pageOverflow(page)
     expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
 
-    // The sideways-scrolling stage stays accessible at this width.
+    // The sideways-scrolling stage and the next-press PermTable stay accessible at this width.
     await openSandbox(page, { stage })
     await page.getByTestId('key-Q').click()
+    await page.getByTestId('next-press').locator('summary').click()
+    const table = page.getByTestId('next-perm-scroll')
+    await expect(table).toHaveAttribute('data-scrollable', 'true')
+    await expect(table).toHaveAttribute('tabindex', '0')
+    await expect(table).toHaveAttribute('role', 'region')
+    const s = await enigma(page)
+    const next = machinePermutation(step(withPositions(createMachine(s.config), s.positions)).state)
+    const cells = await page.locator('[data-testid^="next-perm-cell-"]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.value))
+    expect(cells).toEqual(next.map((v) => String.fromCharCode(65 + v)))
+    const minCell = await page.locator('[data-testid="next-perm-cell-0"]').evaluate((e) => e.getBoundingClientRect().width)
+    expect(minCell).toBeGreaterThanOrEqual(27.5) // 1.75rem: scrolls rather than shrinks
+    o = await pageOverflow(page)
+    expect(o.scrollWidth).toBeLessThanOrEqual(o.innerWidth)
     const results = await new AxeBuilder({ page }).analyze()
     const bad = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)
     expect(bad).toEqual([])
