@@ -140,7 +140,7 @@ export function RollbackView(p: {
       className={`flex flex-col gap-2 rounded-md border p-3 text-sm ${result.correct ? 'border-emerald-700 bg-emerald-950/30' : 'border-red-800 bg-red-950/20'}`}
     >
       <p className="font-semibold">{result.correct ? 'Correct.' : 'Not quite.'}</p>
-      {result.feedback ? <p>{result.feedback}</p> : null}
+      {result.feedback && !(rb.kind === 'machine' && rb.message === result.feedback) ? <p>{result.feedback}</p> : null}
       {!result.correct && rb.kind === 'path' ? <PathView rb={rb} /> : null}
       {!result.correct && rb.kind === 'windows' ? <WindowsView rb={rb} /> : null}
       {!result.correct && rb.kind === 'machine' ? (
