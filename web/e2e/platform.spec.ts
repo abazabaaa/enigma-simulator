@@ -97,6 +97,7 @@ test.describe('platform', { tag: '@platform' }, () => {
     await expect.poll(async () => (await info(page)).directive?.source).toBe('toy')
     await page.getByTestId('toy-key-C').click()
     await expect.poll(async () => (await info(page)).litLamp).toMatch(/^[A-H]$/)
+    await expect(page.getByTestId('toy-lamp')).toHaveText(`Toy lamp: ${(await info(page)).litLamp}`)
     expect((await info(page)).windows).toMatch(/^[A-H]{3}$/)
   })
 
