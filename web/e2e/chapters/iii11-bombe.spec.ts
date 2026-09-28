@@ -25,6 +25,8 @@ import {
   assertRollback,
   commitBet,
   completeScene,
+  completeTasks,
+  firstBetOption,
   configure,
   continueGate,
   current,
@@ -91,8 +93,24 @@ async function answerLive(page: Page, a: LiveAnswer): Promise<void> {
   await expect(page.getByTestId('rollback')).toBeVisible()
 }
 
+/**
+ * Walk to the gate: bets committed through the UI and tasks completed, but the whole-wheel-order runs are not
+ * started (the first test fires every reveal); an explore scene can advance once its bets are committed.
+ */
 async function toGate(page: Page): Promise<void> {
-  for (let k = 0; k < 6 && (await where(page)).kind !== 'gate'; k++) await completeScene(page)
+  for (let k = 0; k < 6 && (await where(page)).kind !== 'gate'; k++) {
+    if ((await where(page)).kind === 'explore') {
+      for (const r of await sceneReveals(page)) {
+        if (r.trigger === 'run') await commitBet(page, r.bet, await firstBetOption(page, r.bet))
+      }
+      if ((await sceneReveals(page)).some((r) => r.trigger !== 'run')) {
+        await completeScene(page)
+        continue
+      }
+      await completeTasks(page)
+      await nextScene(page)
+    } else await completeScene(page)
+  }
   expect(await where(page)).toMatchObject({ scene: 'gate', kind: 'gate', canNext: false })
 }
 

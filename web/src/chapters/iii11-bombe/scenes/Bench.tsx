@@ -41,11 +41,11 @@ export function ScramblerTable(p: {
         <thead>
           <tr>
             <th scope="col" className="pr-3 text-left font-sans text-xs font-normal text-stone-400">
-              Partner in
+              Partner in{' '}
             </th>
             {TOY_LETTERS.map((l) => (
               <th key={l} scope="col" className="w-7 border-b border-stone-600 text-center font-semibold text-stone-100">
-                {l}
+                {l}{' '}
               </th>
             ))}
           </tr>
@@ -54,11 +54,12 @@ export function ScramblerTable(p: {
           {p.tables.map((t, j) => (
             <tr key={j} data-scrambler={j + 1}>
               <th scope="row" className="pr-3 text-left font-sans text-xs font-normal whitespace-nowrap text-stone-300">
-                {p.labels[j]}
+                {p.labels[j]}{' '}
               </th>
               {[...t].map((c, w) => (
                 <td key={w} className="w-7 text-center text-amber-200">
-                  {c}
+                  {/* a space after each letter: a row never reads as one word to a text scan */}
+                  {c}{' '}
                 </td>
               ))}
             </tr>
@@ -174,7 +175,7 @@ export function CribLine({ cipher, crib, offset }: { cipher: string; crib: strin
             </th>
             {[...cipher].map((c, k) => (
               <td key={k} className={`w-5 text-center ${k >= offset && k < offset + crib.length ? 'text-stone-100' : 'text-stone-500'}`}>
-                {c}
+                {c}{' '}
               </td>
             ))}
           </tr>
@@ -184,7 +185,7 @@ export function CribLine({ cipher, crib, offset }: { cipher: string; crib: strin
             </th>
             {[...cipher].map((_, k) => (
               <td key={k} className="w-5 text-center text-amber-200">
-                {k >= offset && k < offset + crib.length ? crib[k - offset] : ''}
+                {k >= offset && k < offset + crib.length ? `${crib[k - offset]} ` : ''}
               </td>
             ))}
           </tr>
