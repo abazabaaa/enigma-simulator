@@ -25,6 +25,7 @@ test.describe('Stage2D', { tag: '@area:machine-ui' }, () => {
         expect(info.renderer, id).toBe('svg')
         expect(info.focus, id).toBe(focus)
         expect(info.dimmed, id).toEqual(dimmedParts(focus, model))
+        expect(info.pathPoints, `${id}: nothing drawn yet is 2 + 2·0`).toBe(2)
         // A toy preset shows the toy's windows (the dimming still follows the machine's model).
         if (source === 'machine') expect(info.windows, id).toBe((await enigma(page)).positions)
         else expect(info.windows, id).toMatch(/^[A-F]{2}$/)
@@ -63,6 +64,13 @@ test.describe('Stage2D', { tag: '@area:machine-ui' }, () => {
     const info = await stageInfo(page)
     expect(info).toMatchObject({ windows: s.positions, hop: 10, pathPoints: 24 })
     await expect(page.getByTestId('stage2d-path')).toHaveAttribute('data-points', '24')
+
+    // trace 'off' draws no hop: 2 + 2·0 points, while the lamp still lights.
+    await gotoApp(page, '/lab/stage?preset=pawls', { stage })
+    await page.getByTestId('key-A').click()
+    await expect.poll(() => stageInfo(page).then((i) => i.litLamp)).toBe((await enigma(page)).lamp)
+    expect((await stageInfo(page)).pathPoints).toBe(2)
+    await expect(page.getByTestId('stage2d-path')).toHaveCount(0)
   })
 
   test('reduced motion makes t jump to the end; full motion animates', async ({ page, stage }) => {

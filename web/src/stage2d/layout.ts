@@ -225,9 +225,13 @@ function joinPieces(pieces: readonly (readonly Point[])[]): Point[] {
   return out
 }
 
-/** The reported StageReport.pathPoints: 2 + 2·(hops drawn), or 0 when nothing is drawn. */
+/**
+ * The reported StageReport.pathPoints (PLAN §3.3): 2 + 2·(hops drawn) — the key and lamp ends plus an
+ * entry and an exit per drawn hop — so 2 when nothing is drawn (no press yet, the stepping phase,
+ * trace 'off', or concealed under lampsHidden).
+ */
 export function pathPointCount(hopsDrawn: number): number {
-  return hopsDrawn > 0 ? 2 + 2 * hopsDrawn : 0
+  return 2 + 2 * Math.max(0, hopsDrawn)
 }
 
 export const polyline = (points: readonly Point[]): string => points.map((p) => `${round(p.x)},${round(p.y)}`).join(' ')

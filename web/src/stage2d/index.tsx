@@ -618,6 +618,8 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
     () => makeCircuitLayout({ n: scene.n, slots: slotKey.split(',') as RotorSlot[], etw: scene.etw, ringLayer: directive.ringLayer }),
     [scene.n, slotKey, scene.etw, directive.ringLayer],
   )
+  // dimmedParts(focus, model) takes a ModelName, and a toy has none: every view (2D, 3D, the stub)
+  // reports the machine model's list, even for source 'toy', so 2D and 3D always agree (PLAN §3.3).
   const dimmed = useMemo(() => dimmedParts(directive.focus, model), [directive.focus, model])
   const boxes = useMemo(() => partBoxes(layout, scene), [layout, scene])
 

@@ -74,7 +74,7 @@ describe('Stage2D reports', () => {
 
   it('reports the lamp, windows, hop and path of a press', () => {
     const { last } = render(resolveStage('wire'))
-    expect(last()).toMatchObject({ litLamp: null, windows: 'ADU', hop: -1, pathPoints: 0, ghost: false })
+    expect(last()).toMatchObject({ litLamp: null, windows: 'ADU', hop: -1, pathPoints: 2, ghost: false })
     run(() => store().pressKey('Q'))
     expect(last()).toMatchObject({ litLamp: store().output, windows: 'ADV', hop: 10, pathPoints: 24 })
     expect(byTestId('stage2d-path').dataset.points).toBe('24')
@@ -84,7 +84,7 @@ describe('Stage2D reports', () => {
     const { last } = render(resolveStage('wire'))
     run(() => usePlaybackStore.getState().setSpeed(1))
     run(() => store().pressKey('Q'))
-    expect(last()).toMatchObject({ litLamp: null, windows: 'ADU', hop: -1, pathPoints: 0 })
+    expect(last()).toMatchObject({ litLamp: null, windows: 'ADU', hop: -1, pathPoints: 2 })
     run(() => usePlaybackStore.getState().scrub(3.5))
     expect(last()).toMatchObject({ litLamp: null, windows: 'ADV', hop: 2, pathPoints: 2 + 2 * 3 })
     run(() => usePlaybackStore.getState().finish())
@@ -94,12 +94,12 @@ describe('Stage2D reports', () => {
   it('draws nothing for trace off, the whole path for static, and conceals it under lampsHidden', () => {
     const r = render(resolveStage('pawls'))
     run(() => store().pressKey('A'))
-    expect(r.last()).toMatchObject({ pathPoints: 0, litLamp: store().output })
+    expect(r.last()).toMatchObject({ pathPoints: 2, litLamp: store().output })
     r.rerender(resolveStage('rotors'))
     expect(r.last().pathPoints).toBe(24)
     r.rerender(resolveStage('wire'))
     run(() => store().setLocks({ lampsHidden: true }))
-    expect(r.last()).toMatchObject({ pathPoints: 0, litLamp: null })
+    expect(r.last()).toMatchObject({ pathPoints: 2, litLamp: null })
   })
 
   it('reports highlights, pulsing them unless motion is reduced', () => {
@@ -141,7 +141,7 @@ describe('circuit layout', () => {
     // Key, entry and exit of each hop, lamp (the reflector turn adds two inner corners).
     expect(full).toHaveLength(2 + 2 * 11 + 2)
     expect(pathPointCount(11)).toBe(24)
-    expect(pathPointCount(0)).toBe(0)
+    expect(pathPointCount(0)).toBe(2) // nothing drawn: PLAN §3.3 still counts the two ends
     expect(drawnPoints(path, 0.5)).toEqual([])
     expect(drawnPoints(path, 1.0)).toHaveLength(1)
     expect(drawnPoints(path, 2.0).length).toBeGreaterThan(2)
