@@ -1,0 +1,19 @@
+{
+  "name": "enigma-oracles",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Third-party Enigma oracles used only to generate web/src/engine/__fixtures__/oracle-vectors.json",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "generate": "node generate.mjs",
+    "check": "node generate.mjs --check",
+    "test": "node --test generate.test.mjs",
+    "setup:py": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+  },
+  "dependencies": {
+    "@ondoher/enigma": "1.0.14"
+  }
+}
