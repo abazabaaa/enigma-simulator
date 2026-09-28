@@ -5,16 +5,26 @@
 
 import { useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
-import { Vector3 } from 'three'
+import { Vector3, type Mesh, type Object3D } from 'three'
 import type { PartId } from '../contracts/stage'
+import { LETTERS } from '../engine'
 import { isE2E } from '../lib/flags'
 import { registerStageStats } from '../stage/stageApi'
 import { rig } from './CameraRig'
 import { scenePartStates, useFocus } from './focus'
 import type { Machine3DDebugApi } from './debugApi'
+import { labelLayout } from './labels'
+import { ROTOR, WINDOW_ANGLE } from './layout'
 import { idleMs, monitor, useFrameMonitor } from './monitor'
+import { PAWL_TIP_LOCAL } from './parts/Pawls'
 
 const _v = new Vector3()
+
+/** World position of an object, or of a point in its local frame. */
+function worldOf(o: Object3D, local: Vector3 | null): Vector3 {
+  o.updateWorldMatrix(true, false)
+  return local ? local.clone().applyMatrix4(o.matrixWorld) : new Vector3().setFromMatrixPosition(o.matrixWorld)
+}
 
 /** Frame accounting and stats: calls, triangles, geometries, textures and framesWhileIdle. */
 export function StatsHook(): null {
@@ -43,6 +53,11 @@ export function DebugHook({ slots }: { slots: readonly string[] }): null {
   const slotKey = slots.join()
   useEffect(() => {
     if (!isE2E()) return
+    const toClient = (p: Vector3) => {
+      _v.copy(p).project(camera)
+      const rect = gl.domElement.getBoundingClientRect()
+      return { x: rect.left + ((_v.x + 1) / 2) * rect.width, y: rect.top + ((1 - _v.y) / 2) * rect.height }
+    }
     const api: Machine3DDebugApi = {
       camera() {
         const target = rig.controls?.getTarget(new Vector3()) ?? new Vector3()
@@ -82,13 +97,57 @@ export function DebugHook({ slots }: { slots: readonly string[] }): null {
       },
       frames: () => monitor.frames,
       idleMs,
+      canvas() {
+        const r = gl.domElement.getBoundingClientRect()
+        return { x: r.left, y: r.top, w: r.width, h: r.height }
+      },
       keyPoint(letter) {
         const key = scene.getObjectByName(`key-${letter.toUpperCase()}`)
-        if (!key) return null
-        key.updateWorldMatrix(true, false)
-        _v.setFromMatrixPosition(key.matrixWorld).project(camera)
-        const rect = gl.domElement.getBoundingClientRect()
-        return { x: rect.left + ((_v.x + 1) / 2) * rect.width, y: rect.top + ((1 - _v.y) / 2) * rect.height }
+        return key ? toClient(worldOf(key, null)) : null
+      },
+      screenPoints(kind) {
+        const out: Record<string, { x: number; y: number }> = {}
+        const add = (name: string, o: Object3D | undefined, local: Vector3 | null) => {
+          if (o) out[name] = toClient(worldOf(o, local))
+        }
+        if (kind === 'key' || kind === 'lamp' || kind === 'socket') {
+          for (const l of LETTERS) add(l, scene.getObjectByName(`${kind}-${l}`), null)
+        } else if (kind === 'reflector') {
+          add('U', scene.getObjectByName('reflector'), null)
+        } else {
+          for (const slot of slotKey.split(',')) {
+            if (kind === 'pawl') {
+              add(slot, scene.getObjectByName(`pawl-${slot}`), new Vector3(PAWL_TIP_LOCAL.x, PAWL_TIP_LOCAL.y, 0))
+            } else if (kind === 'core-index') {
+              const r = ROTOR.coreR + 0.2
+              const tip = new Vector3(ROTOR.coreX1 - 0.3, r * Math.cos(WINDOW_ANGLE), r * Math.sin(WINDOW_ANGLE))
+              add(slot, scene.getObjectByName(`core-${slot}`), tip)
+            } else {
+              const frame = scene.getObjectByName(`window-${slot}`) as Mesh | undefined
+              if (!frame) continue
+              frame.geometry.computeBoundingSphere()
+              add(slot, frame, frame.geometry.boundingSphere!.center.clone())
+            }
+          }
+        }
+        return out
+      },
+      rings() {
+        return slotKey.split(',').map((slot) => {
+          const glyphs = scene.getObjectByName(`ring-glyphs-${slot}`)
+          return {
+            slot,
+            digits: [...((glyphs?.userData.numbers as string[] | undefined) ?? [])],
+            windowNumber: !!glyphs?.userData.windowNumber,
+            ringSetting: (glyphs?.userData.ringSetting as string | null | undefined) ?? null,
+            leader: !!scene.getObjectByName(`ring-setting-leader-${slot}`),
+          }
+        })
+      },
+      labels() {
+        const r = gl.domElement.getBoundingClientRect()
+        const shift = <T extends { x: number; y: number }>(b: T): T => ({ ...b, x: b.x + r.left, y: b.y + r.top })
+        return { labels: labelLayout.labels.map(shift), keepOut: labelLayout.keepOut.map(shift) }
       },
     }
     window.__machine3d = api
