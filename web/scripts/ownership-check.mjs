@@ -25,7 +25,8 @@ const DEFAULT_BASE = 'origin/claude/intelligent-hamilton-r0i6wz'
 const MANIFEST = 'web/ownership.json'
 
 function git(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
+  const stdio = ['ignore', 'pipe', 'pipe']
+  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio })
 }
 
 function tryGit(args, cwd) {
@@ -103,7 +104,8 @@ function main() {
     return
   }
 
-  const base = args.base ?? process.env.OWNERSHIP_BASE ?? DEFAULT_BASE
+  // An empty value (e.g. CI on a push, where no base applies) counts as unset.
+  const base = args.base || process.env.OWNERSHIP_BASE || DEFAULT_BASE
   if (tryGit(['rev-parse', '--verify', '--quiet', `${base}^{commit}`], root) === null) {
     console.error(`ownership: base ${base} not found. Fetch it, or set OWNERSHIP_BASE=origin/<base branch>.`)
     process.exit(2)

@@ -54,7 +54,8 @@ export function createMachineStore(init: { config?: MachineConfigInput; locks?: 
       if (get().locks[lock]) throw new MachineLockedError(lock)
     }
     /** Apply a config change: keep the current windows and the tape, clear `last`. */
-    const reconfigure = (config: MachineConfigInput, windows: readonly (Letter | number)[] = get().machine.positions) => {
+    type Windows = readonly (Letter | number)[]
+    const reconfigure = (config: MachineConfigInput, windows: Windows = get().machine.positions) => {
       set({ machine: rebuild(config, windows), last: null })
     }
 

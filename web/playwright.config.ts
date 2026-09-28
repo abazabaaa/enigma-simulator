@@ -30,7 +30,12 @@ interface StageOption {
 }
 
 // SwiftShader WebGL for GPU-less machines (the dev box and CI runners).
-const CHROMIUM_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+const CHROMIUM_ARGS = [
+  '--use-gl=angle',
+  '--use-angle=swiftshader',
+  '--enable-unsafe-swiftshader',
+  '--ignore-gpu-blocklist',
+]
 
 export const WEB_SERVER = {
   command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,

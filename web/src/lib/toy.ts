@@ -5,7 +5,7 @@
  * neighbour steps from its notch. There is no double step.
  */
 
-import { LETTERS, letterToIndex, type Letter, type RotorSlot, type StepInfo } from '../engine'
+import { LETTERS, letterToIndex, type Letter, type RotorSlot, type StepInfo, type TraceStage } from '../engine'
 import type { ToyPress, ToySpec } from '../contracts/machine'
 import type { PathHop } from '../contracts/stage'
 import { int, randomInvolution, randomPerm, type Rng } from './rng'
@@ -60,10 +60,18 @@ function signal(spec: ToySpec, input: number): { out: number; hops: PathHop[] } 
   const slots = toySlots(spec.rotors.length)
   const hops: PathHop[] = []
   const L = (i: number): Letter => LETTERS[i]!
+  const plainHop = (kind: 'plugboard' | 'reflector', stage: TraceStage, i: number, o: number): PathHop => ({
+    kind,
+    stage,
+    input: L(i),
+    output: L(o),
+    inputIndex: i,
+    outputIndex: o,
+  })
   let x = input
 
   const plugIn = spec.plugs[x]!
-  hops.push({ kind: 'plugboard', stage: 'plugboard-in', input: L(x), output: L(plugIn), inputIndex: x, outputIndex: plugIn })
+  hops.push(plainHop('plugboard', 'plugboard-in', x, plugIn))
   x = plugIn
 
   const through = (i: number, dir: 'fwd' | 'bwd') => {
@@ -89,12 +97,12 @@ function signal(spec: ToySpec, input: number): { out: number; hops: PathHop[] } 
 
   for (let i = spec.rotors.length - 1; i >= 0; i--) through(i, 'fwd')
   const reflected = spec.reflector[x]!
-  hops.push({ kind: 'reflector', stage: 'reflector', input: L(x), output: L(reflected), inputIndex: x, outputIndex: reflected })
+  hops.push(plainHop('reflector', 'reflector', x, reflected))
   x = reflected
   for (let i = 0; i < spec.rotors.length; i++) through(i, 'bwd')
 
   const plugOut = spec.plugs[x]!
-  hops.push({ kind: 'plugboard', stage: 'plugboard-out', input: L(x), output: L(plugOut), inputIndex: x, outputIndex: plugOut })
+  hops.push(plainHop('plugboard', 'plugboard-out', x, plugOut))
   return { out: plugOut, hops }
 }
 

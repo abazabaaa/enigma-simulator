@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { LockKey, MachineLocks } from '../contracts/machine'
+import { isLit, type LockKey, type MachineLocks } from '../contracts/machine'
 import { STAGE_PRESET_IDS, isStagePresetId, type Ghost, type PathHop, type StageRef } from '../contracts/stage'
 import { LETTERS, createMachine, encodeLetter, type Letter, type MachineConfigInput, type ModelName } from '../engine'
 import { formatSci, keyspace } from '../lib/keyspace'
@@ -20,12 +20,20 @@ import { MachinePanel } from '../machine-ui'
 import { hrefFor, useRoute } from '../router'
 import { StageHost } from '../stage/StageHost'
 import { useMachineStore } from '../state/machineStore'
+import { usePlaybackStore } from '../state/playbackStore'
 import { useStageStore } from '../state/stageStore'
 import { useToyStore } from '../state/toyStore'
 
 export const DEMO_CONFIGS: Readonly<Record<ModelName, MachineConfigInput>> = {
   I: { model: 'I', reflector: 'B', rotors: ['I', 'II', 'III'], rings: 'AAA', positions: 'ADU', plugboard: 'AV BS CG' },
-  M3: { model: 'M3', reflector: 'B', rotors: ['III', 'VI', 'VIII'], rings: 'AHM', positions: 'UZV', plugboard: 'AN EZ HK' },
+  M3: {
+    model: 'M3',
+    reflector: 'B',
+    rotors: ['III', 'VI', 'VIII'],
+    rings: 'AHM',
+    positions: 'UZV',
+    plugboard: 'AN EZ HK',
+  },
   M4: {
     model: 'M4',
     reflector: 'B-thin',
@@ -127,7 +135,9 @@ export function StageLabPage() {
             href={link(id)}
             data-testid={`preset-${id}`}
             aria-current={id === validPreset ? 'page' : undefined}
-            className={`rounded border px-2 py-1 ${id === validPreset ? 'border-amber-400 text-amber-300' : 'border-stone-700 text-stone-400'}`}
+            className={`rounded border px-2 py-1 ${
+              id === validPreset ? 'border-amber-400 text-amber-300' : 'border-stone-700 text-stone-400'
+            }`}
           >
             {id}
           </a>
@@ -148,6 +158,8 @@ export function StageLabPage() {
 function ToyKeys({ n }: { n: 6 | 8 }) {
   const locked = useMachineStore((s) => !!s.locks.keyboard)
   const { lamp } = useToyStore(useShallow((s) => ({ lamp: s.last?.lamp ?? null })))
+  // Like every lamp view, the readout waits for the playback clock to reach the lamp.
+  const lit = usePlaybackStore((s) => s.source === 'toy' && isLit(s.t, s.hops))
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex gap-1" aria-label="Toy keyboard">
@@ -164,7 +176,9 @@ function ToyKeys({ n }: { n: 6 | 8 }) {
           </button>
         ))}
       </div>
-      <p className="font-mono text-sm text-stone-400">Toy lamp: {lamp ?? '—'}</p>
+      <p data-testid="toy-lamp" className="font-mono text-sm text-stone-400">
+        Toy lamp: {(lit && lamp) || '—'}
+      </p>
     </div>
   )
 }

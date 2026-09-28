@@ -28,6 +28,7 @@
         ".github/workflows/web.yml",
         "web/src/{contracts,lib,state,stage,content,debug,lint}/**",
         "web/src/{App.tsx,router.ts,main.tsx,index.css}",
+        "web/src/router.test.ts",
         "web/src/pages/StageLabPage.tsx",
         "web/e2e/{fixtures.ts,helpers/app.ts,smoke.spec.ts,platform.spec.ts,deploy.spec.ts}",
         "docs/**"
