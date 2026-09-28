@@ -27,7 +27,14 @@ export function LetterAnswer({ logic, disabled, submit }: WidgetProps<unknown, s
           maxLength={1}
           disabled={disabled}
           autoComplete="off"
-          onChange={(e) => setV(e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(-1))}
+          onChange={(e) =>
+            setV(
+              e.target.value
+                .toUpperCase()
+                .replace(/[^A-Z]/g, '')
+                .slice(-1),
+            )
+          }
         />
       </label>
       <SubmitButton disabled={disabled || !valid} onClick={() => valid && submit(v)} />

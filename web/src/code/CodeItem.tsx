@@ -72,7 +72,11 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
           passed: 0,
           total: cases.length,
           instanceSeed: instance.seed,
-          firstFailure: { label: long, expected: `≤ ${task.maxLines} lines`, actual: `${countLines(source, long)} lines` },
+          firstFailure: {
+            label: long,
+            expected: `≤ ${task.maxLines} lines`,
+            actual: `${countLines(source, long)} lines`,
+          },
         })
         return
       }
@@ -129,7 +133,12 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
           {copied === 'failed' ? (
             <details className="text-xs text-stone-400" open>
               <summary>Copying is blocked here: select the brief below.</summary>
-              <textarea readOnly className={`${INPUT} mt-1 h-32 w-full text-xs`} value={brief} data-testid="copy-brief-text" />
+              <textarea
+                readOnly
+                className={`${INPUT} mt-1 h-32 w-full text-xs`}
+                value={brief}
+                data-testid="copy-brief-text"
+              />
             </details>
           ) : null}
         </div>
@@ -152,13 +161,23 @@ export function CodeItem({ task, instance, itemKey, disabled, submit }: CodeItem
             onChange={(e) => setProbe(e.target.value)}
           />
         </label>
-        <button type="button" data-testid="code-run" className={BUTTON} disabled={disabled || running || probe.trim() === ''} onClick={() => void run()}>
+        <button
+          type="button"
+          data-testid="code-run"
+          className={BUTTON}
+          disabled={disabled || running || probe.trim() === ''}
+          onClick={() => void run()}
+        >
           {running ? 'Running…' : 'Run'}
         </button>
       </div>
       {locked ? <p className="text-xs text-stone-400">Your prediction is locked for this instance.</p> : null}
       {result ? (
-        <div className="rounded-md border border-stone-700 p-2 text-sm" data-testid="code-result" data-status={result.status}>
+        <div
+          className="rounded-md border border-stone-700 p-2 text-sm"
+          data-testid="code-result"
+          data-status={result.status}
+        >
           <p>
             {result.status === 'pass'
               ? `All ${result.total} cases passed.`

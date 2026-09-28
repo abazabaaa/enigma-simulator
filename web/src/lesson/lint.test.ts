@@ -8,6 +8,7 @@ import type { ItemKey } from '../contracts/core'
 import type { GenCtx, ItemLogic } from '../contracts/lesson'
 import { createRng, seedFor } from '../lib/rng'
 import { allItemLogics } from './__tests__/sources'
+import { codeTaskOf } from './kinds'
 
 const MAX_BYTES = 16 * 1024
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
@@ -62,11 +63,26 @@ describe('L1 generators', () => {
     })
 
     it(l.constantAnswer ? 'has a constant answer (declared)' : 'has at least 2 distinct solutions', () => {
+      // A code item's answer that varies is its probe: the run summary always differs by the instance seed.
+      const task = codeTaskOf(l)
       const solutions = new Set<string>()
-      for (let s = 0; s < n; s++) solutions.add(JSON.stringify(l.solve(gen(s))))
+      for (let s = 0; s < n; s++) {
+        const i = gen(s)
+        solutions.add(task ? task.probe(i).expected : JSON.stringify(l.solve(i)))
+      }
       if (l.constantAnswer) expect(solutions.size).toBe(1)
-      else expect(solutions.size).toBeGreaterThanOrEqual(2)
+      else
+        expect(solutions.size, 'a constant answer must be declared constantAnswer (and once)').toBeGreaterThanOrEqual(2)
     })
+
+    if (l.kind === 'ghost-pick') {
+      it('the question carries no divergence (ghost.divergeAt < 0): the fault is the answer', () => {
+        for (let s = 0; s < n; s++) {
+          const ghost = (gen(s) as { ghost?: { divergeAt?: number } }).ghost
+          expect(ghost?.divergeAt ?? -1, `seed ${s}`).toBeLessThan(0)
+        }
+      })
+    }
 
     it('sampleAnswer is well formed (checkable, JSON-safe)', () => {
       for (let s = 0; s < Math.min(n, 100); s++) {

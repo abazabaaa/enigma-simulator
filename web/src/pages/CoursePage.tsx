@@ -42,7 +42,12 @@ export function CoursePage() {
             >
               Yes, reset
             </button>
-            <button type="button" data-testid="course-reset-cancel" className={QUIET_BUTTON} onClick={() => setConfirming(false)}>
+            <button
+              type="button"
+              data-testid="course-reset-cancel"
+              className={QUIET_BUTTON}
+              onClick={() => setConfirming(false)}
+            >
               Cancel
             </button>
           </span>

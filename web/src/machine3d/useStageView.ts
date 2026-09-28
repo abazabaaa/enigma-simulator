@@ -1,7 +1,8 @@
 /**
  * The 3D view's inputs, read from the stores (PLAN §2.5): the machine store (provider-aware), the toy
  * store, the playback clock and the stage store. index.tsx reads them outside the Canvas and passes
- * the result in, so the report and the scene come from the same snapshot.
+ * the result in, so the report and the scene come from the same snapshot. The playback clock counts
+ * only while it plays this view's source; otherwise the source's own last press is shown finished.
  */
 
 import { useStore } from 'zustand'
@@ -14,7 +15,7 @@ import { usePlaybackStore } from '../state/playbackStore'
 import { useStageStore } from '../state/stageStore'
 import { useToyStore } from '../state/toyStore'
 import { useSignalReport } from './signalReport'
-import { machineView, toyView, type SceneView } from './view'
+import { machineView, playbackFor, toyView, type SceneView } from './view'
 
 export interface StageViewState {
   readonly view: SceneView
@@ -39,9 +40,11 @@ export function useStageView(source: StageDirective['source']): StageViewState {
     })),
   )
   const toy = useToyStore(useShallow((s) => ({ spec: s.spec, last: s.last })))
-  const pb = usePlaybackStore(useShallow((s) => ({ t: s.t, hops: s.hops })))
+  const played = usePlaybackStore(useShallow((s) => ({ t: s.t, hops: s.hops, source: s.source })))
   const { highlight, ghost } = useStageStore(useShallow((s) => ({ highlight: s.highlight, ghost: s.ghost })))
   const pathPoints = useSignalReport((s) => s.pathPoints)
+  const ownHops = source === 'toy' ? (toy.last?.hops.length ?? 0) : (m.last?.trace.length ?? 0)
+  const pb = playbackFor(source, played, ownHops)
   const view =
     source === 'toy'
       ? toyView({ spec: toy.spec, last: toy.last, lampsHidden: m.lampsHidden }, pb)

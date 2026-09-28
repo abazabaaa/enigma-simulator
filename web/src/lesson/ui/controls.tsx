@@ -11,7 +11,10 @@ export const INPUT =
 
 /** The gate's Submit button (test id gate-submit). Custom Answer components use it too. */
 export function SubmitButton(
-  p: { disabled?: boolean; onClick(): void; children?: ReactNode } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'>,
+  p: { disabled?: boolean; onClick(): void; children?: ReactNode } & Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    'onClick'
+  >,
 ): JSX.Element {
   const { disabled, onClick, children, ...rest } = p
   return (

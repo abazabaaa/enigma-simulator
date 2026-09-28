@@ -70,7 +70,13 @@ export function closersFor(code: string): string {
     } else i++
   }
   const close: Record<string, string> = { '(': ')', '[': ']', '{': '}', '`': '`', '${': '}' }
-  return (inComment ? '*/' : '') + stack.reverse().map((s) => close[s]).join('')
+  return (
+    (inComment ? '*/' : '') +
+    stack
+      .reverse()
+      .map((s) => close[s])
+      .join('')
+  )
 }
 
 /**
@@ -127,7 +133,9 @@ export function executeRequest(req: RunRequest): RunResponse {
   const recordHop = (hop: PathHop) => {
     if (hops && hops.length < 64) hops.push({ ...hop })
   }
-  const exportsOf = req.fnNames.map((n) => `${JSON.stringify(n)}: typeof ${n} === 'function' ? ${n} : undefined`).join(', ')
+  const exportsOf = req.fnNames
+    .map((n) => `${JSON.stringify(n)}: typeof ${n} === 'function' ? ${n} : undefined`)
+    .join(', ')
   const body = `'use strict';\n${req.provided}\n${req.source}\n;return { ${exportsOf} }`
   let factory: (...a: unknown[]) => Record<string, unknown>
   try {

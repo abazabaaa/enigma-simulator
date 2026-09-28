@@ -130,27 +130,19 @@ function glyphMaterial(): MeshBasicMaterial {
  * Instanced glyph quads for one part. Remounts when the number of glyphs changes (an instanced
  * mesh's capacity is fixed).
  */
-export function GlyphMesh({
-  items,
-  part,
-  name,
-}: {
-  items: readonly GlyphItem[]
-  part: PartKey
-  name?: string
-}): JSX.Element {
-  return <GlyphInstances key={items.length} items={items} part={part} name={name} />
+interface GlyphMeshProps {
+  readonly items: readonly GlyphItem[]
+  readonly part: PartKey
+  readonly name?: string
+  /** Extra userData for the debug hook and the tests. */
+  readonly userData?: Record<string, unknown>
 }
 
-function GlyphInstances({
-  items,
-  part,
-  name,
-}: {
-  items: readonly GlyphItem[]
-  part: PartKey
-  name?: string
-}): JSX.Element {
+export function GlyphMesh(props: GlyphMeshProps): JSX.Element {
+  return <GlyphInstances key={props.items.length} {...props} />
+}
+
+function GlyphInstances({ items, part, name, userData }: GlyphMeshProps): JSX.Element {
   const count = items.length
   const geometry = useMemo(() => {
     const g = new PlaneGeometry(1, 1)
@@ -183,7 +175,7 @@ function GlyphInstances({
       ref={mesh}
       name={name}
       args={[geometry, material, count]}
-      userData={{ part, glyphs: items.map((it) => it.glyph) }}
+      userData={{ ...userData, part, glyphs: items.map((it) => it.glyph) }}
       renderOrder={2}
     />
   )

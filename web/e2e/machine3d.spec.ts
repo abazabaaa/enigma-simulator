@@ -1,7 +1,7 @@
-import { STAGE_PRESETS, STAGE_PRESET_IDS, dimmedParts } from '../src/contracts/stage'
-import type { Machine3DDebugApi } from '../src/machine3d/debugApi'
+import { STAGE_PRESETS, STAGE_PRESET_IDS, dimmedParts, type StagePresetId } from '../src/contracts/stage'
+import type { ClientRect, Machine3DDebugApi, PointKind } from '../src/machine3d/debugApi'
 import { makeLayout } from '../src/machine3d/layout'
-import { shotFor } from '../src/machine3d/shots'
+import { frameShot } from '../src/machine3d/shots'
 import { expect, test } from './fixtures'
 import { gotoApp } from './helpers/app'
 import type { Page } from '@playwright/test'
@@ -43,6 +43,54 @@ async function idleFor(page: Page, ms: number) {
 }
 
 const l3 = makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })
+
+/** Wait until the report, the scene's materials and the camera all show `preset` on `model`. */
+async function settled(page: Page, preset: StagePresetId, model: 'I' | 'M4' | 'M3' = 'I') {
+  const { focus } = STAGE_PRESETS[preset]
+  await reported3d(page, focus)
+  const expected = dimmedParts(focus, model)
+  await expect
+    .poll(async () => {
+      const parts = await m3d(page, 'parts')
+      const drawn = expected.filter((p) => parts.present.includes(p))
+      return [...parts.dimmed].sort().join() === [...drawn].sort().join() && parts.present.length > 10
+    })
+    .toBe(true)
+  await idleFor(page, 300)
+  await expect.poll(() => m3d(page, 'camera').then((c) => c.settleFrames !== null)).toBe(true)
+}
+
+const overlap = (a: ClientRect, b: ClientRect) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+const inside = (c: ClientRect, p: { x: number; y: number }) =>
+  p.x >= c.x - 0.5 && p.x <= c.x + c.w + 0.5 && p.y >= c.y - 0.5 && p.y <= c.y + c.h + 0.5
+const boxInside = (c: ClientRect, b: ClientRect) => inside(c, b) && inside(c, { x: b.x + b.w, y: b.y + b.h })
+
+/** The points a preset's shot must keep on screen. */
+function framedKinds(preset: StagePresetId): { kind: PointKind; only?: string }[] {
+  const d = STAGE_PRESETS[preset]
+  switch (d.shot) {
+    case 'overview':
+    case 'front':
+    case 'toy':
+      return [
+        { kind: 'key' },
+        { kind: 'lamp' },
+        { kind: 'window' },
+        ...(d.plugboard ? [{ kind: 'socket' as const }] : []),
+      ]
+    case 'plugboard':
+      return [{ kind: 'socket' }]
+    case 'lampboard':
+      return [{ kind: 'lamp' }]
+    case 'rotors':
+      return d.focus === 'pawls' ? [{ kind: 'window' }, { kind: 'pawl' }] : [{ kind: 'window' }]
+    case 'rotor-layers':
+      return [{ kind: 'window', only: 'right' }]
+    case 'reflector':
+      return [{ kind: 'reflector' }]
+  }
+}
 
 test.describe('machine3d', { tag: '@3d' }, () => {
   test('renders WebGL 2 through SwiftShader and reports the GPU', async ({ page }) => {
@@ -86,6 +134,12 @@ test.describe('machine3d', { tag: '@3d' }, () => {
         const s = await stats(page)
         expect(s!.calls, `${id} on ${model}: draw calls`).toBeLessThanOrEqual(120)
         expect(s!.calls).toBeGreaterThan(10)
+        // Positions are letters: no number beside a window letter; numbers only in the exploded view.
+        for (const r of await m3d(page, 'rings')) {
+          expect(r.windowNumber, `${id} on ${model}: a number beside the ${r.slot} window letter`).toBe(false)
+          if (!STAGE_PRESETS[id].ringLayer)
+            expect(r.digits, `${id} on ${model}: digits on the ${r.slot} ring`).toEqual([])
+        }
       }
     }
   })
@@ -178,7 +232,8 @@ test.describe('machine3d', { tag: '@3d' }, () => {
       await expect.poll(() => arrived('rotors'), { timeout: 30_000 }).toBe(true)
       const cam = await m3d(page, 'camera')
       expect(cam.shot).toBe('rotors')
-      const shot = shotFor('rotors', l3)
+      const canvas = await m3d(page, 'canvas')
+      const shot = frameShot('rotors', l3, { aspect: canvas.w / canvas.h, focus: 'rotor-stack', labels: true })
       cam.position.forEach((v, k) => expect(v).toBeCloseTo([shot.position.x, shot.position.y, shot.position.z][k]!, 2))
       cam.target.forEach((v, k) => expect(v).toBeCloseTo([shot.target.x, shot.target.y, shot.target.z][k]!, 2))
       if (motion === 'reduce') expect(cam.settleFrames, 'a cut: the next frame is there').toBeLessThanOrEqual(1)
@@ -202,6 +257,104 @@ test.describe('machine3d', { tag: '@3d' }, () => {
       if (!locks) {
         const lamp = await page.evaluate(() => window.__enigma!.getState().lamp)
         await expect.poll(async () => (await info(page)).litLamp).toBe(lamp)
+      }
+    }
+  })
+
+  test('rotor-layers shows the ring setting where the core index points: rings AAA and EEE differ clearly', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000)
+    await gotoApp(page, '/lab/stage?preset=rotor-layers', { stage: '3d', motion: 'reduce' })
+    await settled(page, 'rotor-layers')
+    const right = async () => (await m3d(page, 'rings')).find((r) => r.slot === 'right')!
+    const texts = async () => (await m3d(page, 'labels')).labels.map((l) => l.text)
+    expect(await right()).toMatchObject({ ringSetting: '01', leader: true, windowNumber: false })
+    expect(await texts()).toContain('ring 01')
+    const index0 = (await m3d(page, 'screenPoints', 'core-index')).right!
+    const core0 = (await m3d(page, 'rotors'))[2]!.coreAngle
+    await page.evaluate(() => window.__enigma!.setConfig({ rings: 'EEE' }))
+    await expect.poll(async () => (await right()).ringSetting).toBe('05')
+    await idleFor(page, 300)
+    expect((await info(page)).windows).toBe('ADU')
+    expect(await texts()).toContain('ring 05')
+    const index1 = (await m3d(page, 'screenPoints', 'core-index')).right!
+    const moved = Math.hypot(index1.x - index0.x, index1.y - index0.y)
+    test.info().annotations.push({ type: 'core index moved', description: `${moved.toFixed(0)} px` })
+    expect(moved, 'the core index moves visibly between rings 01 and 05').toBeGreaterThan(40)
+    expect((await m3d(page, 'rotors'))[2]!.coreAngle).toBeCloseTo(core0 - (4 * 2 * Math.PI) / 26, 6)
+  })
+
+  test('pawls: pawl and notch labels stay clear of each other and of the pawl–notch contacts at ADV, AEW and BFX', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await gotoApp(page, '/lab/stage?preset=pawls', { stage: '3d', motion: 'reduce' })
+      await page.evaluate(() => window.__enigma!.reset())
+      await expect.poll(async () => (await info(page)).windows).toBe('ADU')
+      await settled(page, 'pawls')
+      for (const windows of ['ADV', 'AEW', 'BFX']) {
+        await page.evaluate(() => window.__enigma!.pressKey('A'))
+        await expect.poll(async () => (await info(page)).windows).toBe(windows)
+        await idleFor(page, 300)
+        const where = `${windows} at ${viewport.width} px`
+        const canvas = await m3d(page, 'canvas')
+        const { labels, keepOut } = await m3d(page, 'labels')
+        const mechanism = labels.filter((l) => /^(pawl|notch)-/.test(l.key))
+        expect(mechanism.map((l) => l.key).sort(), where).toEqual([
+          'notch-left',
+          'notch-middle',
+          'notch-right',
+          'pawl-left',
+          'pawl-middle',
+          'pawl-right',
+        ])
+        expect(keepOut, where).toHaveLength(6)
+        mechanism.forEach((a, i) => {
+          expect(boxInside(canvas, a), `${where}: ${a.key} inside the canvas`).toBe(true)
+          mechanism.slice(i + 1).forEach((b) => expect(overlap(a, b), `${where}: ${a.key} on ${b.key}`).toBe(false))
+          keepOut.forEach((k) => expect(overlap(a, k), `${where}: ${a.key} on a pawl–notch contact`).toBe(false))
+        })
+      }
+    }
+  })
+})
+
+test.describe('machine3d on a phone (390 × 844)', { tag: '@3d' }, () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('every preset keeps its parts and labels inside the canvas, on the I, the M4 and the 8-letter toy', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000)
+    const cases: { preset: StagePresetId; q: string; model: 'I' | 'M4' }[] = [
+      ...(['I', 'M4'] as const).flatMap((model) =>
+        STAGE_PRESET_IDS.map((preset) => ({ preset, q: `&model=${model}`, model })),
+      ),
+      { preset: 'toy', q: '&toy=8', model: 'I' },
+    ]
+    for (const { preset, q, model } of cases) {
+      await gotoApp(page, `/lab/stage?preset=${preset}${q}`, { stage: '3d', motion: 'reduce' })
+      await settled(page, preset, model)
+      const where = `${preset}${q}`
+      const canvas = await m3d(page, 'canvas')
+      for (const { kind, only } of framedKinds(preset)) {
+        const points = await m3d(page, 'screenPoints', kind)
+        const names = Object.keys(points).filter((k) => !only || k === only)
+        expect(names.length, `${where}: ${kind} points`).toBeGreaterThan(0)
+        for (const name of names) {
+          expect(inside(canvas, points[name]!), `${where}: ${kind} ${name} at ${JSON.stringify(points[name])}`).toBe(
+            true,
+          )
+        }
+      }
+      for (const label of (await m3d(page, 'labels')).labels) {
+        expect(boxInside(canvas, label), `${where}: label ${label.text} inside the canvas`).toBe(true)
       }
     }
   })

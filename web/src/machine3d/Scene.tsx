@@ -101,7 +101,7 @@ export function Machine3DScene({ directive, reducedMotion, state, onPress }: Sce
     <Stage3DContext.Provider value={context}>
       <FocusProvider dimmed={dimmed} highlight={highlightMap} reducedMotion={reducedMotion} registry={registry}>
         <Lights />
-        <CameraRig shot={directive.shot} layout={layout} reducedMotion={reducedMotion} />
+        <CameraRig directive={directive} layout={layout} reducedMotion={reducedMotion} />
         <Case layout={layout} lid={directive.lid} />
         <Keyboard layout={layout} letters={letters} pressedKey={view.pressedKey} onPress={onPress} />
         <Lampboard layout={layout} letters={letters} litLamp={view.litLamp} />
@@ -116,7 +116,7 @@ export function Machine3DScene({ directive, reducedMotion, state, onPress }: Sce
           layout={layout}
           rotors={rotors}
           letters={letters}
-          numbers={directive.labels !== 'off' && !isToy}
+          numbers={directive.ringLayer && !isToy}
           explode={directive.ringLayer}
         />
         <Pawls layout={layout} rotors={rotors} />
