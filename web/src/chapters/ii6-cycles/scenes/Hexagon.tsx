@@ -13,6 +13,13 @@ import { AD65, BE65, CF65, HEX_P, HEX_STEPS, L, PAIRS_TRUTH } from '../gates'
 import { Diagram } from './parts'
 
 const STEP_MS = 700
+const VECTORS = [
+  { name: 'AD', letters: '1 → 4', perm: AD65 },
+  { name: 'BE', letters: '2 → 5', perm: BE65 },
+  { name: 'CF', letters: '3 → 6', perm: CF65 },
+] as const
+/** Once fired, the Play button would do nothing more: it hides and focus moves on to the trace (which can replay). */
+const HIDE_FIRED = '[data-scene="hexagon"] [data-testid="reveal-pairs"][data-fired="true"]{display:none}'
 const low = (x: number) => L(x).toLowerCase()
 
 /** X and Y as written in the research (Christensen): Y's last swap is (fa). X and Y are not machine parts, so their
@@ -105,6 +112,7 @@ export function HexagonView(p: SceneProps): JSX.Element {
   const fired = useRevealFired('pairs')
   const [shown, setShown] = useState(0)
   const resolved = useRef(false)
+  const trace = useRef<HTMLElement>(null)
   const { bet, reducedMotion } = p
   const total = HEX_STEPS.length
 
@@ -113,6 +121,7 @@ export function HexagonView(p: SceneProps): JSX.Element {
     resolved.current = true
     bet('pairs').resolve(PAIRS_TRUTH)
     if (reducedMotion) setShown(total)
+    queueMicrotask(() => trace.current?.focus())
   }, [fired, bet, reducedMotion, total])
   useEffect(() => {
     if (!fired || shown >= total) return
@@ -123,6 +132,7 @@ export function HexagonView(p: SceneProps): JSX.Element {
   const done = shown >= total
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="hexagon-view">
+      <style>{HIDE_FIRED}</style>
       <p>
         X = <Mono>{X_TEXT}</Mono> swaps a–b, c–d and e–f; Y = <Mono>{Y_TEXT}</Mono> swaps b–c, d–e and f–a. Both are made
         only of swaps, like a reflector or the machine at one position. Drawn together they make a hexagon whose sides
@@ -144,12 +154,17 @@ export function HexagonView(p: SceneProps): JSX.Element {
       </div>
       {fired ? (
         <section
+          ref={trace}
+          tabIndex={-1}
+          aria-labelledby="hex-trace-title"
           data-testid="hex-trace"
           data-step={shown}
           data-total={total}
-          className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3"
+          className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3 focus:outline-none"
         >
-          <h3 className="font-semibold text-stone-100">XY, letter by letter</h3>
+          <h3 id="hex-trace-title" className="font-semibold text-stone-100">
+            XY, letter by letter
+          </h3>
           <ol className="flex flex-col gap-0.5 font-mono" aria-live="polite">
             {HEX_STEPS.slice(0, shown).map((s) => (
               <li key={s.from}>
@@ -165,21 +180,41 @@ export function HexagonView(p: SceneProps): JSX.Element {
             </div>
           ) : (
             <div className="flex flex-col gap-2" aria-live="polite">
+              {!reducedMotion ? (
+                <div>
+                  <button
+                    type="button"
+                    className={QUIET_BUTTON}
+                    data-testid="hex-replay"
+                    onClick={() => {
+                      setShown(0)
+                      trace.current?.focus()
+                    }}
+                  >
+                    Play XY again
+                  </button>
+                </div>
+              ) : null}
               <p>
                 XY = <Mono>{formatCycles(HEX_P)}</Mono>: every step goes two corners on, clockwise from a (a, c, e) and
                 counter-clockwise from b (b, f, d). Two cycles of length {cycleSignature(HEX_P)[0]}. Rejewski proved that
                 this always happens: when two permutations consist only of swaps, their product has its cycles in pairs of
                 equal length (his theorem 1).
               </p>
-              <Diagram perm={HEX_P} testId="hex-product" label="XY as cycles" />
+              <Diagram perm={HEX_P} testId="hex-product" label="XY as cycles" clip />
               <p>
                 AD, BE and CF are exactly such products: each of the six presses is made of swaps. Here they are from the
                 65 indicators of one day. Every length comes twice.
               </p>
-              <div className="grid gap-3 lg:grid-cols-3">
-                <Diagram perm={AD65} testId="vector-ad" label="AD of the 65 indicators" />
-                <Diagram perm={BE65} testId="vector-be" label="BE of the 65 indicators" />
-                <Diagram perm={CF65} testId="vector-cf" label="CF of the 65 indicators" />
+              <div className="flex flex-col gap-3">
+                {VECTORS.map((v) => (
+                  <figure key={v.name} className="flex min-w-0 flex-col gap-1">
+                    <figcaption className="font-semibold text-stone-100">
+                      {v.name} <span className="font-normal text-stone-400">(letters {v.letters})</span>
+                    </figcaption>
+                    <Diagram perm={v.perm} testId={`vector-${v.name.toLowerCase()}`} label={`${v.name} of the 65 indicators`} />
+                  </figure>
+                ))}
               </div>
             </div>
           )}

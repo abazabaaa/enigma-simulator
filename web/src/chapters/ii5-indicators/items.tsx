@@ -123,7 +123,7 @@ function FillAdFeedback({
         Your table, with the {wrong.length === 1 ? 'wrong cell' : `${wrong.length} wrong cells`} outlined. The indicator
         that defines each one slides into it: its letter 1 goes to its letter 4.
       </p>
-      <Wide>
+      <Wide label="Your cells of AD">
         <PermTable perm={mine} highlight={wrong} label="Your cells of AD" testId="fill-ad-yours" />
       </Wide>
       <PermWhy indicators={instance.indicators} wrongCells={wrong} typed={typed} testId="fill-ad-why" />

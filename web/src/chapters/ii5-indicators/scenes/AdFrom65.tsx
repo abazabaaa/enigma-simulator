@@ -15,6 +15,8 @@ import { IndicatorChips, IndicatorPair, Wide } from './parts'
 
 const TOTAL = REJEWSKI_65.length
 const STEP_MS = 90
+/** Once fired, the Play button would do nothing more: it hides and focus moves on to what it revealed. */
+const HIDE_FIRED = '[data-scene="ad-from-65"] [data-testid="reveal-ad-fixed"][data-fired="true"]{display:none}'
 
 export function AdFrom65View(p: SceneProps): JSX.Element {
   const fired = useRevealFired('ad-fixed')
@@ -22,6 +24,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
   const [own, setOwn] = useState<(number | null)[]>(() => Array.from({ length: 26 }, () => null))
   const [arrived, setArrived] = useState(0)
   const resolved = useRef(false)
+  const arrivals = useRef<HTMLElement>(null)
   const { completeTask, bet, reducedMotion } = p
 
   const right = own.filter((v, x) => v !== null && v === AD65[x]).length
@@ -36,6 +39,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
     resolved.current = true
     bet('ad-fixed').resolve(AD_FIXED_TRUTH)
     if (reducedMotion) setArrived(TOTAL)
+    queueMicrotask(() => arrivals.current?.focus())
   }, [fired, bet, reducedMotion])
   useEffect(() => {
     if (!fired || arrived >= TOTAL) return
@@ -56,6 +60,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
 
   return (
     <div className="flex flex-col gap-3 text-sm text-stone-300" data-testid="ad-view">
+      <style>{HIDE_FIRED}</style>
       <p>
         Here are 65 indicators from one day, in the order they were written down. Every one of them was typed from the same
         Grundstellung, so letter 1 and letter 4 of each came from one key letter: each indicator fills one cell of AD.
@@ -66,7 +71,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
         label="The 65 indicators"
         testId="ad-indicators"
       />
-      <Wide>
+      <Wide label="Your AD">
         <PermTable
           perm={own}
           editable={committed}
@@ -82,11 +87,16 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
       </p>
       {fired ? (
         <section
+          ref={arrivals}
+          tabIndex={-1}
+          aria-labelledby="ad-arrivals-title"
           data-testid="ad-arrivals"
           data-arrived={arrived}
-          className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3"
+          className="flex flex-col gap-2 rounded-lg border border-stone-700 bg-stone-900/60 p-3 focus:outline-none"
         >
-          <h3 className="font-semibold text-stone-100">The tables fill as the indicators arrive</h3>
+          <h3 id="ad-arrivals-title" className="font-semibold text-stone-100">
+            The tables fill as the indicators arrive
+          </h3>
           <div className="flex flex-wrap items-center gap-3" aria-live="polite">
             <span>
               Indicator {arrived} of {TOTAL}
@@ -102,7 +112,7 @@ export function AdFrom65View(p: SceneProps): JSX.Element {
               </button>
             ) : null}
           </div>
-          <Wide>
+          <Wide label="AD, BE and CF">
             <PermTable perm={sofar.AD} highlight={latestCells.slice(0, 1)} label="AD (letters 1 → 4)" testId="ad-table" />
             <PermTable perm={sofar.BE} highlight={latestCells.slice(1, 2)} label="BE (letters 2 → 5)" testId="be-table" />
             <PermTable perm={sofar.CF} highlight={latestCells.slice(2, 3)} label="CF (letters 3 → 6)" testId="cf-table" />

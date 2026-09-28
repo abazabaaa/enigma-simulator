@@ -154,15 +154,25 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
     await expectNextDisabled(page)
     await fireReveal(page, play!)
     await expect(page.getByTestId('ad-arrivals')).toHaveAttribute('data-arrived', '65')
+    // The spent Play button hides; focus moves on to what it revealed.
+    await expect(page.getByTestId('reveal-ad-fixed')).toBeHidden()
+    await expect(page.getByTestId('ad-arrivals')).toBeFocused()
     await expect(page.getByTestId('ad-cycles')).toContainText('(a)(bc)(dvpfkxgzyo)(eijmunqlht)(rw)(s)')
     await expect(page.getByTestId('ad-cycles')).toContainText('(abviktjgfcqny)(duzrehlxwpsmo)')
     await expect(page.getByTestId('ad-conflict')).toContainText('SYZ SCW')
     await expect(page.getByTestId('ad-table-cell-3')).toHaveAttribute('data-value', 'V')
     await expect(page.getByTestId('task-fill-all')).toHaveAttribute('data-done', 'true')
-    // At 390 px the page never scrolls sideways: the 26-column tables scroll inside themselves.
+    // At 390 px the page never scrolls sideways: AD, BE and CF scroll together inside one focusable region (the
+    // tables' own scrollers stay still); at 1280 px nothing scrolls and there is no extra tab stop.
+    const together = page.getByRole('region', { name: 'AD, BE and CF (scrolls sideways)' })
+    await expect(together).toHaveCount(0)
     await page.setViewportSize({ width: 390, height: 844 })
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await expect(together).toHaveAttribute('tabindex', '0')
+    await expect(together.getByTestId('ad-table')).toBeVisible()
+    await expect(page.getByTestId('ad-table-scroll')).toHaveAttribute('data-scrollable', 'false')
     await page.setViewportSize({ width: 1280, height: 720 })
+    await expect(together).toHaveCount(0)
     expect((await betResults(page))['ad-fixed']).toBe(true)
     await nextScene(page)
 

@@ -3,7 +3,7 @@
  * pair of letters picked out, and the fill-in table of AD whose outlined cells are the learner's.
  */
 
-import { useEffect, useRef, type JSX, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type JSX, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { LETTERS } from '../../../engine'
 import { spaced } from '../gates'
 
@@ -190,23 +190,54 @@ export function DefiningPair(p: { indicator: string; typed: string; reducedMotio
   )
 }
 
+/** Whether `ref`'s content is wider than the box (re-measured on resize). */
+function useOverflows(ref: RefObject<HTMLElement | null>): boolean {
+  const [over, setOver] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setOver(el.scrollWidth > el.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => observer.disconnect()
+  }, [ref])
+  return over
+}
+
 /**
- * A 26-column table at full size: on a narrow screen it scrolls sideways instead of squeezing its cells (machine-ui's
- * PermTable shrinks its cells to fit the width).
+ * 26-column tables at full size, scrolling sideways together on a narrow screen (AD, BE and CF keep their columns
+ * aligned). The box is at least as wide as a PermTable, so the tables' own scrollers stay still and this is the only
+ * one. While it overflows it is a focusable, labelled region with an edge fade and a cue; otherwise it is a plain box.
  */
-export function Wide({ children }: { children: ReactNode }): JSX.Element {
+export function Wide({ children, label }: { children: ReactNode; label: string }): JSX.Element {
+  const scroller = useRef<HTMLDivElement>(null)
+  const over = useOverflows(scroller)
   return (
     <div className="relative flex min-w-0 flex-col gap-1">
-      <div className="max-w-full overflow-x-auto">
-        <div className="min-w-[46rem]">{children}</div>
-      </div>
       <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-0 right-0 bottom-6 w-10 bg-gradient-to-l from-stone-950 to-transparent sm:hidden"
-      />
-      <p aria-hidden="true" className="text-xs text-stone-400 sm:hidden">
-        Scroll sideways for N–Z →
-      </p>
+        ref={scroller}
+        className="max-w-full overflow-x-auto rounded"
+        data-scrollable={over ? 'true' : 'false'}
+        role={over ? 'region' : undefined}
+        aria-label={over ? `${label} (scrolls sideways)` : undefined}
+        tabIndex={over ? 0 : undefined}
+      >
+        <div className="flex min-w-[46rem] flex-col gap-2">{children}</div>
+      </div>
+      {over ? (
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 right-0 bottom-6 w-10 bg-gradient-to-l from-stone-950 to-transparent"
+          />
+          <p aria-hidden="true" className="text-xs text-stone-400">
+            Scroll sideways for N–Z →
+          </p>
+        </>
+      ) : null}
     </div>
   )
 }
