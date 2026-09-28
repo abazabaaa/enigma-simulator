@@ -1,0 +1,383 @@
+/**
+ * Chapter ii6-cycles' ITEM_UI. Every Prompt prints what its item needs: the two swap tables, the day's AD and cables,
+ * the cycles to line up. During a question no diagram shows an answer: the stecker item draws the day's own AD, never
+ * the one after the learner's cable. The cycles rollbacks draw the product and walk the cycle the learner missed.
+ */
+
+import { useState, type JSX } from 'react'
+import type { CodeAnswer } from '../../contracts/code'
+import type { AnswerProps, CheckResult, HintLevel, ItemUiMap } from '../../contracts/lesson'
+import type { MachineConfig } from '../../contracts/core'
+import { alignmentPairs } from '../../crypto'
+import { compose, cycles, formatCycles, fromPairs } from '../../engine'
+import { LetterTable, Mono, SubmitButton } from '../../lesson'
+import { CycleAlign, CycleDiagram } from '../../viz'
+import {
+  L,
+  adOf,
+  alignTruth,
+  cycleOf,
+  cycleText,
+  dash,
+  idx,
+  relabelAnswer,
+  steckerSolutions,
+  type AlignAnswer,
+  type AlignInstance,
+  type CycleLengthsInstance,
+  type LengthsInstance,
+  type RelabelInstance,
+  type SteckerInstance,
+} from './gates'
+
+const images = (p: readonly number[]) => p.map(L).join('')
+const cables = (c: MachineConfig) => (c.plugboard.length ? c.plugboard.map(dash).join(', ') : 'none')
+
+/** One cycle of XY traced: each letter goes through X, then Y. */
+function CycleWalk({ x, y, cycle }: { x: readonly number[]; y: readonly number[]; cycle: readonly number[] }): JSX.Element {
+  return (
+    <ol className="flex flex-col gap-0.5 font-mono text-sm" aria-label="The cycle, letter by letter">
+      {cycle.map((c) => (
+        <li key={c}>
+          {L(c).toLowerCase()} →<sub>X</sub> {L(x[c]!).toLowerCase()} →<sub>Y</sub> {L(y[x[c]!]!).toLowerCase()}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// lengths
+// ---------------------------------------------------------------------------
+
+function LengthsPrompt({ instance, hintLevel }: { instance: LengthsInstance; hintLevel: HintLevel }): JSX.Element {
+  return (
+    <div className="flex flex-col gap-2">
+      <p>
+        X and Y each swap the first {instance.n} letters in pairs. What are the cycle lengths of XY, X first and then Y?
+        List them, longest first.
+      </p>
+      <LetterTable images={images(instance.x)} label="X" n={instance.n} />
+      <LetterTable images={images(instance.y)} label="Y" n={instance.n} />
+      {hintLevel >= 1 ? (
+        <p data-testid="lengths-hint" className="text-sky-200">
+          Start at A: look A up in X, then look the result up in Y. Keep going until you are back at A; that is one cycle.
+          Then start again at the first letter you have not visited.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function LengthsFeedback({ instance, result }: { instance: LengthsInstance; answer: number[]; result: CheckResult }): JSX.Element | null {
+  const rb = result.rollback
+  if (rb.kind !== 'cycles') return null
+  return (
+    <div className="flex flex-col gap-2" data-testid="lengths-feedback">
+      <p>
+        You counted <Mono>{rb.got.join(' ') || 'nothing'}</Mono>. Here is XY drawn as cycles; walk the highlighted one,{' '}
+        {rb.cycle.length} {rb.cycle.length === 1 ? 'letter' : 'letters'}:
+      </p>
+      <CycleWalk x={instance.x} y={instance.y} cycle={rb.cycle} />
+      <CycleDiagram perm={rb.perm} n={instance.n} highlightCycle={rb.cycle} testId="lengths-diagram" />
+    </div>
+  )
+}
+
+const lengths = {
+  Prompt: LengthsPrompt,
+  Worked: ({ instance, solution }: { instance: LengthsInstance; solution: number[] }) => {
+    const p = compose(instance.x, instance.y)
+    return (
+      <div className="flex flex-col gap-1 text-sm">
+        <LetterTable images={images(instance.x)} label="X" n={instance.n} />
+        <LetterTable images={images(instance.y)} label="Y" n={instance.n} />
+        <p>From A, through X and then Y, until A comes back:</p>
+        <CycleWalk x={instance.x} y={instance.y} cycle={cycles(p)[0]!} />
+        <p>
+          XY = <Mono>{formatCycles(p)}</Mono>: lengths <Mono>{solution.join(' ')}</Mono>, in equal pairs.
+        </p>
+      </div>
+    )
+  },
+  Feedback: LengthsFeedback,
+}
+
+// ---------------------------------------------------------------------------
+// relabel
+// ---------------------------------------------------------------------------
+
+function DayAd({ day }: { day: MachineConfig }): JSX.Element {
+  return (
+    <p>
+      The day&apos;s machine at its Grundstellung has the cables <Mono>{cables(day)}</Mono>. Its AD is{' '}
+      <Mono className="break-all">{formatCycles(adOf(day))}</Mono>.
+    </p>
+  )
+}
+
+function RelabelPrompt({ instance, hintLevel }: { instance: RelabelInstance; hintLevel: HintLevel }): JSX.Element {
+  const [x, y] = [instance.cable[0]!, instance.cable[1]!]
+  return (
+    <div className="flex flex-col gap-2">
+      <DayAd day={instance.day} />
+      <p>
+        An operator adds one more cable, <Mono>{dash(instance.cable)}</Mono>. Write the cycle of the new AD that contains{' '}
+        <Mono>{x}</Mono>, starting with <Mono>{x}</Mono> ({instance.length} letters).
+      </p>
+      {hintLevel >= 1 ? (
+        <p data-testid="relabel-hint" className="text-sky-200">
+          A new cable renames letters: wherever {x.toLowerCase()} stands in AD&apos;s cycles, write{' '}
+          {y.toLowerCase()}, and the other way round. Nothing else moves.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function RelabelFeedback({ instance, answer, result }: { instance: RelabelInstance; answer: string; result: CheckResult }): JSX.Element | null {
+  if (result.rollback.kind !== 'cycles') return null
+  const ad = adOf(instance.day)
+  const [x, y] = [idx(instance.cable[0]!), idx(instance.cable[1]!)]
+  const moved = cycleOf(ad, y)
+  return (
+    <div className="flex flex-col gap-2" data-testid="relabel-feedback">
+      <p>
+        You wrote <Mono>{String(answer ?? '') || '—'}</Mono>. The cable swaps {L(x).toLowerCase()} and {L(y).toLowerCase()}{' '}
+        in every cycle of AD: {cycleText(moved)} becomes {cycleText(moved.map((c) => (c === y ? x : c)))}, which read from{' '}
+        {L(x)} is <Mono>{relabelAnswer(instance)}</Mono>. The diagram keeps AD&apos;s shape and renames the two letters.
+      </p>
+      <CycleDiagram perm={ad} relabelBy={fromPairs([instance.cable])} highlightCycle={moved} testId="relabel-diagram" />
+    </div>
+  )
+}
+
+const relabel = {
+  Prompt: RelabelPrompt,
+  Worked: ({ instance, solution }: { instance: RelabelInstance; solution: string }) => {
+    const ad = adOf(instance.day)
+    const y = idx(instance.cable[1]!)
+    return (
+      <div className="flex flex-col gap-1 text-sm">
+        <DayAd day={instance.day} />
+        <p>
+          The new cable <Mono>{dash(instance.cable)}</Mono> renames {instance.cable[0]!.toLowerCase()} and{' '}
+          {instance.cable[1]!.toLowerCase()}. The cycle {cycleText(cycleOf(ad, y))} that held{' '}
+          {instance.cable[1]!.toLowerCase()} now holds {instance.cable[0]!.toLowerCase()}: from {instance.cable[0]} it reads{' '}
+          <Mono>{solution}</Mono>.
+        </p>
+      </div>
+    )
+  },
+  Feedback: RelabelFeedback,
+}
+
+// ---------------------------------------------------------------------------
+// stecker-set (set-machine)
+// ---------------------------------------------------------------------------
+
+function SteckerPrompt({ instance, hintLevel }: { instance: SteckerInstance; hintLevel: HintLevel }): JSX.Element {
+  const day = instance.setup.machine
+  const ad = adOf(day)
+  const [x, y] = [idx(instance.x), idx(instance.y)]
+  return (
+    <div className="flex flex-col gap-2">
+      <DayAd day={day} />
+      <p>
+        <Mono>{instance.x}</Mono> is in {cycleText(cycleOf(ad, x))} and <Mono>{instance.y}</Mono> in{' '}
+        {cycleText(cycleOf(ad, y))}. Add exactly one new cable so that {instance.x} and {instance.y} end up in the same
+        cycle of AD. Keep the day&apos;s cables.
+      </p>
+      <CycleDiagram perm={ad} highlightCycle={[x, y]} testId="stecker-set-ad" />
+      {hintLevel >= 1 ? (
+        <p data-testid="stecker-set-hint" className="text-sky-200">
+          A new cable joining two free letters swaps those two letters in AD&apos;s cycles. Which swap moves{' '}
+          {instance.x} into the cycle of {instance.y}, or {instance.y} into the cycle of {instance.x}?
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const steckerSet = {
+  Prompt: SteckerPrompt,
+  Worked: ({ instance, solution }: { instance: SteckerInstance; solution: MachineConfig }) => {
+    const day = instance.setup.machine
+    const added = solution.plugboard.find((p) => !day.plugboard.includes(p)) ?? steckerSolutions(day, instance.x, instance.y)[0]!
+    const ad = adOf(solution)
+    return (
+      <div className="flex flex-col gap-1 text-sm">
+        <DayAd day={day} />
+        <p>
+          The cable <Mono>{dash(added)}</Mono> swaps {added[0]!.toLowerCase()} and {added[1]!.toLowerCase()} in AD, so AD
+          becomes <Mono className="break-all">{formatCycles(ad)}</Mono>: {instance.x} and {instance.y} now share{' '}
+          {cycleText(cycleOf(ad, idx(instance.x)))}.
+        </p>
+      </div>
+    )
+  },
+}
+
+// ---------------------------------------------------------------------------
+// cycle-lengths (code)
+// ---------------------------------------------------------------------------
+
+function CycleLengthsPrompt({ instance, hintLevel }: { instance: CycleLengthsInstance; hintLevel: HintLevel }): JSX.Element {
+  const ad = adOf(instance.day)
+  return (
+    <div className="flex flex-col gap-2">
+      <p>
+        A day&apos;s machine with the cables <Mono>{cables(instance.day)}</Mono> gives this AD (the letter each letter is sent
+        to):
+      </p>
+      <LetterTable images={images(ad)} label="AD" />
+      <p className="text-xs text-stone-300">
+        As an array: <Mono className="break-all">[{ad.join(', ')}]</Mono>
+      </p>
+      <p>
+        Predict <Mono>cycleLengths(AD)</Mono>, then write <Mono>cycleLengths</Mono> and run it on the hidden tests.
+      </p>
+      {hintLevel >= 1 ? (
+        <p data-testid="cycle-lengths-hint" className="text-sky-200">
+          Follow A through the table until it comes back, counting the letters; then start again at the first letter not
+          yet visited. The lengths come in equal pairs.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function CycleLengthsFeedback({ instance, answer, result }: { instance: CycleLengthsInstance; answer: CodeAnswer; result: CheckResult }): JSX.Element | null {
+  const rb = result.rollback
+  if (rb.kind !== 'cycles') return null
+  return (
+    <div className="flex flex-col gap-2" data-testid="cycle-lengths-feedback">
+      <p>
+        You predicted <Mono>{String(answer?.probe ?? '') || '—'}</Mono>. This day&apos;s AD has the lengths{' '}
+        <Mono>{rb.expected.join(' ')}</Mono>; the highlighted cycle, {cycleText(rb.cycle)}, has {rb.cycle.length}{' '}
+        {rb.cycle.length === 1 ? 'letter' : 'letters'}.
+      </p>
+      <CycleDiagram perm={adOf(instance.day)} highlightCycle={rb.cycle} testId="cycle-lengths-diagram" />
+    </div>
+  )
+}
+
+const cycleLengths = {
+  Prompt: CycleLengthsPrompt,
+  // Never the reference source: the method on that instance.
+  Worked: ({ instance, solution }: { instance: CycleLengthsInstance; solution: CodeAnswer }) => (
+    <div className="flex flex-col gap-1 text-sm">
+      <p>
+        Walk each letter not yet seen until it returns, and count. That day&apos;s AD is{' '}
+        <Mono className="break-all">{formatCycles(adOf(instance.day))}</Mono>, so the lengths, longest first, are{' '}
+        <Mono>{solution.probe}</Mono>.
+      </p>
+    </div>
+  ),
+  Feedback: CycleLengthsFeedback,
+}
+
+// ---------------------------------------------------------------------------
+// align-pair (custom)
+// ---------------------------------------------------------------------------
+
+function AlignPrompt({ instance, hintLevel }: { instance: AlignInstance; hintLevel: HintLevel }): JSX.Element {
+  const [c, h] = instance.clue
+  return (
+    <div className="flex flex-col gap-2">
+      <p>
+        X and Y each swap {instance.n} letters in pairs, and XY (X first) is{' '}
+        <Mono className="break-all">{formatCycles(instance.product)}</Mono>. X pairs the letters of{' '}
+        <Mono>{cycleText(instance.a)}</Mono> with those of <Mono>{cycleText(instance.b)}</Mono>, one to one.
+      </p>
+      <p>
+        One swap of X is known: X swaps <Mono>{L(c)}</Mono> and <Mono>{L(h)}</Mono>. Slide and turn the lower cycle until
+        every column is a swap of X, then submit.
+      </p>
+      {hintLevel >= 1 ? (
+        <p data-testid="align-pair-hint" className="text-sky-200">
+          Put {L(c).toLowerCase()} and {L(h).toLowerCase()} in one column. Moving right along the upper cycle, the partner
+          moves left along the lower one.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function AlignAnswerView({ instance, disabled, submit }: AnswerProps<AlignInstance, AlignAnswer>): JSX.Element {
+  const [offset, setOffset] = useState(0)
+  const [reversed, setReversed] = useState(false)
+  return (
+    <div className="flex flex-col gap-3" data-testid="align-pair">
+      <CycleAlign
+        a={instance.a}
+        b={instance.b}
+        offset={offset}
+        reversed={reversed}
+        onChange={(o, r) => {
+          if (disabled) return
+          setOffset(o)
+          setReversed(r)
+        }}
+        testId="align-pair-align"
+      />
+      <div>
+        <SubmitButton disabled={disabled} onClick={() => submit({ offset, reversed })} />
+      </div>
+    </div>
+  )
+}
+
+function AlignColumns({ instance, answer }: { instance: AlignInstance; answer: AlignAnswer }): JSX.Element {
+  const truth = new Set(alignTruth(instance))
+  const cols = alignmentPairs(instance.a, instance.b, Number(answer?.offset) || 0, !!answer?.reversed)
+  return (
+    <ol className="flex flex-wrap gap-1 font-mono text-sm" aria-label="Your columns">
+      {cols.map(([u, v]) => {
+        const ok = truth.has([L(u), L(v)].sort().join(''))
+        return (
+          <li
+            key={u}
+            data-ok={String(ok)}
+            className={`rounded border px-1 ${ok ? 'border-emerald-600 text-emerald-200' : 'border-red-500/70 text-red-200'}`}
+          >
+            {L(u).toLowerCase()}
+            {L(v).toLowerCase()} {ok ? '✓' : '✗'}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+const alignPair = {
+  Prompt: AlignPrompt,
+  Answer: AlignAnswerView,
+  Worked: ({ instance, solution }: { instance: AlignInstance; solution: AlignAnswer }) => (
+    <div className="flex flex-col gap-1 text-sm">
+      <p>
+        {cycleText(instance.a)} over {cycleText(instance.b)}, with {L(instance.clue[0]).toLowerCase()} over{' '}
+        {L(instance.clue[1]).toLowerCase()}, the lower cycle read backwards (offset {solution.offset}):
+      </p>
+      <AlignColumns instance={instance} answer={solution} />
+    </div>
+  ),
+  Feedback: ({ instance, answer, result }: { instance: AlignInstance; answer: AlignAnswer; result: CheckResult }) =>
+    result.correct ? null : (
+      <div className="flex flex-col gap-1" data-testid="align-pair-feedback">
+        <p>
+          Your columns, {answer?.reversed ? 'the lower cycle read backwards' : 'the lower cycle read forwards'}; the crossed
+          ones are not swaps of X:
+        </p>
+        <AlignColumns instance={instance} answer={answer} />
+      </div>
+    ),
+}
+
+export const ITEM_UI: ItemUiMap = {
+  lengths,
+  relabel,
+  'stecker-set': steckerSet,
+  'cycle-lengths': cycleLengths,
+  'align-pair': alignPair,
+}
