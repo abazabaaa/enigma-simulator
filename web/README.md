@@ -13,9 +13,13 @@ npm ci
 npm run dev        # http://localhost:5173/enigma-simulator/
 ```
 
-The course, the machine and the 3D view arrive PR by PR; `docs/PLAN.md` (repository root) is the
-build plan and its §3 holds the interface contracts in `src/contracts/`. Useful pages today:
-`#/lab/stage` (every stage preset on a demo machine) and `#/engine` (the engine as text: type A–Z).
+Or serve the production build exactly as GitHub Pages will: `npm run build && npm run preview`
+(http://localhost:4173/enigma-simulator/).
+
+`docs/PLAN.md` (repository root) is the build plan; its §3 holds the interface contracts in
+`src/contracts/`. Besides the course (`#/course`) and the sandbox machine (`#/machine`), useful pages
+are `#/lab/stage` (every stage preset on a demo machine), `#/lab/viz` (the crypto views), `#/lab/fixture`
+(the lesson engine's fixture chapter) and `#/engine` (the engine as text: type A–Z).
 
 ## Scripts
 
@@ -31,7 +35,7 @@ build plan and its §3 holds the interface contracts in `src/contracts/`. Useful
 | `npm run e2e`        | Playwright, projects `2d` and `3d` (builds, then runs `vite preview`)         |
 | `npm run e2e:pr`     | Playwright, project `2d` only                                                 |
 | `npm run e2e:3d`     | Playwright, project `3d` only                                                 |
-| `npm run e2e:walk`   | Playwright, the course walk (`@walk`)                                         |
+| `npm run e2e:walk`   | Playwright, the course walk (`@walk`) on the 2D stage; `npx playwright test --project=walk-3d` walks it on the 3D stage |
 | `npm run review`     | The headless review walk (`playwright.review.config.ts`, specs in `e2e/review/`, output in `review-artifacts/`) |
 
 Every Playwright command needs **`E2E_PORT`** outside CI (the config refuses to start without it):
@@ -40,7 +44,8 @@ never collide. CI defaults to 4173. Example: `E2E_PORT=4102 npm run e2e:pr -- --
 
 **Budgets** (`scripts/budget.mjs`, from `dist/.vite/manifest.json`, gzip): entry chunk ≤ 170 kB;
 the 3D view (`src/machine3d/index.tsx` and its static imports) ≤ 400 kB and never in the entry;
-effects ≤ 130 kB; each chapter chunk ≤ 80 kB; the code editor ≤ 150 kB.
+effects ≤ 130 kB; each chapter chunk ≤ 80 kB; the code editor (`src/code/CodeEditor.tsx` plus the
+CodeMirror module it lazy-loads, `src/code/codemirror.tsx`) ≤ 150 kB.
 
 Python helpers (run them from the repository root, no dependencies needed):
 
@@ -83,8 +88,26 @@ by `404.html` on GitHub Pages) is rewritten to the hash route at startup.
   opens pages with `gotoApp(page, '/route', { stage })` from `e2e/helpers/app.ts`.
 - **Projects and tags.** Each spec carries a tag: `@smoke`, `@platform`, `@area:<x>`, `@chapter:<id>`,
   `@3d`, `@sync` or `@walk`. Project `2d` runs everything but `@3d` and `@walk`, with the 2D stage and
-  reduced motion; project `3d` runs `@3d` and `@sync`; project `walk` runs `@walk`. Locally use one
-  worker (the default) and run only your own tags plus `@smoke|@platform`; CI runs everything.
+  reduced motion; project `3d` runs `@3d` and `@sync`; projects `walk` and `walk-3d` run `@walk` on the
+  2D and the 3D stage. Locally use one worker (the default) and run only your own tags plus
+  `@smoke|@platform`; CI runs everything.
+- **Release specs** (`@area:release`, in project `2d`): `a11y.spec.ts` (axe, no serious or critical
+  finding on every route, every chapter's first scene, a gate's rollback and hint, the code item; the
+  code editor never traps Tab), `layout.spec.ts` (390×844: no sideways page scroll on any route, wide
+  content scrolls inside its box) and `release.spec.ts` (the `/enigma-simulator/` build: budgets,
+  404.html, deep links, path-style links through 404.html, the share URL round trip, lazy chunks).
+  Their route list is `e2e/helpers/routes.ts`; add a route there and all three cover it.
+- **The code editor** is CodeMirror 6 (lazily loaded; a textarea if its chunk fails to load). The test
+  id `code-editor` sits on the editable element, so `getByTestId('code-editor').fill(source)` works;
+  read the text back from `localStorage['enigma.code.<itemKey>']`, not with `toHaveValue`. Tab indents;
+  Esc then Tab leaves the editor.
+- **Load-sensitive suites.** The dev box is shared by several agents (4 CPUs, load average 15–25), so
+  a few suites carry longer per-test limits with unchanged assertions: the guess bot 300 s per gate and
+  the CC learner 120 s per source (`src/lesson/guessBot.test.ts`); `runBombe` 300 s and the
+  propagate/test-register checks 120 s (`src/crypto/bombe.test.ts`); the review walk 600 s per chapter
+  (`e2e/review/walk.review.spec.ts`); the walk 240 s in 2D and 480 s in 3D. Run Vitest with
+  `VITEST_MAX_WORKERS=1` (or 2) and Playwright with `--workers=1`; rerun a load timeout alone before
+  treating it as a failure, and never weaken an assertion to pass.
 - **Bans** (`src/lint/bans.test.ts`): no `waitForTimeout`, `test.only`, `page.pause` or
   `toHaveScreenshot` in `e2e/`; no `console.log` in `src/` outside `src/debug`; no `.solve(` and no
   1900–1949 years in chapter scenes or `items.tsx`.
@@ -117,10 +140,14 @@ reads the same variable, so the e2e tests always match the build. Routing uses t
 
 `.github/workflows/web.yml` runs on pushes to `master` and the integration branch, on every pull
 request and on demand. Jobs: `check` (Python oracle, `tools/export_*.py --check`, `npm run check`
-with the ownership base of the PR), `e2e` (project `2d` in two shards), `e2e-3d`, `walk` (pushes
-only), `pages-artifact` (pushes to the integration branch or `master`: builds with
-`VITE_BASE=/enigma-simulator/` and uploads the Pages artifact) and `deploy` (`master` only). Deploying
-needs a one-off repository setting: **Settings → Pages → Source: GitHub Actions**.
+with the ownership base of the PR), `e2e` (project `2d` in two shards, the release specs included),
+`e2e-3d`, `walk` (pushes only; projects `walk` and `walk-3d`), `pages-artifact` (pushes to the
+integration branch or `master`: builds with `VITE_BASE=/enigma-simulator/`, checks the asset base,
+404.html and the budgets, and uploads the Pages artifact) and `deploy` (`master` only).
+
+**Deploy handoff** (two steps only the repository owner can take): merge the integration branch into
+`master`, and set the one-off repository setting **Settings → Pages → Source: GitHub Actions**. The
+push to `master` then runs `deploy`, and the site appears at `https://<owner>.github.io/enigma-simulator/`.
 
 ## Source layout
 
@@ -133,18 +160,19 @@ web/
     engine/          pure TypeScript Enigma engine: no dependencies, no React (public API: index.ts)
     contracts/       the interface contracts (PLAN §3): types plus pure helpers (STAGE_PRESETS,
                      resolveStage, dimmedParts, hopAt, …). Frozen at [contracts-v1]
-    lib/             rng (seeded), toy (6/8-letter machines), keyspace (BigInt figures), symbols
-                     (slot colours) and Sym, storage, flags, reducedMotion
+    lib/             rng (seeded), memoise (seeded-generator caches), toy (6/8-letter machines),
+                     keyspace (BigInt figures), symbols (slot colours) and Sym, storage, flags,
+                     reducedMotion
     state/           machineStore (createMachineStore, locks), activeMachine (MachineProvider),
                      playbackStore (the only animation clock), stageStore, toyStore, uiStore, sync
     stage/           StageHost (3D or 2D), StagePlaceholder, stageApi (window.__stage)
     stage2d/         the SVG stage (PR 04)
     machine3d/       the 3D machine (PRs 06, 11); ready.ts gates it
     machine-ui/      the DOM machine: keyboard, lamps, rotors, plugboard, trace, tape (PR 04)
-    lesson/, code/   the lesson runtime and code runner (PR 05)
+    lesson/, code/   the lesson runtime, the code runner and the CodeMirror editor (PRs 05, 17)
     crypto/, viz/    Rejewski and bombe kits and their views (PR 08)
     content/         registry.ts: the 14 chapters, each loaded lazily
-    chapters/<id>/   one folder per chapter (placeholders until each chapter PR)
+    chapters/<id>/   one folder per chapter: index.ts, gates.ts (pure), items.tsx, facts.ts, scenes/
     pages/           one lazily loaded page per route; App.tsx maps routes to pages
     debug/           window.__enigma
     lint/            bans and ownership-check tests
