@@ -5,11 +5,11 @@ import { KEYBOARD_ROWS, createMachine, pressKey, positionsToString, type Machine
 import { useMachineStore } from '../../state/machineStore'
 import { usePlaybackStore } from '../../state/playbackStore'
 import { Announcer } from '../Announcer'
-import { Keyboard } from '../Keyboard'
+import { Keyboard, isTextEntry } from '../Keyboard'
 import { Lampboard } from '../Lampboard'
 import { MachinePanel } from '../MachinePanel'
 import { PermTable } from '../PermTable'
-import { PlaybackBar } from '../PlaybackBar'
+import { PlaybackBar, hopStops, nextStop } from '../PlaybackBar'
 import { PlugboardEditor, parsePairs } from '../PlugboardEditor'
 import { RotorControls } from '../RotorControls'
 import { TracePanel } from '../TracePanel'
@@ -303,7 +303,7 @@ describe('TracePanel', () => {
 })
 
 describe('Announcer', () => {
-  it('reads "Q lights E. Rotors now A E W." once the lamp is lit', () => {
+  it('reads "Rotors stepped to A E W; Q lit E." (stepping first) once the lamp is lit', () => {
     run(() => store().setConfig({ ...ADU, positions: 'ADV' }))
     mount(<Announcer />)
     const status = byTestId('announcer')
@@ -313,7 +313,7 @@ describe('Announcer', () => {
     const expected = pressKey(createMachine({ ...ADU, positions: 'ADV' }), 'Q')
     run(() => store().pressKey('Q'))
     expect(positionsToString(expected.state)).toBe('AEW')
-    expect(status.textContent).toBe(`Q lights ${expected.output}. Rotors now A E W.`)
+    expect(status.textContent).toBe(`Rotors stepped to A E W; Q lit ${expected.output}.`)
   })
 
   it('is silent while the press animates, and omits the lamp under lampsHidden', () => {
@@ -323,9 +323,9 @@ describe('Announcer', () => {
     run(() => store().pressKey('Q'))
     expect(byTestId('announcer').textContent).toBe('')
     run(() => usePlaybackStore.getState().finish())
-    expect(byTestId('announcer').textContent).toMatch(/^Q lights [A-Z]\. Rotors now A E W\.$/)
+    expect(byTestId('announcer').textContent).toMatch(/^Rotors stepped to A E W; Q lit [A-Z]\.$/)
     run(() => store().setLocks({ lampsHidden: true }))
-    expect(byTestId('announcer').textContent).toBe('Q pressed. Rotors now A E W.')
+    expect(byTestId('announcer').textContent).toBe('Rotors stepped to A E W; Q pressed.')
   })
 })
 
@@ -495,6 +495,7 @@ describe('review round 2 regressions', () => {
     run(() => store().pressKey('Q'))
     const first = byTestId('announcer').firstElementChild!
     const text = first.textContent
+    expect(text).toMatch(/^Rotors held at A A A; Q lit [A-Z]\.$/) // no rotor moved: held, not stepped
     run(() => store().pressKey('Q'))
     const second = byTestId('announcer').firstElementChild!
     expect(second.textContent).toBe(text)
@@ -530,5 +531,148 @@ describe('review round 2 regressions', () => {
     type('3', RING_TYPING_MS + 1)
     expect(ring.textContent).toBe('03')
     clock.mockRestore()
+  })
+})
+
+describe('review round 4', () => {
+  it('hop stops: stepping, the middle of each hop (hopAt = k), then the lit lamp', () => {
+    expect(hopStops(0)).toEqual([])
+    expect(hopStops(3)).toEqual([0.5, 1.5, 2.5, 3.5, 4])
+    expect(nextStop(4, 3, -1)).toBe(3.5)
+    expect(nextStop(0.5, 3, -1)).toBeNull()
+    expect(nextStop(0, 3, 1)).toBe(0.5)
+    expect(nextStop(2.7, 3, 1)).toBe(3.5)
+    expect(nextStop(4, 3, 1)).toBeNull()
+  })
+
+  it("◀ hop / hop ▶ and '[' / ']' pause and step the clock through every hop", () => {
+    mount(<PlaybackBar />)
+    const prev = byTestId('playback-prev-hop') as HTMLButtonElement
+    const next = byTestId('playback-next-hop') as HTMLButtonElement
+    expect([prev.disabled, next.disabled]).toEqual([true, true]) // no press yet
+    expect(prev.getAttribute('aria-keyshortcuts')).toBe('[')
+    expect(next.getAttribute('aria-keyshortcuts')).toBe(']')
+    run(() => store().pressKey('A')) // instant: t = 12
+    const t = () => usePlaybackStore.getState().t
+    expect(next.disabled).toBe(true)
+    const seen: number[] = []
+    for (let i = 0; i < 12; i++) {
+      click(prev)
+      seen.push(t())
+    }
+    expect(seen).toEqual([11.5, 10.5, 9.5, 8.5, 7.5, 6.5, 5.5, 4.5, 3.5, 2.5, 1.5, 0.5])
+    expect(prev.disabled).toBe(true)
+    keyDown(document.body, ']')
+    expect(t()).toBe(1.5)
+    keyDown(document.body, '[')
+    expect(t()).toBe(0.5)
+    // A text field keeps its brackets.
+    const text = document.createElement('input')
+    document.body.appendChild(text)
+    keyDown(text, ']')
+    expect(t()).toBe(0.5)
+    text.remove()
+    // Stepping pauses a running animation.
+    run(() => usePlaybackStore.getState().setSpeed(0.25))
+    click(byTestId('playback-play')) // resumes from 0.5
+    expect(usePlaybackStore.getState().playing).toBe(true)
+    click(next)
+    expect(usePlaybackStore.getState()).toMatchObject({ playing: false, t: 1.5 })
+    // Gated like Play: disabled, and the keys do nothing.
+    run(() => usePlaybackStore.getState().setGated(true))
+    expect([prev.disabled, next.disabled]).toEqual([true, true])
+    keyDown(document.body, ']')
+    expect(usePlaybackStore.getState().t).toBe(0)
+  })
+
+  it('a focused slider, checkbox, radio, button or select does not swallow typing; text fields do', () => {
+    const make = (tag: string, attrs: Record<string, string> = {}) => {
+      const el = document.createElement(tag)
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+      document.body.appendChild(el)
+      return el
+    }
+    const notText = [
+      make('input', { type: 'range' }),
+      make('input', { type: 'checkbox' }),
+      make('input', { type: 'radio' }),
+      make('input', { type: 'button' }),
+      make('select'),
+      make('button'),
+    ]
+    const text = [
+      make('input'),
+      make('input', { type: 'search' }),
+      make('input', { type: 'number' }),
+      make('textarea'),
+      make('div', { contenteditable: 'true' }),
+      make('div', { role: 'spinbutton' }),
+    ]
+    for (const el of notText) expect(isTextEntry(el), el.outerHTML).toBe(false)
+    for (const el of text) expect(isTextEntry(el), el.outerHTML).toBe(true)
+
+    mount(<Keyboard />)
+    keyDown(notText[0]!, 'a') // the range slider
+    const onSelect = keyDown(notText[4]!, 'b') // the select: the press also cancels its type-ahead
+    expect(onSelect.defaultPrevented).toBe(true)
+    keyDown(text[0]!, 'c')
+    expect(store().input).toBe('AB')
+    for (const el of [...notText, ...text]) el.remove()
+  })
+})
+
+describe('review round 5: PermTable editable subset and onChange', () => {
+  const perm = [1, 0, null, null, 5, null] as const
+
+  it('makes only editableCells into inputs and keeps the rest read-only', () => {
+    mount(<PermTable perm={perm} editableCells={[2, 3, 5]} testId="ad" />)
+    expect(byTestId('ad').dataset.editable).toBe('some')
+    const inputs = [0, 1, 2, 3, 4, 5].map((i) => byTestId(`ad-cell-${i}`).querySelector('input') !== null)
+    expect(inputs).toEqual([false, false, true, true, false, true])
+    expect(byTestId('ad-cell-0').textContent).toBe('B')
+    expect(byTestId('ad-cell-4').dataset.value).toBe('F')
+  })
+
+  it('sends the whole table to onChange alongside onEdit', () => {
+    const onEdit = vi.fn()
+    const onChange = vi.fn()
+    mount(<PermTable perm={perm} editableCells={[2, 3]} onEdit={onEdit} onChange={onChange} testId="ad" />)
+    keyDown(byTestId('ad-cell-2').querySelector('input')!, 'd')
+    expect(onEdit).toHaveBeenLastCalledWith(2, 3)
+    expect(onChange).toHaveBeenLastCalledWith([1, 0, 3, null, 5, null])
+    keyDown(byTestId('ad-cell-3').querySelector('input')!, 'Backspace')
+    expect(onChange).toHaveBeenLastCalledWith([1, 0, null, null, 5, null])
+    expect(onChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('arrow keys, Home, End and typing move between editable cells only', () => {
+    mount(<PermTable perm={perm} editableCells={[1, 3, 5]} onEdit={() => {}} testId="ad" />)
+    const input = (i: number) => byTestId(`ad-cell-${i}`).querySelector('input')!
+    const focused = () => (document.activeElement?.closest('td') as HTMLElement | null)?.dataset.testid
+    input(1).focus()
+    keyDown(input(1), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-3') // skips read-only 2
+    keyDown(input(3), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-5')
+    keyDown(input(5), 'ArrowRight')
+    expect(focused()).toBe('ad-cell-5') // stays on the last editable cell
+    keyDown(input(5), 'ArrowLeft')
+    expect(focused()).toBe('ad-cell-3')
+    keyDown(input(3), 'Home')
+    expect(focused()).toBe('ad-cell-1')
+    keyDown(input(1), 'End')
+    expect(focused()).toBe('ad-cell-5')
+    keyDown(input(1), 'c') // typing moves on to the next editable cell
+    expect(focused()).toBe('ad-cell-3')
+  })
+
+  it('is a plain wrapper (no tab stop) while it fits; editable still means every cell', () => {
+    mount(<PermTable perm={perm} editable testId="all" />)
+    expect(byTestId('all').dataset.editable).toBe('true')
+    expect(byTestId('all').querySelectorAll('input')).toHaveLength(6)
+    const scroll = byTestId('all-scroll')
+    expect(scroll.dataset.scrollable).toBe('false')
+    expect(scroll.hasAttribute('tabindex')).toBe(false)
+    expect(scroll.hasAttribute('role')).toBe(false)
   })
 })
