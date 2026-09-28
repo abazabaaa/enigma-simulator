@@ -105,17 +105,38 @@ export function liveCount(ws: WireState, bank: Letter): number {
   return ws.live[letterToIndex(bank)]!.filter(Boolean).length
 }
 
-/** The menu's test letter: the letter with the most edges (ties: alphabetical). */
+/**
+ * The menu's test letter: in the connected piece of the menu with the most closures (ties: more edges, then the
+ * alphabetically first letter), the letter with the most edges (ties: alphabetical). Vector 14 gives A.
+ */
 export function testLetterOf(menu: Menu): Letter {
+  if (menu.edges.length === 0) throw new RangeError('An empty menu has no test letter')
   const degree = new Map<Letter, number>()
+  const parent = new Map<Letter, Letter>()
+  const find = (x: Letter): Letter => {
+    while (parent.get(x) !== x) x = parent.get(x)!
+    return x
+  }
   for (const e of menu.edges) {
+    for (const l of [e.a, e.b]) if (!parent.has(l)) parent.set(l, l)
     degree.set(e.a, (degree.get(e.a) ?? 0) + 1)
     degree.set(e.b, (degree.get(e.b) ?? 0) + 1)
+    const [ra, rb] = [find(e.a), find(e.b)]
+    if (ra !== rb) parent.set(ra, rb)
   }
-  let best: Letter | null = null
-  for (const l of [...degree.keys()].sort()) if (best === null || degree.get(l)! > degree.get(best)!) best = l
-  if (best === null) throw new RangeError('An empty menu has no test letter')
-  return best
+  const pieces = new Map<Letter, { letters: Letter[]; edges: number }>()
+  for (const l of [...parent.keys()].sort()) {
+    const root = find(l)
+    const piece = pieces.get(root) ?? { letters: [], edges: 0 }
+    piece.letters.push(l)
+    pieces.set(root, piece)
+  }
+  for (const e of menu.edges) pieces.get(find(e.a))!.edges++
+  const score = (p: { letters: Letter[]; edges: number }) => p.edges - p.letters.length + 1
+  const best = [...pieces.values()].sort(
+    (x, y) => score(y) - score(x) || y.edges - x.edges || x.letters[0]!.localeCompare(y.letters[0]!),
+  )[0]!
+  return best.letters.reduce((a, b) => (degree.get(b)! > degree.get(a)! ? b : a))
 }
 
 /**
