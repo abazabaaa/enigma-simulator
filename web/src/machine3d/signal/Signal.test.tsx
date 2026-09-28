@@ -435,6 +435,7 @@ describe('the ghost', () => {
     const rAnchors = r.userData.anchors as [number, number, number][]
     expect(gAnchors).toHaveLength(24)
     for (let i = 0; i <= 9; i++) expect(gAnchors[i]).toEqual(rAnchors[i])
+    expect(gAnchors[10]).not.toEqual(rAnchors[10])
     expect(gAnchors[13]).not.toEqual(rAnchors[13])
     const marker = named(scene, 'signal-diverge')
     expect(marker.userData.marker).toEqual(gAnchors[1 + 2 * ghost.divergeAt])

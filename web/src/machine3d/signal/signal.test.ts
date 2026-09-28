@@ -300,14 +300,16 @@ describe('ghost', () => {
   })
 
   it('places the ghost by its own letters: it meets the reference up to hop divergeAt, then leaves it', () => {
-    const ghost = demoGhost() // divergeAt 4; its hop 4 happens to end on the right letter, hop 5 does not
+    const ghost = demoGhost() // divergeAt 4: its hop 4 (left rotor, forward) ends on the wrong letter
     const reference = encodeLetter(createMachine(I), 'A').trace
     const g = pathPoints(ghostHops(ghost), l)
     const r = pathPoints(reference, l)
     const at = divergeAnchor(ghost)!
     expect(at).toBe(1 + 2 * 4)
     for (let i = 0; i <= at; i++) close(g[i]!, r[i]!)
-    const leftBwd = 1 + 2 * 6 // entry of rotor-left-bwd: the ghost carries 'E', the reference 'J'
+    // The exit of hop divergeAt is already apart (the fixture used to rejoin the reference there).
+    expect(dist(g[at + 1]!, r[at + 1]!)).toBeGreaterThan(0.5)
+    const leftBwd = 1 + 2 * 6 // entry of rotor-left-bwd: the ghost carries 'L', the reference 'J'
     expect(dist(g[leftBwd]!, r[leftBwd]!)).toBeGreaterThan(0.5)
     // Without re-placing, the core contacts the ghost copied from the reference would put its rotor
     // hops on the reference's wires.

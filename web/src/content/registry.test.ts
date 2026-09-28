@@ -29,6 +29,11 @@ describe('chapter registry (V13)', () => {
     }
   })
 
+  it('titles never give a chapter\'s bet away (II.6: whether the plugboard changes the cycles is its bet)', () => {
+    expect(chapterMeta('ii6-cycles')?.title).toBe('Cycles and the theorem')
+    for (const c of CHAPTERS) expect(c.title, c.id).not.toMatch(/cannot hide|plugboard can(?:no|')t/i)
+  })
+
   it('looks chapters up by id', () => {
     expect(chapterMeta('ii6-cycles')?.order).toBe(6)
     expect(chapterMeta('nope')).toBeUndefined()

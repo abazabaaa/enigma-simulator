@@ -4,7 +4,7 @@
  *  - preset: a StagePresetId (default overview), rendered through StageHost;
  *  - locks: MachineLocks keys applied to the default store (e.g. keyboard,positions,hold);
  *  - model: loads a demo configuration of that model (default I);
- *  - ghost=demo: a fixed ghost path that diverges from the reference at hop 4;
+ *  - ghost=demo: a fixed ghost path whose hop 4 (the left rotor) is the first to go wrong;
  *  - toy=6|8: the toy store gets randomToy(seed 1) and the stage source becomes 'toy'.
  */
 
@@ -66,20 +66,27 @@ export function parseLocks(csv: string | undefined): { locks: MachineLocks; unkn
   return { locks, unknown }
 }
 
-/** A fixed learner path for key A on the default key that leaves the reference at hop 4. */
+/** The hop where demoGhost leaves the reference (the left rotor, forward). */
+export const DEMO_DIVERGE_AT = 4
+
+/**
+ * A fixed learner path for key A on the default key that leaves the reference at hop DEMO_DIVERGE_AT: it follows
+ * the reference up to that hop's entry, that hop's output is 7 letters past the reference's (so it is wrong there,
+ * not one hop later), and from then on each hop continues from the ghost's own previous output.
+ */
 export function demoGhost(): Ghost {
   const reference = encodeLetter(createMachine(DEMO_CONFIGS.I), 'A').trace
   const hops: PathHop[] = []
   reference.forEach((hop, i) => {
-    if (i < 4) {
+    if (i < DEMO_DIVERGE_AT) {
       hops.push(hop)
       return
     }
-    const inputIndex = i === 4 ? hop.inputIndex : hops[i - 1]!.outputIndex
-    const outputIndex = (inputIndex + 7) % 26
+    const inputIndex = i === DEMO_DIVERGE_AT ? hop.inputIndex : hops[i - 1]!.outputIndex
+    const outputIndex = ((i === DEMO_DIVERGE_AT ? hop.outputIndex : inputIndex) + 7) % 26
     hops.push({ ...hop, input: LETTERS[inputIndex]!, output: LETTERS[outputIndex]!, inputIndex, outputIndex })
   })
-  return { hops, divergeAt: 4 }
+  return { hops, divergeAt: DEMO_DIVERGE_AT }
 }
 
 export function StageLabPage() {

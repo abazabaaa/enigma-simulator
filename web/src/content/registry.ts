@@ -60,7 +60,7 @@ export const CHAPTERS: readonly ChapterMeta[] = [
     id: 'ii6-cycles',
     act: 'II',
     order: 6,
-    title: 'Cycles the plugboard cannot hide',
+    title: 'Cycles and the theorem',
     dates: '1932',
     load: () => import('../chapters/ii6-cycles/index.ts'),
   },

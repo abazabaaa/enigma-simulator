@@ -244,6 +244,7 @@ test.describe('machine3d signal', { tag: ['@3d', '@area:machine3d-signal'] }, ()
     const at = 1 + 2 * g.divergeAt
     for (let i = 0; i <= at; i++) expect(same(g.ghostAnchors[i]!, g.referenceAnchors[i]!), `point ${i}`).toBe(true)
     expect(g.ghostAnchors.slice(at + 1).some((p, i) => !same(p, g.referenceAnchors[at + 1 + i]!))).toBe(true)
+    expect(same(g.ghostAnchors[at + 1]!, g.referenceAnchors[at + 1]!), 'apart from the exit of hop divergeAt').toBe(false)
     expect(g.marker).toEqual(g.ghostAnchors[at])
     // no ghost, no ghost path
     await gotoApp(page, '/lab/stage?preset=wire', { stage: '3d', motion: 'reduce' })
