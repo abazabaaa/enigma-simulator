@@ -6,6 +6,7 @@
 
 import type { JSX, ReactNode } from 'react'
 import type { WireState } from '../../../crypto/bombe'
+import type { Menu } from '../../../crypto/menu'
 import type { Letter } from '../../../engine'
 import { TestRegister, WireGrid } from '../../../viz'
 import { TOY_LETTERS, type Toy } from '../gates'
@@ -15,16 +16,28 @@ const up = (i: number) => String.fromCharCode(65 + i)
 /** The loop in order, back to its first letter: "C → F → D → C". */
 export const loopText = (loop: readonly Letter[]): string => [...loop, loop[0]!].join(' → ')
 
+/** Row labels for a toy loop's scramblers: "1: C–F", "2: F–D", … */
+export const loopLabels = (toy: Toy): string[] =>
+  toy.loop.map((a, j) => `${j + 1}: ${a}–${toy.loop[(j + 1) % toy.loop.length]}`)
+
+/** Row labels for any menu's scramblers, by crib position. */
+export const menuLabels = (menu: Menu): string[] =>
+  [...menu.edges].sort((x, y) => x.pos - y.pos).map((e) => `${e.pos}: ${e.a}–${e.b}`)
+
 /**
- * The scramblers of a toy loop as one table: a column per letter A–H, a row per scrambler. Read a partner in the
- * top row; the letter under it in scrambler j's row is the partner of the next letter round the loop.
+ * Scramblers as one table: a column per letter A–H, a row per scrambler. Read a partner in the top row; the letter
+ * under it in a scrambler's row is the partner of the other letter that scrambler joins.
  */
-export function ScramblerTable({ toy, caption, testId }: { toy: Toy; caption?: ReactNode; testId?: string }): JSX.Element {
-  const k = toy.loop.length
+export function ScramblerTable(p: {
+  labels: readonly string[]
+  tables: readonly string[]
+  caption?: ReactNode
+  testId?: string
+}): JSX.Element {
   return (
     <div className="max-w-full overflow-x-auto">
-      <table className="border-collapse font-mono text-sm" data-testid={testId ?? 'scrambler-table'}>
-        {caption ? <caption className="pb-1 text-left font-sans text-xs text-stone-400">{caption}</caption> : null}
+      <table className="border-collapse font-mono text-sm" data-testid={p.testId ?? 'scrambler-table'}>
+        {p.caption ? <caption className="pb-1 text-left font-sans text-xs text-stone-400">{p.caption}</caption> : null}
         <thead>
           <tr>
             <th scope="col" className="pr-3 text-left font-sans text-xs font-normal text-stone-400">
@@ -38,10 +51,10 @@ export function ScramblerTable({ toy, caption, testId }: { toy: Toy; caption?: R
           </tr>
         </thead>
         <tbody>
-          {toy.tables.map((t, j) => (
+          {p.tables.map((t, j) => (
             <tr key={j} data-scrambler={j + 1}>
               <th scope="row" className="pr-3 text-left font-sans text-xs font-normal whitespace-nowrap text-stone-300">
-                {j + 1}: {toy.loop[j]}–{toy.loop[(j + 1) % k]}
+                {p.labels[j]}
               </th>
               {[...t].map((c, w) => (
                 <td key={w} className="w-7 text-center text-amber-200">
@@ -71,6 +84,13 @@ export function registerText(live: readonly boolean[]): string {
   return `${on.length ? on.join(' ') : 'none'} (${on.length} of ${live.length})`
 }
 
+/** A sideways scroller for the 26-wire views: focusable, so the keyboard can scroll it (axe scrollable-region). */
+function scroller(wide: boolean, label: string): Record<string, unknown> {
+  return wide
+    ? { className: 'max-w-full overflow-x-auto rounded focus-visible:outline-2 focus-visible:outline-amber-400', tabIndex: 0, role: 'region', 'aria-label': label }
+    : {}
+}
+
 /**
  * The wire bench: the test register above, the wire grid below (26 wires scroll inside their own box on a phone).
  * `testIds` names the two views when a page shows more than one bench.
@@ -88,12 +108,12 @@ export function WireBench(p: {
   const register = registerAt(p.state, p.test, p.step)
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid={p.testIds ? `${p.testIds.grid}-bench` : 'wire-bench'}>
-      <div className={wide ? 'max-w-full overflow-x-auto' : ''}>
+      <div {...scroller(wide, `Test register ${p.test}, scrolls sideways`)}>
         <div style={wide ? { minWidth: 580, maxWidth: 680 } : { maxWidth: 420 }}>
           <TestRegister live={register} testLetter={p.test} testId={p.testIds?.register} />
         </div>
       </div>
-      <div className={wide ? 'max-w-full overflow-x-auto' : ''}>
+      <div {...scroller(wide, 'Wire grid, scrolls sideways')}>
         <div style={wide ? { minWidth: 416, maxWidth: 520 } : { maxWidth: 360 }}>
           <WireGrid
             state={p.state}
@@ -109,19 +129,21 @@ export function WireBench(p: {
   )
 }
 
-/** The events of a state as sentences: "Scrambler 2 (F–D): F↔b gives D↔h". */
-export function describeEvent(
-  state: WireState,
-  k: number,
-  loop: readonly Letter[] | null,
-): string {
+/**
+ * Event k of a propagation as a sentence: "Scrambler 2 (F–D): F↔b gives D↔h". The source wire is found from the
+ * scrambler itself (it is an involution: the wire it came from is its image in the other cable).
+ */
+export function describeEvent(state: WireState, k: number, menu: Menu, tables: readonly string[]): string {
   const e = state.order[k]!
   const bank = up(e.bank)
   const wire = up(e.wire).toLowerCase()
   if (e.via === 'hypothesis') return `The voltage goes onto wire ${wire} of cable ${bank}: the hypothesis ${bank}↔${wire}.`
   if (e.via === 'diagonal') return `The diagonal board: ${up(e.wire)}↔${bank.toLowerCase()} lights ${bank}↔${wire}.`
-  const prev = state.order[k - 1]
-  const from = prev ? `${up(prev.bank)}↔${up(prev.wire).toLowerCase()}` : ''
-  const link = loop ? ` (${loop[e.via - 1]}–${loop[e.via % loop.length]})` : ''
-  return `Scrambler ${e.via}${link}: ${from} gives ${bank}↔${wire}.`
+  const pos = e.via
+  const edge = menu.edges.find((x) => x.pos === pos)
+  const table = tables[pos - 1]
+  if (!edge || !table) return `Scrambler ${pos}: ${bank}↔${wire}.`
+  const other = edge.a === bank ? edge.b : edge.a
+  const from = table[e.wire]!
+  return `Scrambler ${pos} (${edge.a}–${edge.b}): ${other}↔${from.toLowerCase()} gives ${bank}↔${wire}.`
 }

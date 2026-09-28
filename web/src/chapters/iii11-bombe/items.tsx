@@ -24,11 +24,12 @@ import {
   tripChain,
   walkState,
   type ClickInstance,
+  type LiveAnswer as LiveAnswerValue,
   type LiveInstance,
   type ProbeInstance,
   type Toy,
 } from './gates'
-import { ScramblerTable, WireBench, loopText, registerText } from './scenes'
+import { ScramblerTable, WireBench, loopLabels, loopText, registerText } from './scenes'
 
 const up = (i: number) => String.fromCharCode(65 + i)
 const idx = (l: string) => l.toUpperCase().charCodeAt(0) - 65
@@ -94,7 +95,7 @@ function ClickPrompt({ instance, hintLevel }: { instance: ClickInstance; hintLev
         . Click it through the loop one scrambler at a time: for each, pick the partner it gives the next letter. Then say whether the
         loop brings back the partner you started from (C, consistent) or another one (X, a contradiction).
       </p>
-      <ScramblerTable toy={instance} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
       <Hint level={hintLevel}>
         Scrambler 1 joins {instance.loop[0]} and {instance.loop[1]}: find {instance.hypothesis} in the top row; the letter under it
         in row 1 is the partner of {instance.loop[1]}. Carry that letter to row 2, and so on round the loop. The last row gives a
@@ -178,7 +179,7 @@ function ClickWorked({ instance, solution }: { instance: ClickInstance; solution
   return (
     <div className="flex flex-col gap-2 text-sm">
       <ToyIntro toy={instance} />
-      <ScramblerTable toy={instance} testId="worked-tables" />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} testId="worked-tables" />
       <ol className="flex flex-col gap-0.5 font-mono text-xs">
         {partners.map((x, j) => (
           <li key={j}>
@@ -256,32 +257,34 @@ function LivePrompt({ instance, hintLevel }: { instance: LiveInstance; hintLevel
   return (
     <div className="flex flex-col gap-2">
       <ToyIntro toy={instance} drums="true" />
-      <ScramblerTable toy={instance} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
       <p>
         The voltage goes onto wire <Mono>{lower(x)}</Mono> of cable {t} (the hypothesis {t}↔{lower(x)}), and in a second test onto wire{' '}
         <Mono>{lower(y)}</Mono> ({t}↔{lower(y)}). Once the current has spread through every scrambler, how many of the 8 wires of the
-        test register are live in each test?
+        test register are live in each test? And which register wire does the current never reach when the hypothesis is false?
       </p>
       <Hint level={hintLevel}>
-        Take each hypothesis once round the loop with the tables. If it comes back as the same partner, the current has nowhere else
-        to go. If it comes back changed, the current carries on round the loop from the new wire, and on, until it returns to the wire
-        it started from: every wire it passes in cable {t} is live.
+        Take a hypothesis once round the loop with the tables. If it comes back as the same partner, the current has nowhere else to
+        go. If it comes back changed, the current carries on round the loop from the new wire, and on, until it returns to the wire it
+        started from: every wire it passes in cable {t} is live. The wire it can never reach belongs to the hypothesis that does come
+        back unchanged.
       </Hint>
     </div>
   )
 }
 
-function LiveAnswer({ instance, disabled, submit }: AnswerProps<LiveInstance, number[]>): JSX.Element {
+function LiveAnswer({ instance, disabled, submit }: AnswerProps<LiveInstance, LiveAnswerValue>): JSX.Element {
   const [fields, setFields] = useState(['', ''])
-  const values = fields.map((f) => (f.trim() === '' ? NaN : Number(f)))
-  const valid = values.every((v) => Number.isInteger(v))
+  const [dead, setDead] = useState<string | null>(null)
+  const counts = fields.map((f) => (f.trim() === '' ? NaN : Number(f)))
+  const valid = counts.every((v) => Number.isInteger(v)) && dead !== null
   const t = testOf(instance)
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (valid && !disabled) submit(values)
+        if (valid && !disabled) submit({ counts, dead: dead! })
       }}
     >
       <div className="flex flex-wrap gap-4">
@@ -300,6 +303,23 @@ function LiveAnswer({ instance, disabled, submit }: AnswerProps<LiveInstance, nu
           </label>
         ))}
       </div>
+      <div role="radiogroup" aria-label={`The register wire of ${t} that no false hypothesis reaches`} className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 text-sm text-stone-300">Never reached by a false hypothesis: wire</span>
+        {TOY_LETTERS.map((l) => (
+          <button
+            key={l}
+            type="button"
+            role="radio"
+            aria-checked={dead === l}
+            disabled={disabled}
+            data-testid={`live-dead-${l}`}
+            onClick={() => setDead(l)}
+            className={`${QUIET_BUTTON} w-9 px-0 font-mono ${dead === l ? 'border-amber-400 text-amber-100' : ''}`}
+          >
+            {lower(l)}
+          </button>
+        ))}
+      </div>
       <div>
         <SubmitButton form disabled={disabled || !valid} />
       </div>
@@ -307,13 +327,13 @@ function LiveAnswer({ instance, disabled, submit }: AnswerProps<LiveInstance, nu
   )
 }
 
-function LiveWorked({ instance, solution }: { instance: LiveInstance; solution: number[] }): JSX.Element {
+function LiveWorked({ instance, solution }: { instance: LiveInstance; solution: LiveAnswerValue }): JSX.Element {
   const t = testOf(instance)
   const falseOne = instance.hypotheses.find((h) => toyLive(instance, h) !== 1) ?? instance.hypotheses[0]
   return (
     <div className="flex flex-col gap-2 text-sm">
       <ToyIntro toy={instance} drums="true" />
-      <ScramblerTable toy={instance} testId="worked-tables" />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} testId="worked-tables" />
       <ul className="flex flex-col gap-1">
         {instance.hypotheses.map((h, k) => {
           const back = tripChain(instance, h).at(-1)!
@@ -328,17 +348,19 @@ function LiveWorked({ instance, solution }: { instance: LiveInstance; solution: 
         })}
       </ul>
       <p>
-        Answer <Mono>{solution.join(' and ')}</Mono>.
+        The one letter that comes back unchanged is {lower(solution.dead)}, so no false hypothesis reaches wire {lower(solution.dead)}. Answer{' '}
+        <Mono>{solution.counts.join(' and ')}</Mono>, wire <Mono>{lower(solution.dead)}</Mono>.
       </p>
       <WireBench state={walkState(instance, falseOne)} test={t} diagonal={false} testIds={{ grid: 'worked-grid', register: 'worked-register' }} />
     </div>
   )
 }
 
-function LiveFeedback({ instance, result }: { instance: LiveInstance; answer: number[]; result: CheckResult }): JSX.Element | null {
+function LiveFeedback({ instance, result }: { instance: LiveInstance; answer: LiveAnswerValue; result: CheckResult }): JSX.Element | null {
   const rb = result.rollback
-  const h = rb.kind === 'wires' ? instance.hypotheses[rb.scrambler] ?? instance.hypotheses[0] : instance.hypotheses[0]
-  const state = useMemo(() => walkState(instance, h), [instance, h])
+  const k = rb.kind === 'wires' ? rb.scrambler : 0
+  const h = k < 2 ? instance.hypotheses[k]! : (rb.kind === 'wires' ? (rb.expected[0] ?? instance.hypotheses[0]) : instance.hypotheses[0])
+  const state = useMemo(() => walkState(instance, h as Letter), [instance, h])
   const [step, setStep] = useState(state.order.length)
   if (rb.kind !== 'wires') return null
   return (
@@ -386,8 +408,8 @@ function ProbePrompt({ instance, hintLevel }: { instance: ProbeInstance; hintLev
   const h = lower(instance.hypothesis)
   return (
     <div className="flex flex-col gap-2">
-      <ToyIntro toy={instance} drums={instance.mode === 'register' ? instance.position : undefined} />
-      <ScramblerTable toy={instance} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
+      <ToyIntro toy={instance} drums={instance.mode === 'register' ? 'true' : undefined} />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} caption="The scramblers: a partner in the top row becomes the partner in the scrambler’s row" />
       {instance.mode === 'trip' ? (
         <p>
           The voltage is on wire {h} of cable {t} (lit). On the wire grid, mark every wire that one trip round the loop lights: the
@@ -434,8 +456,8 @@ function ProbeAnswer({ instance, disabled, submit }: AnswerProps<ProbeInstance, 
 function ProbeWorked({ instance, solution }: { instance: ProbeInstance; solution: string[] }): JSX.Element {
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <ToyIntro toy={instance} drums={instance.mode === 'register' ? instance.position : undefined} />
-      <ScramblerTable toy={instance} testId="worked-tables" />
+      <ToyIntro toy={instance} drums={instance.mode === 'register' ? 'true' : undefined} />
+      <ScramblerTable labels={loopLabels(instance)} tables={instance.tables} testId="worked-tables" />
       <p>
         From {testOf(instance)}↔{lower(instance.hypothesis)} the live wires are{' '}
         <Mono>{solution.map((c) => `${c[0]}${lower(c[1]!)}`).join(' ')}</Mono>.

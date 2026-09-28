@@ -4,13 +4,14 @@
  *                   scrambler round the loop, then the verdict token (C consistent, X contradiction). The truth is
  *                   computed at check time from the tables. The hypothesis is the true partner on every third attempt
  *                   only, so "every loop is consistent" never passes.
- *  - live-count     numbers(2) · 2/3 · the toy at the day's true position and two hypotheses for the test letter → the
- *                   live wires of the test register for each (1 for the true partner, 7 for a false one, verified with
- *                   propagate). Every instance holds a false hypothesis, so "a false hypothesis lights every wire"
- *                   (8) never passes.
+ *  - live-count     custom (two counts and a letter) · 2/3 · the toy at the day's true position and two hypotheses for
+ *                   the test letter → the live register wires for each (1 for the true partner, 7 for a false one,
+ *                   verified with propagate) and the one wire no false hypothesis lights. Every instance holds a false
+ *                   hypothesis, so "a false hypothesis lights every wire" (8) never passes; the letter keeps a constant
+ *                   answer rare (a pure count had one answer in three).
  *  - board-myth     choice(4) · once · constant answer · Victory had no diagonal board (Welchman's, Agnus Dei).
  *  - grid-probe     the fallback, custom inPage, per trigger: after click-through the learner marks the wires one trip
- *                   round the loop lights; otherwise the live wires of the test register (true or wrong position).
+ *                   round the loop lights; otherwise the live wires of the test register at the day's position.
  * Scene data: the eight-letter toy (wire-8), the ATTACKATDAWN day (wire-26 and diagonal).
  */
 
@@ -23,7 +24,7 @@ import { menuFromCrib, menuFromEdges, type Menu } from '../../crypto/menu'
 import { positionIndex, positionString } from '../../crypto/tables'
 import { LETTERS, fromPairs, normalizeConfig, type MachineConfig } from '../../engine'
 import { createRng, int, pick, sample, seedFor, shuffle, type Rng } from '../../lib/rng'
-import { chainItem, choiceItem, firstDiff, numbersItem, numbersMatch, verdict } from '../../lesson/kinds'
+import { chainItem, choiceItem, firstDiff, verdict } from '../../lesson/kinds'
 
 const WINDOW = { kind: 'window' } as const
 const ONCE = { kind: 'once' } as const
@@ -155,36 +156,76 @@ const tablesOf = (zs: readonly (readonly number[])[]): string[] => zs.map((z) =>
 export function trueToy(r: Rng, k: 3 | 4): { toy: Toy; partner: Letter } {
   for (;;) {
     const b = toyBombe(r, { n: N8, scramblers: k })
+    // toyBombe leaves the test letter unsteckered about half the time; keep 1 in 7 of those, so the partner is
+    // uniform over the eight letters (no answer letter is more common than another).
+    if (b.truth.wire === b.truth.bank && int(r, 7) !== 0) continue
+    // One trip round the loop is a permutation P of the register's wires; the register lights the cycle of P
+    // through the hypothesis (walkState = propagate, unit-tested). Keep toys where P fixes the partner and runs
+    // through the other seven letters in one cycle: 1 wire for the partner, 7 for every other hypothesis.
+    const P = range(N8).map((x) => b.scramblers.reduce((y, z) => z[y]!, x))
+    const s0 = idx(b.truth.wire)
+    const start = s0 === 0 ? 1 : 0
+    let len = 1
+    for (let y = P[start]!; y !== start && len <= N8; y = P[y]!) len++
+    if (P[s0] !== s0 || len !== N8 - 1) continue
     const toy: Toy = { loop: b.menu.edges.map((e) => e.a), tables: tablesOf(b.scramblers) }
-    const ok = TOY_LETTERS.every((w) => toyLive(toy, w) === (w === b.truth.wire ? 1 : N8 - 1))
-    if (ok) return { toy, partner: b.truth.wire }
+    return { toy, partner: b.truth.wire }
   }
 }
 
-/** Random scramblers for the same loop at a wrong drum position: every hypothesis lights all 8 register wires. */
-export function wrongToy(r: Rng, loop: readonly Letter[]): Toy {
-  for (;;) {
-    const zs = loop.map(() => pairedInvolution(r, N8, 0, 1 + int(r, N8 - 1)))
-    const toy: Toy = { loop, tables: tablesOf(zs) }
-    if (TOY_LETTERS.every((w) => toyLive(toy, w) === N8)) return toy
-  }
+/** A toy menu of any shape: its links (menu.edges, pos 1…k), the scrambler of each link, and the test letter. */
+export interface MenuToy {
+  readonly menu: Menu
+  readonly tables: readonly string[]
+  readonly test: Letter
 }
 
-/** The scene's toy (wire-8): four scramblers, the test letter's partner off the loop. */
+export function menuToyState(t: MenuToy, wire: Letter, diagonal = false): WireState {
+  return propagate(t.menu, toyScramblers(t), { bank: t.test, wire }, { n: N8, diagonal })
+}
+
+export const menuToyLive = (t: MenuToy, wire: Letter): number => liveCount(menuToyState(t, wire), t.test)
+
+/**
+ * The scene's toy (wire-8): a figure of eight, two loops of three scramblers through the test letter
+ * (T–A–B–T and T–C–D–T). With one loop the bombe could never light all 8 register wires: on 8 letters every
+ * scrambler is an even permutation, so one trip round a loop is too, and an 8-cycle is odd. Two loops can. At the
+ * day's position the scramblers pair the plugboard partners of their letters: the true partner lights 1 register
+ * wire, every other hypothesis 7. At the wrong position every hypothesis lights all 8. Verified with propagate.
+ */
 export const TOY8 = (() => {
   for (let k = 1; ; k++) {
     const r = createRng(seedFor('iii11-toy8', k))
-    const found = trueToy(r, 4)
-    if (found.toy.loop.includes(found.partner)) continue
-    const wrong = wrongToy(r, found.toy.loop)
-    return { ...found, wrong }
+    const letters = sample(r, TOY_LETTERS, 5)
+    const [t, a, b, c, d] = letters as [Letter, Letter, Letter, Letter, Letter]
+    const pairs: [Letter, Letter][] = [[t, a], [a, b], [b, t], [t, c], [c, d], [d, t]]
+    const menu = menuFromEdges(pairs.map(([x, y], j) => ({ a: x, b: y, pos: j + 1 })))
+    const S = range(N8)
+    const outside = TOY_LETTERS.filter((l) => !letters.includes(l))
+    const partner = pick(r, outside)
+    S[idx(t)] = idx(partner)
+    S[idx(partner)] = idx(t)
+    const rest = shuffle(r, range(N8).filter((x) => x !== idx(t) && x !== idx(partner)))
+    for (let i = 0; i + 1 < rest.length && i < 2 * int(r, 3); i += 2) {
+      S[rest[i]!] = rest[i + 1]!
+      S[rest[i + 1]!] = rest[i]!
+    }
+    const truth: MenuToy = {
+      menu,
+      test: t,
+      tables: tablesOf(pairs.map(([x, y]) => pairedInvolution(r, N8, S[idx(x)]!, S[idx(y)]!))),
+    }
+    if (!TOY_LETTERS.every((w) => menuToyLive(truth, w) === (w === partner ? 1 : N8 - 1))) continue
+    const wrong: MenuToy = { menu, test: t, tables: tablesOf(pairs.map(() => pairedInvolution(r, N8, 0, 1 + int(r, N8 - 1)))) }
+    if (!TOY_LETTERS.every((w) => menuToyLive(wrong, w) === N8)) continue
+    return { truth, wrong, partner }
   }
 })()
 
 /** The wire-8 bet's hypothesis: the first letter that is neither the test letter nor its partner (a false one). */
-export const TOY8_FIRST_WIRE: Letter = TOY_LETTERS.find((w) => w !== testOf(TOY8.toy) && w !== TOY8.partner)!
-/** The bet's truth: the live register wires for that hypothesis at the true position (7). */
-export const TOY8_FIRST_LIVE = toyLive(TOY8.toy, TOY8_FIRST_WIRE)
+export const TOY8_FIRST_WIRE: Letter = TOY_LETTERS.find((w) => w !== TOY8.truth.test && w !== TOY8.partner)!
+/** The bet's truth: the live register wires for that hypothesis at the day's position (7). */
+export const TOY8_FIRST_LIVE = menuToyLive(TOY8.truth, TOY8_FIRST_WIRE)
 
 // ---------------------------------------------------------------------------
 // The 26-wire bombe: a fixed day with a cribbed message over ATTACKATDAWN (wire-26, diagonal)
@@ -314,59 +355,83 @@ export const clickThrough = chainItem<ClickInstance>({
 })
 
 // ---------------------------------------------------------------------------
-// live-count · numbers(2) · 2/3 (rollback: wires)
+// live-count · custom · 2/3 (rollback: wires)
 // ---------------------------------------------------------------------------
 
 export interface LiveInstance extends Toy {
-  readonly count: 2
   readonly alphabet: 8
   /** Two hypotheses for the test letter (loop[0]), tested in turn at the day's true position. */
   readonly hypotheses: readonly [Letter, Letter]
 }
 
+/** The live register wires of each test, and the one register wire no false hypothesis lights. */
+export interface LiveAnswer {
+  readonly counts: readonly number[]
+  readonly dead: string
+}
+
+/** The count choices the answer offers (8 is the misconception at the true position). */
 export const LIVE_RANGE: readonly number[] = [1, 7, 8]
 
-/** Two out of three instances hold the true partner (in a random slot) and a false one; the rest two false ones. */
+/** The true partner of the test letter: the one hypothesis that comes back unchanged (computed, never stored). */
+export const livePartner = (t: Toy): Letter => TOY_LETTERS.find((w) => toyLive(t, w) === 1)!
+
+/**
+ * The toy at the day's position and two hypotheses, three balanced classes: (true, false), (false, true) and
+ * (false, false). The partner is uniform over the eight letters, so no answer is more common than 1 in 24.
+ */
 export function liveInstance(r: Rng): LiveInstance {
   const k = (3 + int(r, 2)) as 3 | 4
   const { toy, partner } = trueToy(r, k)
   const falses = TOY_LETTERS.filter((w) => w !== partner)
-  const pair: Letter[] = int(r, 3) < 2 ? shuffle(r, [partner, pick(r, falses)]) : sample(r, falses, 2)
-  return { count: 2, alphabet: 8, ...toy, hypotheses: [pair[0]!, pair[1]!] }
+  const c = int(r, 3)
+  const [f1, f2] = sample(r, falses, 2) as [Letter, Letter]
+  const hypotheses: [Letter, Letter] = c === 0 ? [partner, f1] : c === 1 ? [f1, partner] : [f1, f2]
+  return { alphabet: 8, ...toy, hypotheses }
 }
 
-export const liveSolution = (i: LiveInstance): number[] => i.hypotheses.map((h) => toyLive(i, h))
+export const liveSolution = (i: LiveInstance): LiveAnswer => ({
+  counts: i.hypotheses.map((h) => toyLive(i, h)),
+  dead: livePartner(i),
+})
 
 export function liveCheck(i: LiveInstance, a: unknown): CheckResult {
   const expected = liveSolution(i)
-  const got = Array.isArray(a) ? a.map(Number) : []
-  if (numbersMatch(expected, got)) return verdict(true)
-  const k = Math.max(0, expected.findIndex((e, j) => e !== got[j]))
+  const ans = (a ?? {}) as Partial<LiveAnswer>
+  const counts = Array.isArray(ans.counts) ? ans.counts.map(Number) : []
+  const dead = String(ans.dead ?? '').toUpperCase()
+  const k = expected.counts.findIndex((e, j) => e !== counts[j])
+  if (k === -1 && dead === expected.dead) return verdict(true)
+  if (k === -1) {
+    return verdict(
+      false,
+      wiresRollback(2, [expected.dead], [dead]),
+      `With every false hypothesis the current reaches all the register wires but one: wire ${expected.dead.toLowerCase()}, the true partner’s. Only ${testOf(i)}↔${expected.dead.toLowerCase()} comes back unchanged round the loop.`,
+    )
+  }
   const h = i.hypotheses[k]!
-  const wires = registerWires(i, h)
   const feedback =
-    expected[k] === 1
+    expected.counts[k] === 1
       ? `With the voltage on wire ${h.toLowerCase()} the loop gives back ${h}: the current goes nowhere else, and only 1 register wire is live.`
-      : `With the voltage on wire ${h.toLowerCase()} the loop keeps changing the partner, and every register wire but one goes live: ${expected[k]} of 8.`
-  return verdict(false, wiresRollback(k, wires, [h]), feedback)
+      : `With the voltage on wire ${h.toLowerCase()} the loop keeps changing the partner, and every register wire but one goes live: ${expected.counts[k]} of 8.`
+  return verdict(false, wiresRollback(k, registerWires(i, h), [h]), feedback)
 }
 
-export const liveCountItem = numbersItem<LiveInstance>({
+export const liveCountItem: ItemLogic<LiveInstance, LiveAnswer> = {
   id: 'live-count',
+  kind: 'custom',
   rule: WINDOW,
-  range: LIVE_RANGE,
+  compute: true,
+  inPage: false,
   generate: (r) => liveInstance(r),
   same: (a, b) => sameJson([a.loop, a.tables, a.hypotheses], [b.loop, b.tables, b.hypotheses]),
   solve: liveSolution,
   check: liveCheck,
-  mutate: (_i, a) => {
-    const out = Array.isArray(a) ? a.map(Number) : [1, 1]
-    out[0] = out[0] === 1 ? 7 : out[0] === 7 ? 8 : 1
-    return out
-  },
+  sampleAnswer: (_i, r) => ({ counts: [pick(r, LIVE_RANGE), pick(r, LIVE_RANGE)], dead: pick(r, TOY_LETTERS) }),
+  mutate: (_i, a) => ({ ...a, dead: L((idx(String(a?.dead ?? 'A')) + 1) % N8) }),
   setup: () => ({ stage: null }),
   highlight: () => [],
-})
+}
 
 // ---------------------------------------------------------------------------
 // board-myth · choice(4) · once · constant answer (rollback: none)
@@ -417,8 +482,6 @@ export interface ProbeInstance extends Toy {
   readonly alphabet: 8
   /** 'trip': mark the wires one trip round the loop lights; 'register': mark the live wires of the test register. */
   readonly mode: 'trip' | 'register'
-  /** Whether the drums are at the day's true position ('register' mode only says so; 'trip' is always true). */
-  readonly position: 'true' | 'wrong'
   readonly hypothesis: Letter
 }
 
@@ -447,12 +510,11 @@ export function probeInstance(r: Rng, ctx: Pick<GenCtx, 'key'>): ProbeInstance {
   if (trigger === 'click-through') {
     const { toy, partner } = trueToy(r, (3 + int(r, 2)) as 3 | 4)
     const hypothesis = int(r, 3) === 0 ? partner : pick(r, TOY_LETTERS.filter((w) => w !== partner))
-    return { alphabet: 8, ...toy, mode: 'trip', position: 'true', hypothesis }
+    return { alphabet: 8, ...toy, mode: 'trip', hypothesis }
   }
   const { toy, partner } = trueToy(r, 3)
-  if (int(r, 3) === 0) return { alphabet: 8, ...wrongToy(r, toy.loop), mode: 'register', position: 'wrong', hypothesis: pick(r, TOY_LETTERS) }
   const hypothesis = int(r, 3) === 0 ? partner : pick(r, TOY_LETTERS.filter((w) => w !== partner))
-  return { alphabet: 8, ...toy, mode: 'register', position: 'true', hypothesis }
+  return { alphabet: 8, ...toy, mode: 'register', hypothesis }
 }
 
 const cellsOf = (a: unknown): string[] =>

@@ -1,7 +1,7 @@
 /**
- * wire-8: Ellsbury's eight-letter bombe. One loop of four scramblers on A–H, the test register on the loop's first
- * letter. The bet (how many register wires a wrong hypothesis lights) gates the current; then the learner steps it
- * round the loop one scrambler at a time, tries other hypotheses and a wrong drum position.
+ * wire-8: Ellsbury's eight-letter bombe. A menu of two loops through the test letter (six scramblers on A–H). The bet
+ * (how many register wires a wrong hypothesis lights) gates the current; then the learner steps it through the
+ * scramblers one at a time, tries other hypotheses and a wrong drum position.
  */
 
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
@@ -9,17 +9,18 @@ import type { SceneProps } from '../../../contracts/lesson'
 import type { Letter } from '../../../engine'
 import { BUTTON, Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
 import { MenuGraph } from '../../../viz'
-import { TOY8, TOY8_FIRST_LIVE, TOY8_FIRST_WIRE, TOY_LETTERS, testOf, toyMenu, walkState } from '../gates'
-import { ScramblerTable, WireBench, describeEvent, loopText, registerAt, registerText } from './Bench'
+import { TOY8, TOY8_FIRST_LIVE, TOY8_FIRST_WIRE, TOY_LETTERS, menuToyState } from '../gates'
+import { ScramblerTable, WireBench, describeEvent, menuLabels, registerAt, registerText } from './Bench'
 
-const TEST = testOf(TOY8.toy)
+const TEST = TOY8.truth.test
+const LOOPS = [0, 3].map((j) => [...TOY8.truth.menu.edges.slice(j, j + 3).map((e) => e.a), TOY8.truth.test].join(' → '))
 
 export function Wire8View(p: SceneProps): JSX.Element {
   const fired = useRevealFired('live8')
   const [wire, setWire] = useState<Letter>(TOY8_FIRST_WIRE)
   const [where, setWhere] = useState<'true' | 'wrong'>('true')
-  const toy = where === 'true' ? TOY8.toy : TOY8.wrong
-  const state = useMemo(() => walkState(toy, wire), [toy, wire])
+  const toy = where === 'true' ? TOY8.truth : TOY8.wrong
+  const state = useMemo(() => menuToyState(toy, wire), [toy, wire])
   const [step, setStep] = useState(1)
   const total = state.order.length
   const shown = fired ? Math.min(step, total) : 1
@@ -48,7 +49,7 @@ export function Wire8View(p: SceneProps): JSX.Element {
     setStep(1)
   }
 
-  const recent = state.order.slice(0, shown).map((_, k) => describeEvent(state, k, toy.loop)).slice(-4)
+  const recent = state.order.slice(0, shown).map((_, k) => describeEvent(state, k, toy.menu, toy.tables)).slice(-4)
 
   return (
     <div
@@ -61,24 +62,25 @@ export function Wire8View(p: SceneProps): JSX.Element {
     >
       <p>
         The real bombe has 26 wires in every cable, too many to follow by eye, so Graham Ellsbury drew one with only the
-        letters A–H. Here is such a bombe for a menu with one loop, <Mono>{loopText(TOY8.toy.loop)}</Mono>. Each link of the loop is
-        a scrambler: an Enigma without its plugboard, at the drum position for that crib letter. Every letter of the menu has a
-        cable of eight wires, one per letter: wire <Mono>b</Mono> of cable <Mono>{TEST}</Mono> carries the hypothesis &ldquo;{TEST}{' '}
-        is steckered to B&rdquo;.
+        letters A–H. Here is such a bombe for a menu with two loops through {TEST}: <Mono>{LOOPS[0]}</Mono> and{' '}
+        <Mono>{LOOPS[1]}</Mono>. Each link is a scrambler: an Enigma without its plugboard, at the drum position for that crib
+        letter. Every letter of the menu has a cable of eight wires, one per letter: wire <Mono>b</Mono> of cable <Mono>{TEST}</Mono>{' '}
+        carries the hypothesis &ldquo;{TEST} is steckered to B&rdquo;. Cable {TEST} is the test register.
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="max-w-sm">
-          <MenuGraph menu={toyMenu(TOY8.toy)} highlightLoop={TOY8.toy.loop} testId="wire8-menu" />
+          <MenuGraph menu={TOY8.truth.menu} testId="wire8-menu" />
         </div>
         <div className="flex flex-col gap-2">
           <ScramblerTable
-            toy={toy}
-            caption={`The four scramblers ${where === 'true' ? 'at the day’s drum position' : 'at a wrong drum position'}: a partner in the top row becomes the partner below`}
+            labels={menuLabels(toy.menu)}
+            tables={toy.tables}
+            caption={`The six scramblers ${where === 'true' ? 'at the day’s drum position' : 'at a wrong drum position'}: a partner in the top row becomes the partner below`}
             testId="wire8-tables"
           />
           <p>
-            A scrambler joins wire x of one cable to wire y of the next exactly when it swaps x and y: if {TEST} is steckered to x,
-            the next letter round the loop is steckered to the letter under x.
+            A scrambler joins wire x of one cable to wire y of the other exactly when it swaps x and y: if one of its letters is
+            steckered to x, the other is steckered to the letter under x. The voltage spreads along every such join.
           </p>
         </div>
       </div>
@@ -147,8 +149,8 @@ export function Wire8View(p: SceneProps): JSX.Element {
             {live === 1
               ? `The loop gives ${wire.toLowerCase()} straight back, so the current goes nowhere else: 1 register wire is live. ${TEST}↔${wire.toLowerCase()} survives, and the bombe would stop here.`
               : live === 8
-                ? `Round and round the loop the current reaches every wire: all 8 register wires are live, so every hypothesis for ${TEST} is refuted at once and the bombe moves on.`
-                : `Each trip round the loop changes the partner, and the current keeps going until it is back on wire ${wire.toLowerCase()}: ${live} register wires are live (${registerText(register)}). Only one wire stays dead, and it is the one no false hypothesis can reach.`}
+                ? `Round the two loops the current reaches every wire: all 8 register wires are live, so every hypothesis for ${TEST} is refuted at once and the bombe moves on.`
+                : `Every trip round a loop changes the partner, and the current keeps going until there is nowhere new to go: ${live} register wires are live (${registerText(register)}). Only wire ${TOY_LETTERS.find((_, w) => !register[w])!.toLowerCase()} stays dead: the one wire no false hypothesis can reach.`}
           </p>
         ) : null}
       </div>

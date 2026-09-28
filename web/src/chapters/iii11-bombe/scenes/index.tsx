@@ -3,4 +3,4 @@
 export { DiagonalView } from './Diagonal'
 export { Wire26View } from './Wire26'
 export { Wire8View } from './Wire8'
-export { ScramblerTable, WireBench, describeEvent, loopText, registerAt, registerText } from './Bench'
+export { ScramblerTable, WireBench, describeEvent, loopLabels, loopText, menuLabels, registerAt, registerText } from './Bench'

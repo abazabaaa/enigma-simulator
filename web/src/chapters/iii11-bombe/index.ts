@@ -8,7 +8,7 @@
 import type { ChapterDef, SceneDef } from '../../contracts/lesson'
 import { bindGates } from '../../lesson/bind'
 import { FACTS } from './facts'
-import { B26, GATES, PARKED, READ_ONLY, TOY8, TOY8_FIRST_WIRE, testOf } from './gates'
+import { B26, GATES, PARKED, READ_ONLY, TOY8, TOY8_FIRST_WIRE } from './gates'
 import { ITEM_UI } from './items'
 import { DiagonalView, Wire26View, Wire8View } from './scenes'
 
@@ -21,7 +21,7 @@ const STORY =
   'with eight letters, the way Graham Ellsbury drew it.'
 
 const SETUP = { machine: PARKED, locks: READ_ONLY }
-const T8 = testOf(TOY8.toy)
+const T8 = TOY8.truth.test
 
 const scenes: readonly SceneDef[] = [
   {
@@ -46,7 +46,7 @@ const scenes: readonly SceneDef[] = [
     bets: [
       {
         id: 'live8',
-        prompt: `The drums are at the day’s position, but ${T8} is not steckered to ${TOY8_FIRST_WIRE}. The voltage goes onto wire ${TOY8_FIRST_WIRE.toLowerCase()} of cable ${T8}. Once it has spread through all four scramblers, how many of the 8 register wires are live?`,
+        prompt: `The drums are at the day’s position, but ${T8} is not steckered to ${TOY8_FIRST_WIRE}. The voltage goes onto wire ${TOY8_FIRST_WIRE.toLowerCase()} of cable ${T8}. Once it has spread through all six scramblers, how many of the 8 register wires are live?`,
         kind: 'choice',
         options: [
           { id: '1', label: '1 wire: only the one the voltage went onto' },
