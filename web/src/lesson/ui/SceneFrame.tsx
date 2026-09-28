@@ -47,6 +47,48 @@ export interface SceneFrameProps {
   onBack(): void
 }
 
+/** Set by ChapterPlayer when the learner moves between scenes: the next scene takes the focus when it mounts. */
+let focusOnEnter = false
+export function requestSceneFocus(): void {
+  focusOnEnter = true
+}
+
+const BET_CONTROL = '[data-testid^="bet-option-"], [data-testid^="bet-input-"]'
+const ANSWER_CONTROL =
+  '[data-role="answer"] :is(input, textarea, select, button, [tabindex="0"]):not([disabled]):not([tabindex="-1"])'
+
+/** Focusable now: not disabled (itself or by a fieldset), not aria-disabled, not inside an inert region. */
+function usable(el: HTMLElement): boolean {
+  return !el.matches(':disabled') && el.getAttribute('aria-disabled') !== 'true' && !el.closest('[inert]')
+}
+
+/**
+ * Focus the first element matching the selectors in priority order. While the scene (or its gate) finishes
+ * rendering, a present but not yet usable element (a key the unlock is about to enable) is waited for, for up
+ * to 20 frames; then the first usable match of any selector gets the focus, else `fallback`.
+ */
+function focusFirst(root: HTMLElement | null, selectors: readonly string[], fallback: () => HTMLElement | null): void {
+  let frames = 0
+  const attempt = () => {
+    if (!root?.isConnected) return
+    const patient = frames < 20
+    for (const sel of selectors) {
+      const el = root.querySelector<HTMLElement>(sel)
+      if (!el) continue
+      if (usable(el)) {
+        el.focus()
+        if (document.activeElement === el) return
+      }
+      if (patient) break
+    }
+    if (patient) {
+      frames++
+      requestAnimationFrame(attempt)
+    } else fallback()?.focus()
+  }
+  attempt()
+}
+
 /** Commit a bet of this chapter (the UI and __course.bet share it). No-op when already committed. */
 export function commitBet(chapter: AnyChapterId, bet: string, value: string): boolean {
   const key = betKey(chapter, bet)
@@ -130,6 +172,21 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
   const firedRef = useRef(fired)
   firedRef.current = fired
   const [gateHandle, setGateHandle] = useState<GateHandle | null>(null)
+  const articleRef = useRef<HTMLElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const [focusAfterBet, setFocusAfterBet] = useState<string | null>(null)
+
+  // Entering a scene by Next/Back: the first bet option, else the gate's first control, else the heading.
+  useEffect(() => {
+    if (!focusOnEnter) return
+    focusOnEnter = false
+    const wantsControl = scene.kind === 'explore' || scene.kind === 'gate' || scene.kind === 'recall'
+    if (!wantsControl) {
+      headingRef.current?.focus()
+      return
+    }
+    focusFirst(articleRef.current, [BET_CONTROL, ANSWER_CONTROL], () => headingRef.current)
+  }, [scene])
 
   // The scene's setup, applied on enter; its locks (and any bet gating) are released on leave.
   useLayoutEffect(() => {
@@ -211,6 +268,24 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     [fired, isCommitted, isAllowed, fire],
   )
 
+  // After a bet is committed: its trigger (the Step/Run/… button, or the key for a press), else the next bet,
+  // else Next. Runs after the re-render that enables them.
+  useEffect(() => {
+    if (!focusAfterBet) return
+    setFocusAfterBet(null)
+    const r = reveals.find((x) => x.bet === focusAfterBet)
+    const trigger = r
+      ? r.trigger === 'press'
+        ? `[data-testid="key-${r.key ?? 'A'}"], [data-testid="toy-key-${r.key ?? 'A'}"]`
+        : `[data-testid="reveal-${r.bet}"]`
+      : null
+    focusFirst(
+      articleRef.current,
+      [...(trigger ? [trigger] : []), BET_CONTROL, '[data-testid="scene-next"][aria-disabled="false"]'],
+      () => headingRef.current,
+    )
+  }, [focusAfterBet, reveals, fired, bets])
+
   const betHandle = useCallback(
     (id: string): BetHandle => {
       const rec = useProgress.getState().bets[betKey(chapter, id)]
@@ -250,6 +325,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
   return (
     <SceneRuntimeContext.Provider value={runtime}>
       <article
+        ref={articleRef}
         data-testid="scene"
         data-scene={scene.id}
         data-kind={scene.kind}
@@ -257,7 +333,9 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
         data-tasks={JSON.stringify((scene.tasks ?? []).map((t) => t.id))}
         className="flex flex-col gap-4"
       >
-        <h2 className="text-xl font-semibold text-stone-100">{scene.title}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-stone-100 focus:outline-none">
+          {scene.title}
+        </h2>
         {scene.kind === 'story' && scene.story ? <StoryScene story={scene.story} facts={p.def.facts} /> : null}
         {stage ? (
           <StageHost stage={stage} className="min-h-24 overflow-hidden rounded-lg border border-stone-800" />
@@ -273,7 +351,10 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
                 record={betOf(b.id)}
                 alphabet={alphabet}
                 onEngage={() => setEngaged((e) => (e.has(b.id) ? e : new Set(e).add(b.id)))}
-                onCommit={(v) => commitBet(chapter, b.id, v)}
+                onCommit={(v) => {
+                  commitBet(chapter, b.id, v)
+                  setFocusAfterBet(b.id)
+                }}
               />
             ))}
           </div>

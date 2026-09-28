@@ -17,6 +17,8 @@ export function BetsPressView(p: SceneProps): JSX.Element {
   const last = useStore(p.store, (s) => s.last)
   const seq = useStore(p.store, (s) => s.seq)
   const [base, setBase] = useState<number | null>(null)
+  // What each reveal showed, kept here: starting the next bet clears the machine's `last` press (round 2).
+  const [seen, setSeen] = useState<{ lamp?: string; moved?: string; hops?: number }>({})
   const resolved = useRef(new Set<string>())
   const resolve = (id: string, truth: string) => {
     if (resolved.current.has(id)) return
@@ -24,15 +26,21 @@ export function BetsPressView(p: SceneProps): JSX.Element {
     p.bet(id).resolve(truth)
   }
   useEffect(() => {
-    if (lampFired && last) resolve('first-lamp', last.output)
+    if (!lampFired || !last || resolved.current.has('first-lamp')) return
+    setSeen((v) => ({ ...v, lamp: last.output }))
+    resolve('first-lamp', last.output)
   })
   useEffect(() => {
-    if (!stepFired || !last) return
+    if (!stepFired || !last || resolved.current.has('steps')) return
     const s = last.stepping.stepped
+    setSeen((v) => ({ ...v, moved: (['right', 'middle', 'left'] as const).filter((k) => s[k]).join(' and ') }))
     resolve('steps', s.left ? 'all' : s.middle ? 'two' : 'right')
   })
   useEffect(() => {
-    if (countFired) resolve('count', String(last?.trace.length ?? 11))
+    if (!countFired || resolved.current.has('count')) return
+    const hops = last?.trace.length ?? 11
+    setSeen((v) => ({ ...v, hops }))
+    resolve('count', String(hops))
   })
   const all = lampFired && stepFired && countFired
   const pressed = all && base !== null && seq - base >= 2
@@ -46,15 +54,10 @@ export function BetsPressView(p: SceneProps): JSX.Element {
   return (
     <div className="flex flex-col gap-2 text-sm text-stone-300" data-testid="bets-press-view">
       <p>Bet before each reveal. Your first key press must be A.</p>
-      {lampFired && last ? <p data-testid="lamp-result">That press lit {last.output}.</p> : null}
-      {stepFired && last ? (
-        <p>
-          On that press the{' '}
-          {(['right', 'middle', 'left'] as const).filter((k) => last.stepping.stepped[k]).join(' and ')} rotor moved.
-        </p>
-      ) : null}
-      {countFired ? (
-        <p data-testid="hop-count">One key press sends the current through {last?.trace.length ?? 11} stages.</p>
+      {seen.lamp ? <p data-testid="lamp-result">That press lit {seen.lamp}.</p> : null}
+      {seen.moved ? <p>On that press the {seen.moved} rotor moved.</p> : null}
+      {seen.hops !== undefined ? (
+        <p data-testid="hop-count">One key press sends the current through {seen.hops} stages.</p>
       ) : null}
       {all ? <p>Now press two more keys of your choice.</p> : null}
     </div>

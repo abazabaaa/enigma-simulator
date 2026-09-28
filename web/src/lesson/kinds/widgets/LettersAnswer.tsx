@@ -28,7 +28,9 @@ export function LettersAnswer({
     })
     refs.current[Math.min(length - 1, k + letters.length)]?.focus()
   }
-  const group = length % 3 === 0 && length > 3 ? 3 : 0
+  // Groups of 3 (window triples) never break inside at narrow widths; only whole groups wrap.
+  const size = length % 3 === 0 && length > 3 ? 3 : length
+  const groups = Array.from({ length: Math.ceil(length / size) }, (_, g) => g * size)
   return (
     <form
       className="flex flex-col gap-3"
@@ -38,34 +40,41 @@ export function LettersAnswer({
       }}
     >
       <fieldset
-        className="flex flex-wrap gap-1"
+        className="flex flex-wrap gap-x-3 gap-y-2"
         aria-label={`Answer: ${length} letters A to ${last}`}
         disabled={disabled}
       >
-        {cells.map((c, k) => (
-          <input
-            key={k}
-            ref={(el) => {
-              refs.current[k] = el
-            }}
-            data-testid={`answer-letters-${k}`}
-            aria-label={`Letter ${k + 1} of ${length}`}
-            className={`${INPUT} w-9 text-center uppercase ${group && k % group === group - 1 && k < length - 1 ? 'mr-3' : ''}`}
-            value={c}
-            autoComplete="off"
-            onChange={(e) => put(k, e.target.value.slice(c ? 1 : 0) || e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Backspace' && !c && k > 0) refs.current[k - 1]?.focus()
-            }}
-            onPaste={(e) => {
-              e.preventDefault()
-              put(k, e.clipboardData.getData('text'))
-            }}
-          />
+        {groups.map((start) => (
+          <div key={start} className="flex shrink-0 flex-nowrap gap-1" data-testid="answer-letters-group">
+            {cells.slice(start, start + size).map((c, j) => {
+              const k = start + j
+              return (
+                <input
+                  key={k}
+                  ref={(el) => {
+                    refs.current[k] = el
+                  }}
+                  data-testid={`answer-letters-${k}`}
+                  aria-label={`Letter ${k + 1} of ${length}`}
+                  className={`${INPUT} w-9 text-center uppercase`}
+                  value={c}
+                  autoComplete="off"
+                  onChange={(e) => put(k, e.target.value.slice(c ? 1 : 0) || e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace' && !c && k > 0) refs.current[k - 1]?.focus()
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault()
+                    put(k, e.clipboardData.getData('text'))
+                  }}
+                />
+              )
+            })}
+          </div>
         ))}
       </fieldset>
       <div>
-        <SubmitButton disabled={disabled || !valid} onClick={() => valid && submit(cells.join(''))} />
+        <SubmitButton form disabled={disabled || !valid} />
       </div>
     </form>
   )

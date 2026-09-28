@@ -3,7 +3,7 @@ import type { Choice } from '../../contracts/core'
 import type { CheckResult, ItemLogic, ItemUi, Rollback } from '../../contracts/lesson'
 import { createMachine, positionsToString, step, type MachineConfig } from '../../engine'
 import { partForStage } from '../kinds/helpers'
-import { partName } from '../kinds/widgets'
+import { partList, partName } from '../partNames'
 import { BUTTON, QUIET_BUTTON } from './controls'
 
 type Of<K extends Rollback['kind']> = Extract<Rollback, { kind: K }>
@@ -185,7 +185,7 @@ export function RollbackView(p: {
       {!result.correct && rb.kind === 'windows' ? <WindowsView rb={rb} /> : null}
       {!result.correct && rb.kind === 'machine' ? (
         <p>
-          {rb.message} <span className="text-stone-400">(highlighted: {rb.highlight.map(partName).join(', ')})</span>
+          {rb.message} <span className="text-stone-400">(highlighted: {partList(rb.highlight)})</span>
         </p>
       ) : null}
       {!result.correct && rb.kind === 'order' ? (
