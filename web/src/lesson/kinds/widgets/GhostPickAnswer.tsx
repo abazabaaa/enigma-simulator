@@ -1,21 +1,10 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { Ghost, PartId } from '../../../contracts/stage'
 import { QUIET_BUTTON, SubmitButton } from '../../ui/controls'
+import { partLabel } from '../../partNames'
 import type { WidgetProps } from './types'
 
-const NAMES: Partial<Record<PartId, string>> = {
-  plugboard: 'Plugboard',
-  etw: 'Entry wheel',
-  'rotor-right': 'Right rotor',
-  'rotor-middle': 'Middle rotor',
-  'rotor-left': 'Left rotor',
-  'rotor-greek': 'Greek rotor',
-  reflector: 'Reflector',
-}
-
-export function partName(p: PartId): string {
-  return NAMES[p] ?? p
-}
+export { partName } from '../../partNames'
 
 /**
  * Pick the part where the faulty path first goes wrong: the part buttons, or a click on a part in the stage
@@ -50,7 +39,7 @@ export function GhostPickAnswer({
             className={`${QUIET_BUTTON} ${pick === p ? 'border-amber-400 text-amber-200' : ''}`}
             onClick={() => setPick(p)}
           >
-            {partName(p)}
+            {partLabel(p)}
           </button>
         ))}
       </div>

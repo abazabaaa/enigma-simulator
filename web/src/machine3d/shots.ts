@@ -7,8 +7,8 @@
  * distance at which every corner of the box fits the view at the canvas's aspect ratio: on a wide
  * screen the height decides, on a phone the width does, and nothing framed is ever cut.
  * The 'rotors' shot looks down more steeply when the focus is the pawls, so that the pawl–notch
- * contact behind the top of the rings is in view. 'rotor-layers' looks at the ring's side face, where
- * the exploded view's dial of ring numbers is.
+ * contact behind the top of the rings is in view. 'rotor-layers' looks at the ring half from its side
+ * (the exploded view's dial of ring numbers) and half from the front (the window letter).
  */
 
 import type { CameraShot, Focus } from '../contracts/stage'
@@ -32,6 +32,23 @@ export interface FrameOptions {
 }
 
 export const CAMERA_FOV = 35
+
+/** The 'rotor-layers' viewing direction (towards the camera). */
+export const ROTOR_LAYERS_DIR: Vec3 = { x: 0.6, y: 0.45, z: 0.66 }
+
+/**
+ * The direction in a ring's side face (the y–z plane) that the 'rotor-layers' camera sees as up: the
+ * exploded dial's numbers stand along it, so they read upright and unforeshortened.
+ */
+export function dialUp(): Vec3 {
+  const n = Math.hypot(ROTOR_LAYERS_DIR.x, ROTOR_LAYERS_DIR.y, ROTOR_LAYERS_DIR.z)
+  const dy = ROTOR_LAYERS_DIR.y / n
+  // the camera's up (world y without its component along the view), within the face
+  const y = 1 - dy * dy
+  const z = -dy * (ROTOR_LAYERS_DIR.z / n)
+  const m = Math.hypot(y, z)
+  return { x: 0, y: y / m, z: z / m }
+}
 /** Share of the view the framed box may use (the rest is margin). */
 const FILL = 0.9
 
@@ -91,8 +108,10 @@ function spec(shot: CameraShot, l: Layout, o: FrameOptions): { dir: Vec3; box: B
         ),
       }
     case 'rotor-layers': {
-      const r = ROTOR.bandR * (o.ringLayer ? 1.3 : 1) + (labels ? 2.6 : 0.6)
-      return { dir: v(26, 10, 14), box: box(last - 2, last + 2, AXIS_Y - r, AXIS_Y + r, AXIS_Z - r, AXIS_Z + r) }
+      // Between the ring's side (the exploded view's dial of numbers) and its front (the window letter),
+      // so both read; labels are kept on screen by the label layout.
+      const r = ROTOR.bandR * (o.ringLayer ? 1.3 : 1) + 0.3
+      return { dir: ROTOR_LAYERS_DIR, box: box(last - 1.7, last + 1.2, AXIS_Y - r, AXIS_Y + r, AXIS_Z - r, AXIS_Z + r) }
     }
     case 'reflector': {
       const x = reflectorX(l)

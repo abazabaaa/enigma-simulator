@@ -62,7 +62,7 @@ export function NumbersAnswer({
         </div>
       )}
       <div>
-        <SubmitButton disabled={disabled || !valid} onClick={go} />
+        <SubmitButton form disabled={disabled || !valid} />
       </div>
     </form>
   )

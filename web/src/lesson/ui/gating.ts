@@ -6,8 +6,10 @@
  * that next bet. Committing calls setPendingBet(false).
  */
 
+import { positionsToString } from '../../engine'
 import { useMachineStore } from '../../state/machineStore'
 import { isBetPending, setPendingBet } from '../../state/sync'
+import { useToyStore } from '../../state/toyStore'
 
 let keyboardSaved: boolean | undefined
 
@@ -25,10 +27,33 @@ function unlockKeyboardOnly(): void {
   keyboardSaved = undefined
 }
 
+/**
+ * A newly gated playback pins t at 0, where every display shows the last press's "before" windows (ADU while
+ * the machine stands at ADV). So before gating, the last press is cleared, keeping the machine, its windows and
+ * the tape: the displays then show the machine as it is now (review round 2). Views need no workaround.
+ */
+export function clearLastPress(): void {
+  const m = useMachineStore.getState()
+  if (m.last) {
+    const { locks } = m
+    // setPositions is the only action that clears `last` and keeps the tape; lift its lock for this one call.
+    if (locks.positions) m.setLocks({ ...locks, positions: false })
+    try {
+      useMachineStore.getState().setPositions(positionsToString(m.machine))
+    } finally {
+      if (locks.positions) useMachineStore.getState().setLocks({ ...useMachineStore.getState().locks, positions: true })
+    }
+  }
+  if (useToyStore.getState().last) useToyStore.setState({ last: null })
+}
+
 /** Bring the locks in line with the scene's reveal state. */
 export function applyGating(want: { lock: boolean; gate: boolean }): void {
   if (!want.gate && isBetPending()) setPendingBet(false)
-  if (want.gate && !isBetPending()) setPendingBet(true)
+  if (want.gate && !isBetPending()) {
+    clearLastPress()
+    setPendingBet(true)
+  }
   if (want.lock && !want.gate) lockKeyboardOnly()
   if (!want.lock) unlockKeyboardOnly()
 }
