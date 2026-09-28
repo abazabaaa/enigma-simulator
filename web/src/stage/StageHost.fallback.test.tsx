@@ -44,15 +44,16 @@ describe('StageHost fallback', () => {
     const stage = () => container.querySelector<HTMLElement>('[data-testid="stage"]')!
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('2D'), expect.any(Error))
     expect(error).not.toHaveBeenCalled()
-    expect(stage().dataset.renderer).toBe('placeholder')
-    expect(stageApi.info().renderer).toBe('placeholder')
+    // The 2D view: 'placeholder' while Stage2D is the 02 stub, 'svg' once 04's view lands.
+    expect(['placeholder', 'svg']).toContain(stage().dataset.renderer)
+    expect(['placeholder', 'svg']).toContain(stageApi.info().renderer)
 
     // A new StageHost in the same session goes straight to 2D.
     await act(async () => root.unmount())
     const root2 = createRoot(container)
     warn.mockClear()
     await act(async () => root2.render(<StageHost stage="pawls" />))
-    expect(stage().dataset.renderer).toBe('placeholder')
+    expect(['placeholder', 'svg']).toContain(stage().dataset.renderer)
     expect(warn).not.toHaveBeenCalled()
     await act(async () => root2.unmount())
     container.remove()
