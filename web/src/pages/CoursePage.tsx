@@ -1,26 +1,57 @@
-import { ACTS, CHAPTERS } from '../content/registry'
+import { useState } from 'react'
+import { CourseMap, ProgressNotices, useProgress } from '../lesson'
+import { now } from '../lesson/clock'
+import { progressSnapshot } from '../lesson/progress'
+import { BUTTON, QUIET_BUTTON } from '../lesson/ui/controls'
 
-/** STUB (02 → 05). #/course: act map, progress, reset, export as JSON. Lists the registry for now. */
+/** #/course: the act map with lock states and bets, reset (with a confirmation) and export as JSON. */
 export function CoursePage() {
+  const [confirming, setConfirming] = useState(false)
+  const reset = useProgress((s) => s.reset)
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(progressSnapshot(), null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'enigma-progress.json'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
       <h1 className="text-3xl font-semibold text-stone-100">The course</h1>
-      <p className="mt-4 text-stone-400">The act map, progress and export are on their way.</p>
-      {ACTS.map((act) => (
-        <section key={act.id} className="mt-6">
-          <h2 className="text-lg font-semibold text-stone-200">{act.title}</h2>
-          <ul className="mt-2 flex flex-col gap-1">
-            {CHAPTERS.filter((c) => c.act === act.id).map((c) => (
-              <li key={c.id}>
-                <a className="text-amber-300 underline" href={`#/c/${c.id}`}>
-                  {c.title}
-                </a>{' '}
-                <span className="font-mono text-xs text-stone-500">{c.dates}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <ProgressNotices />
+      <CourseMap heading={false} />
+      <section className="flex flex-wrap items-center gap-3 border-t border-stone-800 pt-4">
+        <button type="button" data-testid="course-export" className={QUIET_BUTTON} onClick={exportJson}>
+          Export progress (JSON)
+        </button>
+        {confirming ? (
+          <span className="flex flex-wrap items-center gap-2" role="alertdialog" aria-label="Confirm reset">
+            <span className="text-sm text-stone-300">Erase all progress?</span>
+            <button
+              type="button"
+              data-testid="course-reset-confirm"
+              className={BUTTON}
+              onClick={() => {
+                reset(now())
+                setConfirming(false)
+              }}
+            >
+              Yes, reset
+            </button>
+            <button type="button" data-testid="course-reset-cancel" className={QUIET_BUTTON} onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button type="button" data-testid="course-reset" className={QUIET_BUTTON} onClick={() => setConfirming(true)}>
+            Reset progress
+          </button>
+        )}
+      </section>
     </main>
   )
 }
