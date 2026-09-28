@@ -171,7 +171,7 @@ export function HexagonView(p: SceneProps): JSX.Element {
                 this always happens: when two permutations consist only of swaps, their product has its cycles in pairs of
                 equal length (his theorem 1).
               </p>
-              <Diagram perm={HEX_P} testId="hex-product" label="XY as cycles" minWidth="20rem" />
+              <Diagram perm={HEX_P} testId="hex-product" label="XY as cycles" />
               <p>
                 AD, BE and CF are exactly such products: each of the six presses is made of swaps. Here they are from the
                 65 indicators of one day. Every length comes twice.

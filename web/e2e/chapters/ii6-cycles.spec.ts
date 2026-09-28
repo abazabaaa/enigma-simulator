@@ -132,6 +132,14 @@ async function steckerViaUi(page: Page, pair: string): Promise<void> {
   await page.getByTestId('gate-submit').click()
 }
 
+/** At 390 px the page never scrolls sideways (wide diagrams and tables scroll inside themselves). */
+async function noSidewaysScrollAt390(page: Page): Promise<void> {
+  const size = page.viewportSize()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  if (size) await page.setViewportSize(size)
+}
+
 async function toGate(page: Page): Promise<void> {
   for (let k = 0; k < 6 && (await where(page)).kind !== 'gate'; k++) await completeScene(page)
   expect(await where(page)).toMatchObject({ scene: 'gate', kind: 'gate', canNext: false })
@@ -169,6 +177,7 @@ test.describe('chapter ii6-cycles', { tag: '@chapter:ii6-cycles' }, () => {
     await expect(page.getByTestId('vector-ad')).toHaveAttribute('data-lengths', '10.10.2.2.1.1')
     await expect(page.getByTestId('vector-be')).toHaveAttribute('data-lengths', '9.9.3.3.1.1')
     await expect(page.getByTestId('vector-cf')).toHaveAttribute('data-lengths', '13.13')
+    await noSidewaysScrollAt390(page)
     expect((await betResults(page)).pairs).toBe(false)
     await nextScene(page)
 

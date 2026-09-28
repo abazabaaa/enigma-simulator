@@ -10,7 +10,7 @@ import { CycleDiagram } from '../../../viz'
 /** A sideways scroller of at least `minWidth`; below 640 px an edge fade and a "scroll" cue show there is more. */
 export function SideScroll(p: { children: ReactNode; label: string; minWidth?: string }): JSX.Element {
   return (
-    <div className="relative flex flex-col gap-1">
+    <div className="relative flex min-w-0 flex-col gap-1">
       <div className="max-w-full overflow-x-auto rounded" role="region" aria-label={p.label} tabIndex={0}>
         <div style={{ minWidth: p.minWidth ?? '36rem' }}>{p.children}</div>
       </div>

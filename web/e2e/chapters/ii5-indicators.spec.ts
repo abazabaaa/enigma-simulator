@@ -159,6 +159,10 @@ test.describe('chapter ii5-indicators', { tag: '@chapter:ii5-indicators' }, () =
     await expect(page.getByTestId('ad-conflict')).toContainText('SYZ SCW')
     await expect(page.getByTestId('ad-table-cell-3')).toHaveAttribute('data-value', 'V')
     await expect(page.getByTestId('task-fill-all')).toHaveAttribute('data-done', 'true')
+    // At 390 px the page never scrolls sideways: the 26-column tables scroll inside themselves.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await page.setViewportSize({ width: 1280, height: 720 })
     expect((await betResults(page))['ad-fixed']).toBe(true)
     await nextScene(page)
 

@@ -196,7 +196,7 @@ export function DefiningPair(p: { indicator: string; typed: string; reducedMotio
  */
 export function Wide({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <div className="relative flex flex-col gap-1">
+    <div className="relative flex min-w-0 flex-col gap-1">
       <div className="max-w-full overflow-x-auto">
         <div className="min-w-[46rem]">{children}</div>
       </div>
