@@ -61,20 +61,11 @@ import { MACHINE_3D_READY } from '../../src/machine3d/ready'
 
 const CHAPTER = 'iii9-cribs'
 
-/** The read-only CribStrip's scroll box (viz/CribStrip.tsx, PR 08): role img, labelled "Crib … under …". */
-const PENDING_08 = /^<div role="img" aria-label="Crib [A-Z]+ under [A-Z]+ at offset/
-
-/**
- * Serious or critical axe findings inside the current item (question, rollback and hint states). Until PR 08's viz
- * fix lands, a read-only CribStrip whose letters overflow is a scroll region without a focusable element
- * (scrollable-region-focusable, review MAJOR owned by 08): that one rule is reported on its own, not failed here.
- */
+/** Serious or critical axe findings inside the current item (its rollback and hint states). */
 async function axeItem(page: Page, id: string): Promise<string[]> {
   const res = await new AxeBuilder({ page }).include(`[data-testid="item-${id}"]`).analyze()
   return res.violations
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-    .map((v) => ({ ...v, nodes: v.id === 'scrollable-region-focusable' ? v.nodes.filter((n) => !PENDING_08.test(n.html)) : v.nodes }))
-    .filter((v) => v.nodes.length)
     .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
 }
 

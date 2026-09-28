@@ -77,9 +77,6 @@ function BuildMenuAnswer({ instance, disabled, submit }: AnswerProps<MenuInstanc
         onRemoveEdge={disabled ? undefined : (pos) => setChosen((c) => c.filter((x) => x !== pos))}
         testId="build-menu-graph"
       />
-      <p className="text-sm text-stone-300">
-        Your menu: {plural(menu.edges.length, 'link')}.
-      </p>
       <div>
         <SubmitButton disabled={disabled || chosen.length === 0} onClick={() => submit([...chosen].sort((a, b) => a - b))}>
           Submit this menu
@@ -112,7 +109,6 @@ const buildMenu = {
           used. Among them, keep the piece with the loops and drop the links that hang off it:
         </p>
         <MenuGraph menu={menuFromEdges(edges)} testId="build-menu-worked" />
-        <MenuSummary edges={edges} />
         <p>Links {solution.join(', ')}.</p>
       </div>
     )
@@ -130,7 +126,6 @@ const buildMenu = {
           highlightLoop={result.rollback.loop}
           testId="menu-rollback"
         />
-        {edges.length ? <MenuSummary edges={edges} /> : null}
       </div>
     )
   },
@@ -163,7 +158,6 @@ const closuresUi = {
     result.rollback.kind === 'menu' ? (
       <div className="flex flex-col gap-2" data-testid="menu-feedback" data-break-at={result.rollback.breakAt}>
         <MenuGraph menu={menuFromEdges(instance.edges)} highlightLoop={result.rollback.loop} testId="menu-rollback" />
-        <MenuSummary edges={instance.edges} />
       </div>
     ) : null,
 }
