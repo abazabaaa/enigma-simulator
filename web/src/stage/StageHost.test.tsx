@@ -27,14 +27,18 @@ afterEach(async () => {
 const stageEl = () => container.querySelector<HTMLElement>('[data-testid="stage"]')
 
 describe('StageHost', () => {
-  it('renders the 2D stub with the placeholder and reports through window.__stage', async () => {
+  it('renders the 2D view and reports through window.__stage', async () => {
     await act(async () => root.render(<StageHost stage="pawls" />))
-    expect(stageEl()?.dataset.renderer).toBe('placeholder')
+    // 'placeholder' while Stage2D is the 02 stub; 'svg' once 04's view lands.
+    const renderer = stageEl()?.dataset.renderer
+    expect(['placeholder', 'svg']).toContain(renderer)
     expect(stageEl()?.dataset.focus).toBe('pawls')
-    expect(container.querySelector('[data-testid="stage-placeholder"]')?.textContent).toContain('pawls')
+    const placeholder = container.querySelector('[data-testid="stage-placeholder"]')
+    if (renderer === 'placeholder') expect(placeholder?.textContent).toContain('pawls')
+    else expect(placeholder).toBeNull()
     expect(useStageStore.getState().directive).toEqual(STAGE_PRESETS.pawls)
     const info = stageApi.info()
-    expect(info).toMatchObject({ renderer: 'placeholder', focus: 'pawls', directive: STAGE_PRESETS.pawls })
+    expect(info).toMatchObject({ renderer, focus: 'pawls', directive: STAGE_PRESETS.pawls })
     expect(info.litLamp).toBeNull()
     expect(info.dimmed).toEqual(dimmedParts('pawls', 'I'))
     expect(stageApi.stats()).toBeNull()
