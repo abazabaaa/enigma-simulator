@@ -278,20 +278,14 @@ test.describe('chapter iii11-bombe', { tag: '@chapter:iii11-bombe' }, () => {
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/click-through'))
     expect(shows.map((s) => s.hintLevel)).toEqual([0, 1, 2, 3, 0])
     await expect(page.getByTestId('item-click-through')).toHaveAttribute('data-passed', 'false')
-  })
-
-  test('the L2 worked example draws its own instance and passes axe', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
-    for (let k = 0; k < 2; k++) await answerViaApi(page, 'click-through', await wrongAnswer(page))
+    // Once more to L2: the worked example draws its own loop, and the hint passes axe.
+    for (let k = 0; k < 2; k++) await answerViaApi(page, 'click-through', await wrongAnswer(page, 10 + k))
     const c = await current(page)
     expect(c.hintLevel).toBe(2)
     const worked = page.getByTestId('worked-example')
-    await expect(worked).toBeVisible()
-    // Its own loop, not the current one's.
-    const loop = (c.instance as ClickInstance).loop.join(' → ')
     await expect(worked.getByTestId('worked-tables')).toBeVisible()
-    await expect(worked).not.toContainText(`${loop} → ${(c.instance as ClickInstance).loop[0]}, with one scrambler`)
+    const loop = (c.instance as ClickInstance).loop
+    await expect(worked).not.toContainText(`${[...loop, loop[0]].join(' → ')}, with one scrambler`)
     expect(await axeSerious(page, '[data-testid="hint-panel"]')).toEqual([])
   })
 
