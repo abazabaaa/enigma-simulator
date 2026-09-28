@@ -1,0 +1,73 @@
+name: oracles
+
+# Three-oracle agreement: tools/reference_enigma.py, @ondoher/enigma 1.0.14 and py-enigma 1.0.2 must
+# agree on 1,000 seeded configurations (tools/oracles/generate.mjs --check), and the engine must
+# reproduce every case (web/src/engine/__tests__/oracles.test.ts).
+on:
+  push:
+    branches: [master, claude/intelligent-hamilton-r0i6wz]
+    paths:
+      - 'tools/oracles/**'
+      - 'tools/reference_enigma.py'
+      - 'web/src/engine/**'
+      - '.github/workflows/oracles.yml'
+  pull_request:
+    paths:
+      - 'tools/oracles/**'
+      - 'tools/reference_enigma.py'
+      - 'web/src/engine/**'
+      - '.github/workflows/oracles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracles-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  agreement:
+    name: three-oracle agreement
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tools/oracles/package-lock.json
+            web/package-lock.json
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install py-enigma
+        run: pip install py-enigma==1.0.2
+
+      - name: Reference oracle self-test
+        run: python3 tools/reference_enigma.py
+
+      - name: Install @ondoher/enigma
+        working-directory: tools/oracles
+        run: npm ci
+
+      - name: Oracles agree and the fixture is fresh
+        working-directory: tools/oracles
+        run: node generate.mjs --check
+
+      - name: Generator tests (byte-flip staleness, disagreement handling)
+        working-directory: tools/oracles
+        run: npm test
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Engine reproduces every oracle case
+        working-directory: web
+        run: npx vitest run src/engine/__tests__/oracles.test.ts
