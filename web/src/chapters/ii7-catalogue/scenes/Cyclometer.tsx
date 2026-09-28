@@ -29,6 +29,10 @@ import {
 
 type Product = 0 | 1 | 2
 
+/** A toggle button: the quiet button, gold while pressed. */
+export const toggleClass = (pressed: boolean): string =>
+  pressed ? QUIET_BUTTON.replace('border-stone-600', 'border-amber-400').replace('text-stone-300', 'text-amber-100') + ' bg-amber-400/15' : QUIET_BUTTON
+
 /** One rotor set: its rotors and windows, read from the provider's store. */
 function RotorSet({ label, testId }: { label: string; testId: string }): JSX.Element {
   const windows = useMachine((s) => positionsToString(s.machine))
@@ -155,7 +159,7 @@ export function CyclometerView(p: SceneProps): JSX.Element {
           <button
             key={name}
             type="button"
-            className={`${QUIET_BUTTON} font-mono ${product === k ? 'border-amber-400 text-amber-200' : ''}`}
+            className={`${toggleClass(product === k)} font-mono`}
             aria-pressed={product === k}
             data-testid={`cyclometer-product-${name}`}
             disabled={!fired}
@@ -168,6 +172,10 @@ export function CyclometerView(p: SceneProps): JSX.Element {
           ({w1} and {w4}; each product moves both sets on by one)
         </span>
       </div>
+      <p className="text-center text-xs text-stone-400">
+        Lamps: <span className="text-amber-200">gold</span> for the key&apos;s own cycle,{' '}
+        <span className="text-sky-200">blue</span> for its partner. Keys below.
+      </p>
       <div className="flex flex-col items-center gap-1" data-testid="cyclometer-lamps" data-lit={[...litSet].sort().join('')}>
         {KEYBOARD_ROWS.map((row, r) => (
           <div key={r} className="flex gap-1">

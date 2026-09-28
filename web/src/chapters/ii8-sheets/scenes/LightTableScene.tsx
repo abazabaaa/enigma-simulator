@@ -79,30 +79,22 @@ export function LightTableView(p: SceneProps): JSX.Element {
             sheets), so after k females about {ALL_SETTINGS.toLocaleString('en-US')} × {share.toFixed(3)}
             <sup>k</sup> are left:
           </p>
-          <div className="max-w-full overflow-x-auto">
-            <table className="font-mono text-xs">
-              <thead>
-                <tr className="text-stone-400">
-                  <th className="pr-3 text-left font-normal">females</th>
-                  {Array.from({ length: 14 }, (_, k) => (
-                    <th key={k} className={`px-1 font-normal ${k + 1 === needed ? 'text-amber-200' : ''}`}>
-                      {k + 1}
-                    </th>
-                  ))}
+          <table className="w-fit font-mono text-xs" data-testid="light-table-scale-table">
+            <thead>
+              <tr className="text-stone-400">
+                <th className="pr-4 text-right font-normal">females</th>
+                <th className="text-right font-normal">settings left</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 14 }, (_, k) => (
+                <tr key={k} className={k + 1 === needed ? 'text-amber-200' : 'text-stone-300'}>
+                  <td className="pr-4 text-right">{k + 1}</td>
+                  <td className="text-right">{fmt(expected(ALL_SETTINGS, share, k + 1))}</td>
                 </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th className="pr-3 text-left font-normal text-stone-400">left</th>
-                  {Array.from({ length: 14 }, (_, k) => (
-                    <td key={k} className={`px-1 text-right ${k + 1 === needed ? 'text-amber-200' : ''}`}>
-                      {fmt(expected(ALL_SETTINGS, share, k + 1))}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
           <p>
             About {needed} females bring it down to one or two settings: the day&apos;s own wheel order, left sheet and ring
             settings, and perhaps one impostor.

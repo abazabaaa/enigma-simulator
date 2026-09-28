@@ -28,7 +28,6 @@ export function CatalogueView(p: SceneProps): JSX.Element {
   const stats = useMemo(() => (cat.catalogue ? catalogueStats(cat.catalogue) : null), [cat.catalogue])
   const median = stats ? weightedMedian(stats.histogram) : null
   const card = cat.catalogue?.get(CYCLO_CHARACTERISTIC) ?? null
-  const unique = stats?.histogram.find((h) => h.size === 1)?.count ?? 0
   const resolved = useRef(false)
   const { completeTask, bet } = p
 
@@ -77,9 +76,8 @@ export function CatalogueView(p: SceneProps): JSX.Element {
       {stats && median !== null ? (
         <div className="flex flex-col gap-3" data-testid="catalogue-result" aria-live="polite">
           <p data-testid="catalogue-summary" data-distinct={stats.distinct} data-median={median}>
-            Only {fmt(stats.distinct)} of the {fmt(POSSIBLE_CHARACTERISTICS)} possible characteristics occur. {fmt(unique)} of them
-            name a single setting, yet half of all days fall on a card of {fmt(median)} settings or more; the largest card lists{' '}
-            {fmt(stats.maxBucket)}.
+            Only {fmt(stats.distinct)} of the {fmt(POSSIBLE_CHARACTERISTICS)} possible characteristics occur, and the settings
+            crowd onto the big cards: half of all days fall on a card of {fmt(median)} settings or more.
           </p>
           <CatalogueHistogram stats={stats} highlight={card ? String(card.length) : undefined} />
           {card ? (

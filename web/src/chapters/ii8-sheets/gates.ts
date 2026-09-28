@@ -288,6 +288,7 @@ export const femalesNeeded = (n: number, p: number): number => Math.ceil(Math.lo
 // ---------------------------------------------------------------------------
 
 export const SEARCH_SIZES = [
+  { n: 676, what: 'the 676 middle and right ring settings of one stack of sheets (wheel order and left ring known)' },
   { n: 17576, what: 'the 17,576 positions of one wheel order' },
   { n: CATALOGUE_SETTINGS, what: 'the 105,456 settings of rotors I, II and III in their 6 orders' },
   { n: 1054560, what: 'the 1,054,560 settings of 60 wheel orders once rotors IV and V had come' },
@@ -307,12 +308,28 @@ export const expected = (n: number, p: number, k: number): number => n * p ** k
 
 const fmtNum = (x: number): string => (x >= 10 ? Math.round(x).toLocaleString('en-US') : x.toFixed(1))
 
+/** Every (N, p) the item can ask, grouped by its answer: the answer is drawn uniformly, then an (N, p) giving it. */
+const NEEDED_BY_ANSWER: ReadonlyMap<number, readonly { n: number; p: number }[]> = (() => {
+  const m = new Map<number, { n: number; p: number }[]>()
+  for (const { n } of SEARCH_SIZES) {
+    for (let q = 35; q <= 45; q++) {
+      const k = femalesNeeded(n, q / 100)
+      m.set(k, [...(m.get(k) ?? []), { n, p: q / 100 }])
+    }
+  }
+  return m
+})()
+export const NEEDED_ANSWERS: readonly number[] = [...NEEDED_BY_ANSWER.keys()].sort((a, b) => a - b)
+
 export const femalesNeededItem = numbersItem<NeededInstance>({
   id: 'females-needed',
   rule: WINDOW,
   range: [1, 30],
   tolerance: 1,
-  generate: (r) => ({ count: 1, n: pick(r, SEARCH_SIZES).n, p: (35 + int(r, 11)) / 100 }),
+  generate(r) {
+    const { n, p } = pick(r, NEEDED_BY_ANSWER.get(pick(r, NEEDED_ANSWERS))!)
+    return { count: 1, n, p }
+  },
   same: (a, b) => a.n === b.n && a.p === b.p,
   solve: (i) => [femalesNeeded(i.n, i.p)],
   check(i, a): CheckResult {
@@ -347,22 +364,33 @@ export interface SurvivorsInstance {
 /** The MISCONCEPTIONS "each sheet removes p·N" (linear) and "1 − p survives". */
 export const naiveSurvivors = (i: SurvivorsInstance): number[] => [i.n * i.p * i.k, expected(i.n, 1 - i.p, i.k)]
 
-export const SURVIVORS_MAX = 2000
+export const SURVIVORS_MAX = 20000
+
+/**
+ * Every (N, p, k) with N·pᵏ between 5 and 20,000, grouped into bins of 0.1 on a log scale: the item draws a bin
+ * uniformly, then a question in it, so its answers spread evenly over the range and no constant is often right.
+ */
+const SURVIVOR_BINS: readonly (readonly SurvivorsInstance[])[] = (() => {
+  const bins: SurvivorsInstance[][] = []
+  for (const { n } of SEARCH_SIZES) {
+    for (let q = 35; q <= 45; q++) {
+      for (let k = 2; k <= 10; k++) {
+        const e = expected(n, q / 100, k)
+        if (e < 5 || e > SURVIVORS_MAX) continue
+        const b = Math.floor((Math.log10(e) - Math.log10(5)) / 0.1)
+        ;(bins[b] ??= []).push({ count: 1, n, p: q / 100, k })
+      }
+    }
+  }
+  return bins.filter((b) => b && b.length)
+})()
 
 export const survivorsItem = numbersItem<SurvivorsInstance>({
   id: 'survivors',
   rule: WINDOW,
   range: [0, SURVIVORS_MAX],
   tolerance: { relative: 0.1 },
-  generate(r) {
-    for (;;) {
-      const n = pick(r, SEARCH_SIZES).n
-      const p = (35 + int(r, 11)) / 100
-      const k = 3 + int(r, 8)
-      const e = expected(n, p, k)
-      if (e >= 5 && e <= SURVIVORS_MAX) return { count: 1, n, p, k }
-    }
-  },
+  generate: (r) => pick(r, pick(r, SURVIVOR_BINS)),
   same: (a, b) => a.n === b.n && a.p === b.p && a.k === b.k,
   solve: (i) => [Math.round(expected(i.n, i.p, i.k) * 10) / 10],
   check(i, a): CheckResult {

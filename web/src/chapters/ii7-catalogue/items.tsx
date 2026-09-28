@@ -8,8 +8,8 @@ import { useMemo, useState, type JSX } from 'react'
 import type { Choice, MachineConfig } from '../../contracts/core'
 import type { AnswerProps, CheckResult, HintLevel, ItemUiMap } from '../../contracts/lesson'
 import { createMachine, cycles, encipher, positionsToString } from '../../engine'
-import { Mono, SubmitButton, QUIET_BUTTON } from '../../lesson'
-import { MachinePanel, PermTable } from '../../machine-ui'
+import { Mono, SubmitButton } from '../../lesson'
+import { MachinePanel, PermTable, PlugboardEditor } from '../../machine-ui'
 import { useMachine, useMachineApi } from '../../state/activeMachine'
 import { CycleDiagram } from '../../viz'
 import {
@@ -28,6 +28,7 @@ import {
   type SignatureInstance,
 } from './gates'
 import { CatalogueQuery, KeyBuilder, fieldsFilled, keyFromFields } from './scenes/KeyBuilder'
+import { toggleClass } from './scenes/Cyclometer'
 import { useCatalogue } from './scenes/useCatalogue'
 
 const RULE =
@@ -36,11 +37,11 @@ const RULE =
 
 function ProductsTable({ products }: { products: Products3 }): JSX.Element {
   return (
-    <dl className="flex flex-col gap-1" data-testid="day-products">
+    <dl className="grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 gap-y-1" data-testid="day-products">
       {PRODUCTS.map((n) => (
-        <div key={n} className="flex min-w-0 flex-wrap gap-2">
-          <dt className="w-8 font-mono text-stone-100">{n}</dt>
-          <dd className="min-w-0 font-mono break-all text-stone-200">{notation(products[n])}</dd>
+        <div key={n} className="contents">
+          <dt className="font-mono text-stone-100">{n}</dt>
+          <dd className="m-0 min-w-0 font-mono break-all text-stone-200">{notation(products[n])}</dd>
         </div>
       ))}
     </dl>
@@ -112,9 +113,17 @@ const signature = {
     return (
       <div className="flex flex-col gap-2" data-testid="cycles-feedback" data-product={name}>
         <p className="text-stone-300">
-          Your lengths for <Mono>{name}</Mono>: <Mono>{rb.got.join(' ') || 'none'}</Mono>. Its cycles, the one to walk marked:
+          Your lengths for <Mono>{name}</Mono>: <Mono>{rb.got.join(' ') || 'none'}</Mono>.{' '}
+          {[...rb.got].sort((a, b) => b - a).join('.') === rb.expected.join('.')
+            ? 'Its cycles, as they are written:'
+            : 'Its cycles, the one to recount marked:'}
         </p>
-        <CycleDiagram perm={rb.perm} highlightCycle={rb.cycle} testId="signature-cycles" />
+        <p className="text-xs text-stone-400 sm:hidden">Scroll sideways to see every cycle.</p>
+        <div className="max-w-full overflow-x-auto" data-testid="signature-cycles-scroll">
+          <div className="min-w-[34rem]">
+            <CycleDiagram perm={rb.perm} highlightCycle={rb.cycle} testId="signature-cycles" />
+          </div>
+        </div>
       </div>
     )
   },
@@ -140,9 +149,15 @@ function Preview({ message, crib }: { message: string; crib: string }): JSX.Elem
       <div className="text-xs text-stone-400">
         Test message decrypted at {config.rotors.join('-')} · {windows}
       </div>
-      <div className="font-mono break-all text-stone-400">{message}</div>
-      <div className="font-mono break-all text-stone-100" aria-live="polite">
-        {out}
+      <div className="flex gap-2">
+        <span className="w-14 shrink-0 text-xs text-stone-400">cipher</span>
+        <span className="min-w-0 font-mono break-all text-stone-400">{message}</span>
+      </div>
+      <div className="flex gap-2">
+        <span className="w-14 shrink-0 text-xs text-stone-400">decrypt</span>
+        <span className="min-w-0 font-mono break-all text-stone-100" aria-live="polite">
+          {out}
+        </span>
       </div>
       <div className="text-xs text-stone-400">
         It must begin <Mono>{crib}</Mono>.
@@ -212,7 +227,7 @@ function IndicatorWorkbench({ indicators }: { indicators: readonly string[] }): 
           <button
             key={String(k)}
             type="button"
-            className={`${QUIET_BUTTON} ${sortBy === k ? 'border-amber-400 text-amber-200' : ''}`}
+            className={toggleClass(sortBy === k)}
             aria-pressed={sortBy === k}
             data-testid={`transfer-sort-${k}`}
             onClick={() => setSortBy(k)}
@@ -244,6 +259,7 @@ function IndicatorWorkbench({ indicators }: { indicators: readonly string[] }): 
       </ol>
       <details className="text-sm">
         <summary className="cursor-pointer text-stone-300">Scratch tables for AD, BE and CF</summary>
+        <p className="mt-1 text-xs text-stone-400 sm:hidden">Each table has 26 columns: scroll it sideways.</p>
         <div className="mt-2 flex flex-col gap-3">
           {PRODUCTS.map((n, k) => {
             const t = tables[k]!
@@ -403,7 +419,10 @@ function PlugsAnswer({ instance, disabled, submit }: AnswerProps<PlugsInstance, 
   const api = useMachineApi()
   return (
     <div className="flex flex-col gap-3" data-testid="plugs-answer">
-      <MachinePanel store={api} show={{ rotors: true, plugboard: true, keyboard: true, lamps: true }} />
+      <MachinePanel store={api} show={{ rotors: true, keyboard: true, lamps: true }} />
+      <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-3">
+        <PlugboardEditor store={api} maxPairs={instance.maxPlugs} />
+      </div>
       <PlugsPreview instance={instance} />
       <div>
         <SubmitButton disabled={disabled} onClick={() => submit(api.getState().snapshot())} />

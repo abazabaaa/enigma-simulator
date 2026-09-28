@@ -79,6 +79,24 @@ function naivePasses(logic: GateLogic, naive: (i: unknown, l: ItemLogic) => unkn
   return passes
 }
 
+/** The constant answer that is right most often (among every item's solutions over `seeds` instances), and its hit rate. */
+function bestConstant(l: ItemLogic, seeds = 300): { answer: unknown; rate: number } {
+  const inst = Array.from({ length: seeds }, (_, s) => gen(l, s))
+  const counts = new Map<string, number>()
+  for (const i of inst) {
+    const k = JSON.stringify(l.solve(i))
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
+  let best = { answer: JSON.parse(top[0]![0]) as unknown, rate: -1 }
+  for (const [k] of top) {
+    const answer = JSON.parse(k) as unknown
+    const rate = inst.filter((i) => l.check(i, answer).correct).length / seeds
+    if (rate > best.rate) best = { answer, rate }
+  }
+  return best
+}
+
 describe('females and sheets', () => {
   it('a female found through the kit’s tables is one on the engine: its AD has a fixed point and the letter repeats', () => {
     let found = 0
@@ -189,7 +207,7 @@ describe('females-needed', () => {
 })
 
 describe('survivors', () => {
-  it('N·pᵏ between 5 and 2,000, within 10%', () => {
+  it('N·pᵏ between 5 and 20,000, within 10%', () => {
     for (let s = 0; s < SEEDS; s++) {
       const i = gen(survivorsItem, s) as SurvivorsInstance
       const e = expected(i.n, i.p, i.k)
@@ -230,6 +248,23 @@ describe('gate sheets', () => {
       ['survivors', 'numbers', 'window', true],
     ])
     expect(GATES.sheets!.fallback).toMatchObject({ id: 'stack-to-one', kind: 'custom', inPage: true })
+  })
+
+  it('MODAL CONSTANT BOT: the answer that is right most often, typed every time, passes the gate < 1%', () => {
+    const logic = GATES.sheets!
+    const answers = new Map([...logic.items, logic.fallback].map((l) => [l.id, bestConstant(l, l.kind === 'custom' ? 100 : SEEDS)]))
+    // females-needed: its answer is drawn uniformly from 6 to 17, so no single answer comes up more than ~15% of the
+    // time; with the ±1 tolerance of §4.4 a constant still covers three of the twelve answers (about a quarter), so the
+    // gate stands on survivors too, whose best constant is rarely right.
+    const needed = Array.from({ length: SEEDS }, (_, s) => femalesNeededItem.solve(gen(femalesNeededItem, s))[0]!)
+    const top = Math.max(...[...new Set(needed)].map((k) => needed.filter((x) => x === k).length))
+    expect(top / SEEDS).toBeLessThan(0.15)
+    expect(new Set(needed).size).toBe(12)
+    expect(answers.get('females-needed')!.rate).toBeLessThan(0.36)
+    expect(answers.get('survivors')!.rate).toBeLessThan(0.05)
+    expect(answers.get('stack-to-one')!.rate).toBeLessThan(0.05)
+    const constant = (_i: unknown, l: ItemLogic) => answers.get(l.id)!.answer
+    expect(naivePasses(logic, constant, 300)).toBeLessThan(3)
   })
 
   it('MISCONCEPTION BOT through the gate: the 1 − p learner never passes', () => {

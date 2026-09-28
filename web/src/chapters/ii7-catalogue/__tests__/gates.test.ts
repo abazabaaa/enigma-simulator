@@ -67,6 +67,7 @@ import {
 } from '../gates'
 
 const SEEDS = 300
+const SEARCH_SEEDS = 300
 
 const gen = <I>(l: ItemLogic<I, unknown>, s: number, attempt = 1): I =>
   l.generate(createRng(seedFor('ii7-test', l.id, s)), {
@@ -101,6 +102,24 @@ function naivePasses(logic: GateLogic, naive: (i: unknown, l: ItemLogic) => unkn
     }
   }
   return passes
+}
+
+/** The constant answer that is right most often (among every item's solutions over `seeds` instances), and its hit rate. */
+function bestConstant(l: ItemLogic, seeds = 300): { answer: unknown; rate: number } {
+  const inst = Array.from({ length: seeds }, (_, s) => gen(l, s))
+  const counts = new Map<string, number>()
+  for (const i of inst) {
+    const k = JSON.stringify(l.solve(i))
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
+  let best = { answer: JSON.parse(top[0]![0]) as unknown, rate: -1 }
+  for (const [k] of top) {
+    const answer = JSON.parse(k) as unknown
+    const rate = inst.filter((i) => l.check(i, answer).correct).length / seeds
+    if (rate > best.rate) best = { answer, rate }
+  }
+  return best
 }
 
 let catalogue: Catalogue
@@ -381,6 +400,15 @@ describe('gate catalogue', () => {
     ])
     expect(GATES.catalogue!.fallback.id).toBe('lookup')
     expect(GATES.catalogue!.items.every((i) => i.kind !== 'code')).toBe(true)
+  })
+
+  it('MODAL CONSTANT BOT: the answer that is right most often, typed every time, passes < 1% (the gate, and signature alone)', () => {
+    const logic = GATES.catalogue!
+    const answers = new Map([...logic.items, logic.fallback].map((l) => [l.id, bestConstant(l, l.kind === 'set-machine' ? 100 : SEARCH_SEEDS)]))
+    for (const [id, b] of answers) if (id !== 'rejewski-parsons') expect(b.rate, `${id}: best constant hit rate`).toBeLessThan(0.05)
+    const constant = (_i: unknown, l: ItemLogic) => answers.get(l.id)!.answer
+    expect(naivePasses(logic, constant, 300)).toBeLessThan(3)
+    expect(naivePasses({ items: [signature as ItemLogic], fallback: signature as ItemLogic }, constant, 300)).toBeLessThan(3)
   })
 
   it('every order of the catalogue appears among the lookup days', () => {
