@@ -53,7 +53,11 @@ export function ghostFromOutputs(reference: readonly PathHop[], outputs: readonl
  * touches a letter on the reference path; `divergeAt` marks that hop. With no such crossing it marks the
  * reflector (or the first hop).
  */
-export function backwardGhost(reference: readonly PathHop[], stagePerms: readonly (readonly number[])[], wrong: number): Ghost {
+export function backwardGhost(
+  reference: readonly PathHop[],
+  stagePerms: readonly (readonly number[])[],
+  wrong: number,
+): Ghost {
   const onPath = new Set<number>()
   for (const h of reference) {
     onPath.add(h.inputIndex)
@@ -61,7 +65,10 @@ export function backwardGhost(reference: readonly PathHop[], stagePerms: readonl
   }
   const hops = [...reference]
   let x = wrong
-  let divergeAt = Math.max(0, reference.findIndex((h) => h.kind === 'reflector'))
+  let divergeAt = Math.max(
+    0,
+    reference.findIndex((h) => h.kind === 'reflector'),
+  )
   for (let k = reference.length - 1; k >= 0; k--) {
     const perm = stagePerms[k]!
     const prev = perm.indexOf(x)

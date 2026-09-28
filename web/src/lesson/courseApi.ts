@@ -62,6 +62,8 @@ export const courseApi: CourseTestApi = {
   }),
 }
 
-export function installCourseApi(target: Window | undefined = typeof window === 'undefined' ? undefined : window): void {
+export function installCourseApi(
+  target: Window | undefined = typeof window === 'undefined' ? undefined : window,
+): void {
   if (target) target.__course = courseApi
 }

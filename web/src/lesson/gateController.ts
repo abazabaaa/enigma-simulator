@@ -97,7 +97,8 @@ export function createGateController(o: { key: GateKey; logic: GateLogic; recall
     view: () => gateView(ctx(), ensure()),
 
     submit(itemId, answer) {
-      if (state.phase === 'feedback') throw new Error('The feedback of the last answer is showing: call continue() first')
+      if (state.phase === 'feedback')
+        throw new Error('The feedback of the last answer is showing: call continue() first')
       const rec = ensure()
       const cur = currentItem(o.logic, rec)
       const it = cur ? rec.items[cur.id] : undefined

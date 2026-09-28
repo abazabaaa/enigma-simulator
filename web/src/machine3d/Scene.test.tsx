@@ -74,7 +74,7 @@ beforeEach(() => {
   const s = useMachineStore.getState()
   s.setLocks({})
   s.setConfig(I)
-  usePlaybackStore.setState({ t: 0, hops: 0, playing: false })
+  usePlaybackStore.setState({ source: 'machine', t: 0, hops: 0, playing: false })
   useStageStore.setState({ highlight: [], ghost: null })
 })
 
@@ -255,6 +255,61 @@ describe('Machine3DScene', () => {
       await renderer!.unmount()
       renderer = null
     }
+  })
+
+  it('positions are letters: no ring numbers outside the exploded view', async () => {
+    for (const preset of ['overview', 'wire', 'rotors', 'pawls', 'reflector', 'symbols'] as const) {
+      const scene = await mount(STAGE_PRESETS[preset])
+      for (const slot of ['left', 'middle', 'right']) {
+        const glyphs = named(scene, `ring-glyphs-${slot}`).userData
+        expect(glyphs.numbers, `${preset} ${slot}`).toEqual([])
+        expect((glyphs.glyphs as string[]).every((g) => /^[A-Z]$/.test(g))).toBe(true)
+        expect(scene.getObjectByName(`ring-setting-leader-${slot}`)).toBeUndefined()
+      }
+      await renderer!.unmount()
+      renderer = null
+    }
+  })
+
+  it('exploded: a dial of ring numbers (none at the window letter) and the ring setting at the core index', async () => {
+    const l = makeLayout({ n: 26, slots: ['left', 'middle', 'right'], toy: false })
+    const scene = await mount(STAGE_PRESETS['rotor-layers'])
+    const right = () => named(scene, 'ring-glyphs-right').userData
+    // ADU, rings AAA: window U (21) has no number beside it; the ring setting 01 is picked out
+    expect(right().numbers).toHaveLength(25)
+    expect(right().numbers).not.toContain('21')
+    expect(right()).toMatchObject({ windowNumber: false, ringSetting: '01' })
+    expect(scene.getObjectByName('ring-setting-leader-right')).toBeDefined()
+    // only the ring in focus is annotated
+    expect(named(scene, 'ring-glyphs-middle').userData.ringSetting).toBeNull()
+    expect(scene.getObjectByName('ring-setting-leader-middle')).toBeUndefined()
+    const index0 = named(scene, 'core-right').rotation.x
+    await act(() => useMachineStore.getState().setRing(2, 'E'))
+    expect(right()).toMatchObject({ windowNumber: false, ringSetting: '05' })
+    // the core, its index and the leader turn 4 steps back under the ring
+    expect(named(scene, 'core-right').rotation.x).toBeCloseTo(index0 - 4 * stepAngle(l), 12)
+    expect(named(scene, 'core-index-right').parent?.name).toBe('core-right')
+    expect(named(scene, 'ring-setting-leader-right').parent?.name).toBe('core-right')
+    // ring = window: that number is the ring setting and stays
+    await act(() => useMachineStore.getState().setRing(2, 'U'))
+    expect(right().numbers).toContain('21')
+    expect(right()).toMatchObject({ windowNumber: false, ringSetting: '21' })
+  })
+
+  it("shows this source's last press finished while the clock plays the other source", async () => {
+    const scene = await mount(STAGE_PRESETS.wire)
+    let lamp = ''
+    await act(() => {
+      lamp = useMachineStore.getState().pressKey('A').output
+      usePlaybackStore.setState({ source: 'machine', t: 0.5, hops: 11 })
+    })
+    expect(named(scene, 'ring-right').userData.window).toBe(20)
+    expect(named(scene, 'lamp-glow').visible).toBe(false)
+    // a toy press now owns the clock (6 hops, still playing)
+    await act(() => usePlaybackStore.setState({ source: 'toy', t: 0.5, hops: 6 }))
+    expect(named(scene, 'ring-right').userData.window).toBe(21)
+    expect(named(scene, 'lamp-glow').userData.lit).toBe(lamp)
+    await act(() => usePlaybackStore.setState({ source: 'machine', t: 0, hops: 0 }))
   })
 
   it('lights the lamp of the last press once the path is played', async () => {

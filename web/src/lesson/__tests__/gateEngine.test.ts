@@ -16,7 +16,12 @@ import {
 import { instanceSeed } from '../rules'
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
-const ctx: GateCtx = { key: 'lab-fixture/main', logic: GATES.main!, salt: 'engine', cfg: { minLatencyMs: 2000, burstMs: 5000 } }
+const ctx: GateCtx = {
+  key: 'lab-fixture/main',
+  logic: GATES.main!,
+  salt: 'engine',
+  cfg: { minLatencyMs: 2000, burstMs: 5000 },
+}
 const SLOW = 10_000
 
 function answerCurrent(rec: GateRecord, correct: boolean, now: number, c: GateCtx = ctx) {
@@ -32,7 +37,14 @@ describe('gate engine', () => {
     const rec = ensureCurrent(ctx, undefined, 1)
     expect(Object.keys(rec.items)).toEqual(['toy-lamp'])
     const v = gateView(ctx, rec)
-    expect(v.current).toMatchObject({ itemId: 'toy-lamp', kind: 'letter', attempt: 1, hintLevel: 0, fallback: false, passed: false })
+    expect(v.current).toMatchObject({
+      itemId: 'toy-lamp',
+      kind: 'letter',
+      attempt: 1,
+      hintLevel: 0,
+      fallback: false,
+      passed: false,
+    })
     expect(v.current!.seed).toBe(instanceSeed('engine', 'lab-fixture/main/toy-lamp', 1, 0))
     expect(v.items.map((i) => i.itemId)).toEqual(GATES.main!.items.map((i) => i.id))
     expect(v.items[1]).toMatchObject({ attempt: 0, instance: null })
@@ -71,7 +83,9 @@ describe('gate engine', () => {
     const one: GateCtx = { ...ctx, key: 'lab-fixture/puzzle', logic: GATES.puzzle! }
     let rec = ensureCurrent(one, undefined, 1)
     const r1 = answerCurrent(rec, true, SLOW, one)
-    expect(r1.events).toEqual([expect.objectContaining({ type: 'item.submit', attempt: 1, correct: true, ms: SLOW - 1, rollback: 'none' })])
+    expect(r1.events).toEqual([
+      expect.objectContaining({ type: 'item.submit', attempt: 1, correct: true, ms: SLOW - 1, rollback: 'none' }),
+    ])
     rec = r1.gate
     const r2 = answerCurrent(rec, true, 2 * SLOW, one)
     expect(r2.events.map((e) => e.type)).toEqual(['item.submit', 'item.passed', 'gate.passed'])

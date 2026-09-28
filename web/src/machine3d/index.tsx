@@ -20,7 +20,7 @@ import { useMachineApi } from '../state/activeMachine'
 import { useToyStore } from '../state/toyStore'
 import { isRenderingContinuously, resetMonitor } from './monitor'
 import { Machine3DScene } from './Scene'
-import { shotFor } from './shots'
+import { CAMERA_FOV, frameShot } from './shots'
 import { buildReport, useStageView } from './useStageView'
 
 const Effects = lazy(() => import('./effects'))
@@ -74,13 +74,13 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
     [api, interactive, source],
   )
 
-  // The first shot only: CameraRig owns the camera from then on.
-  const initialShot = useRef(shotFor(directive.shot, state.view.layout)).current
+  // The first shot only (CameraRig re-fits it to the measured canvas and owns the camera from then on).
+  const initialShot = useRef(frameShot(directive.shot, state.view.layout, { aspect: 16 / 9 })).current
   const camera = useMemo(
     () => ({
-      fov: 35,
+      fov: CAMERA_FOV,
       near: 1,
-      far: 400,
+      far: 600,
       position: [initialShot.position.x, initialShot.position.y, initialShot.position.z] as [number, number, number],
     }),
     [initialShot],
@@ -98,7 +98,11 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
   }, [])
 
   return (
-    <div aria-hidden="true" data-testid="machine3d" className="relative h-[min(68vh,560px)] min-h-80 w-full">
+    <div
+      aria-hidden="true"
+      data-testid="machine3d"
+      className="relative h-[min(68vh,560px,max(20rem,90vw))] min-h-80 w-full"
+    >
       <Canvas frameloop="demand" dpr={dpr} gl={GL} camera={camera} onCreated={onCreated}>
         <Machine3DScene
           directive={directive}

@@ -3,7 +3,10 @@ import { PROGRESS_CORRUPT_KEY, PROGRESS_KEY } from '../../contracts/progress'
 import type { SafeStorage } from '../../lib/storage'
 import { createProgressStore, freshProgress, parseProgress } from '../progress'
 
-function memory(init: Record<string, string> = {}, o: { failWrites?: boolean } = {}): SafeStorage & { data: Map<string, string> } {
+function memory(
+  init: Record<string, string> = {},
+  o: { failWrites?: boolean } = {},
+): SafeStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(init))
   let ok = true
   return {
@@ -23,6 +26,48 @@ function memory(init: Record<string, string> = {}, o: { failWrites?: boolean } =
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
+/** Values out of range are quarantined, never clamped (review m7). */
+function outOfRange(): [string, string][] {
+  const item = {
+    attempt: 2,
+    seed: 7,
+    redraw: 0,
+    shownAt: 5,
+    outcomes: [],
+    wrong: 0,
+    fallbackNext: false,
+    passed: false,
+  }
+  const outcome = { result: 'wrong', ms: 10, seed: 7, fallback: false, hintLevel: 0, at: 5 }
+  const withItem = (patch: object) =>
+    JSON.stringify({
+      ...freshProgress(1, 's'),
+      gates: { 'lab-fixture/main': { passed: false, items: { a: { ...item, ...patch } } } },
+    })
+  return [
+    ['wrong < 0', withItem({ wrong: -5 })],
+    ['a fractional attempt', withItem({ attempt: 1.5 })],
+    ['attempt 0', withItem({ attempt: 0 })],
+    ['a seed beyond 32 bits', withItem({ seed: 2 ** 33 })],
+    ['redraw > 20', withItem({ redraw: 21 })],
+    ['a negative outcome time', withItem({ outcomes: [{ ...outcome, ms: -1 }] })],
+    ['hint level 4', withItem({ outcomes: [{ ...outcome, hintLevel: 4 }] })],
+    ['more than 20 outcomes', withItem({ outcomes: Array.from({ length: 21 }, () => outcome) })],
+    [
+      'reached < 0',
+      JSON.stringify({
+        ...freshProgress(1, 's'),
+        chapters: { prologue: { reached: -4, completed: false, tasks: [] } },
+      }),
+    ],
+    ['a negative lastVisit', JSON.stringify({ ...freshProgress(1, 's'), lastVisit: -1 })],
+    [
+      'a bet with a bad verdict',
+      JSON.stringify({ ...freshProgress(1, 's'), bets: { 'lab-fixture/x': { value: 'A', correct: 'yes', at: 1 } } }),
+    ],
+  ]
+}
+
 describe('progress persistence', () => {
   it('starts fresh with the given salt and writes plain ProgressV1 JSON', () => {
     const s = memory()
@@ -30,7 +75,11 @@ describe('progress persistence', () => {
     expect(store.getState()).toMatchObject({ version: 1, salt: 'abc', createdAt: 1000, lastVisit: 1000 })
     store.getState().patchChapter('i1-anatomy', { reached: 2 })
     const saved = JSON.parse(s.data.get(PROGRESS_KEY)!)
-    expect(saved).toMatchObject({ version: 1, salt: 'abc', chapters: { 'i1-anatomy': { reached: 2, completed: false, tasks: [] } } })
+    expect(saved).toMatchObject({
+      version: 1,
+      salt: 'abc',
+      chapters: { 'i1-anatomy': { reached: 2, completed: false, tasks: [] } },
+    })
     expect(saved).not.toHaveProperty('notice')
     expect(parseProgress(s.data.get(PROGRESS_KEY)!)).not.toBeNull()
   })
@@ -38,7 +87,16 @@ describe('progress persistence', () => {
   it('restores saved progress exactly (seeds included) on the next load', () => {
     const s = memory()
     const a = createProgressStore({ storage: s, seed: 'abc' })
-    const rec = { attempt: 3, seed: 12345, redraw: 2, shownAt: 7, outcomes: [], wrong: 0, fallbackNext: false, passed: false }
+    const rec = {
+      attempt: 3,
+      seed: 12345,
+      redraw: 2,
+      shownAt: 7,
+      outcomes: [],
+      wrong: 0,
+      fallbackNext: false,
+      passed: false,
+    }
     a.getState().setGate('lab-fixture/main', { items: { 'toy-lamp': rec }, passed: false })
     const b = createProgressStore({ storage: s })
     expect(b.getState().gates['lab-fixture/main']!.items['toy-lamp']).toEqual(rec)
@@ -49,8 +107,12 @@ describe('progress persistence', () => {
   it.each([
     ['not JSON', '{nope'],
     ['another version', JSON.stringify({ ...freshProgress(1, 's'), version: 2 })],
-    ['a broken gate record', JSON.stringify({ ...freshProgress(1, 's'), gates: { 'x/y': { passed: false, items: { a: { attempt: 'x' } } } } })],
+    [
+      'a broken gate record',
+      JSON.stringify({ ...freshProgress(1, 's'), gates: { 'x/y': { passed: false, items: { a: { attempt: 'x' } } } } }),
+    ],
     ['zustand-wrapped state', JSON.stringify({ state: freshProgress(1, 's'), version: 1 })],
+    ...outOfRange(),
   ])('quarantines %s and starts fresh with a notice', (_label, raw) => {
     const s = memory({ [PROGRESS_KEY]: raw })
     const store = createProgressStore({ storage: s, seed: 'fresh' })
@@ -71,7 +133,12 @@ describe('progress persistence', () => {
   })
 
   it('raises the banner at once when storage is unavailable', () => {
-    const s = { ...memory(), get persistent() { return false } }
+    const s = {
+      ...memory(),
+      get persistent() {
+        return false
+      },
+    }
     expect(createProgressStore({ storage: s }).getState().notice.storageFailed).toBe(true)
   })
 

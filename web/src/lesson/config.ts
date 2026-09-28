@@ -47,7 +47,8 @@ export function updateConfig(patch: Partial<CourseConfig>): void {
 export function applyPlayback(): void {
   const { playback } = useCourseConfig.getState()
   if (playback === 'instant') usePlaybackStore.getState().setSpeed('instant')
-  else if (playback === 'normal' && usePlaybackStore.getState().speed === 'instant') usePlaybackStore.getState().setSpeed(1)
+  else if (playback === 'normal' && usePlaybackStore.getState().speed === 'instant')
+    usePlaybackStore.getState().setSpeed(1)
 }
 
 export function rules(): RuleConfig {
