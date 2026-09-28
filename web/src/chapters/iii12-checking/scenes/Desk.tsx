@@ -138,14 +138,16 @@ export function CheckingDesk(p: {
       data-steps={log.length}
       data-status={done ?? 'open'}
     >
-      <p>
-        Stop at drum positions <Mono>{data.stop.positions}</Mono>, wheel order <Mono>{data.rotors.join(' ')}</Mono>: the register
-        read {data.stop.live} live wire{data.stop.live === 1 ? '' : 's'} with the partner{' '}
-        <Mono>
-          {data.stop.testLetter}↔{data.stop.stecker}
-        </Mono>
-        . That is the hypothesis to check.
-      </p>
+      {p.mode === 'explore' ? (
+        <p>
+          Stop at drum positions <Mono>{data.stop.positions}</Mono>, wheel order <Mono>{data.rotors.join(' ')}</Mono>: the register
+          read {data.stop.live} live wire{data.stop.live === 1 ? '' : 's'} with the partner{' '}
+          <Mono>
+            {data.stop.testLetter}↔{data.stop.stecker}
+          </Mono>
+          . That is the hypothesis to check.
+        </p>
+      ) : null}
 
       <div className="max-w-full overflow-x-auto" role="region" aria-label="The crib’s columns" tabIndex={0}>
         <ol className="flex gap-1 pb-1" aria-label="Crib columns: pick one to turn the drums to it">

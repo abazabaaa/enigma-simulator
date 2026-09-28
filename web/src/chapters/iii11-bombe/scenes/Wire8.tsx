@@ -127,8 +127,8 @@ export function Wire8View(p: SceneProps): JSX.Element {
           <button type="button" className={QUIET_BUTTON} disabled={!fired || done} data-testid="wire8-run" onClick={() => setStep(total)}>
             Run to the end
           </button>
-          <span className="font-mono text-xs text-stone-400">
-            {shown} of {total} wires lit
+          <span className="font-mono text-xs text-stone-400" data-testid="wire8-count">
+            {fired ? `${shown} of ${total} wires lit` : '1 wire lit'}
           </span>
         </div>
         {!fired ? <p className="text-stone-400">Place your bet below, then switch on the current.</p> : null}

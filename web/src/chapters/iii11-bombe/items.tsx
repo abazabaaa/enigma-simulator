@@ -116,6 +116,7 @@ function ClickAnswer({ instance, disabled, submit }: AnswerProps<ClickInstance, 
   const pick = (j: number, l: string) => setPicks((ps) => ps.map((x, i) => (i === j ? l : x)))
   return (
     <div className="flex flex-col gap-3" data-testid="click-answer" data-picks={picks.map((x) => x ?? '-').join('')}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)]">
       <ol className="flex flex-col gap-2">
         {instance.loop.map((a, j) => {
           const from = j === 0 ? instance.hypothesis : picks[j - 1]
@@ -148,6 +149,7 @@ function ClickAnswer({ instance, disabled, submit }: AnswerProps<ClickInstance, 
         })}
       </ol>
       <WireBench state={state} test={t} diagonal={false} testIds={{ grid: 'click-grid', register: 'click-register' }} />
+      </div>
       <div role="radiogroup" aria-label="Verdict" className="flex flex-wrap gap-2">
         {(['C', 'X'] as const).map((v) => (
           <button
@@ -212,7 +214,7 @@ function ClickFeedback({ instance, answer, result }: { instance: ClickInstance; 
   const got = Array.isArray(answer) ? answer : []
   return (
     <div className="flex flex-col gap-2" data-testid="wires-feedback" data-scrambler={rb.scrambler}>
-      <table className="font-mono text-xs">
+      <table className="w-auto self-start font-mono text-xs">
         <thead>
           <tr className="text-stone-400">
             <th className="pr-3 text-left font-normal">Stage</th>

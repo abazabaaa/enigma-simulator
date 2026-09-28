@@ -29,7 +29,8 @@ function StopPrompt({ instance, hintLevel }: { instance: StopInstance; hintLevel
       <p>
         The bombe stopped on wheel order <Mono>{instance.rotors.join(' ')}</Mono> (rings 01 01 01) at drum positions{' '}
         <Mono>{instance.stop.positions}</Mono>, with the crib <Mono>{instance.crib}</Mono> over the cipher letters{' '}
-        <Mono>{instance.under}</Mono>. Its test register suggests{' '}
+        <Mono>{instance.under}</Mono>. Its test register showed {instance.stop.live} live wire{instance.stop.live === 1 ? '' : 's'},
+        which gives the hypothesis{' '}
         <Mono>
           {instance.stop.testLetter}↔{instance.stop.stecker}
         </Mono>

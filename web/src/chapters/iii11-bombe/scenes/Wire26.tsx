@@ -8,9 +8,9 @@ import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { SceneProps } from '../../../contracts/lesson'
 import { LETTERS, type Letter } from '../../../engine'
 import { INPUT, Mono, QUIET_BUTTON, useRevealFired } from '../../../lesson'
-import { CribStrip, MenuGraph } from '../../../viz'
+import { MenuGraph } from '../../../viz'
 import { B26, B26_CRIB, b26State } from '../gates'
-import { WireBench, registerAt } from './Bench'
+import { CribLine, WireBench, registerAt } from './Bench'
 
 const TEST = B26.test
 
@@ -64,7 +64,7 @@ export function Wire26View(p: SceneProps): JSX.Element {
         {B26.menu.letters.length} letters with loops. The bombe tests letter <Mono>{TEST}</Mono>, the busiest letter of the menu:
         cable {TEST} is the test register. Each cable now has 26 wires, and each link is a scrambler of 26 letters.
       </p>
-      <CribStrip cipher={B26.cipher} crib={B26_CRIB} offset={B26.offset} readOnly testId="wire26-crib" />
+      <CribLine cipher={B26.cipher} crib={B26_CRIB} offset={B26.offset} />
       <div className="max-w-md">
         <MenuGraph menu={B26.menu} testId="wire26-menu" />
       </div>
@@ -110,16 +110,16 @@ export function Wire26View(p: SceneProps): JSX.Element {
           <input
             type="range"
             min={1}
-            max={total}
+            max={fired ? total : 1}
             value={shown}
             disabled={!fired}
             onChange={(e) => setReplay(Number(e.target.value))}
-            aria-valuetext={`${shown} of ${total} wires lit`}
+            aria-valuetext={fired ? `${shown} of ${total} wires lit` : '1 wire lit'}
             data-testid="wire26-replay"
             className="w-48"
           />
-          <span className="font-mono text-xs text-stone-400">
-            {shown} of {total} wires lit
+          <span className="font-mono text-xs text-stone-400" data-testid="wire26-count">
+            {fired ? `${shown} of ${total} wires lit` : '1 wire lit'}
           </span>
         </label>
         {!fired ? <p className="text-stone-400">Place your bet below, then switch on the current.</p> : null}

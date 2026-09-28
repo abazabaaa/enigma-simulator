@@ -88,7 +88,7 @@ export function DiagonalView(p: SceneProps): JSX.Element {
       <p>
         A plugboard cable joins two letters both ways: if <Mono>A</Mono> is steckered to <Mono>K</Mono>, then <Mono>K</Mono> is
         steckered to <Mono>A</Mono>. Gordon Welchman&apos;s diagonal board wires that fact into the bombe: wire k of cable A is joined to
-        wire a of cable K, for every pair of letters. It adds no scramblers; it only joins wires that the cables already have.
+        wire a of cable K, for every pair of letters. It adds no scramblers.
       </p>
       <p>
         The run below takes the whole wheel order of this day, <Mono>{B26.day.rotors.join(' ')}</Mono>, through all 17,576 drum

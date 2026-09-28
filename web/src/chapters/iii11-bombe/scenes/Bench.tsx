@@ -107,14 +107,17 @@ export function WireBench(p: {
   const wide = n > 8
   const register = registerAt(p.state, p.test, p.step)
   return (
-    <div className="flex min-w-0 flex-col gap-3" data-testid={p.testIds ? `${p.testIds.grid}-bench` : 'wire-bench'}>
+    <div
+      className={`flex min-w-0 flex-col gap-3 ${wide ? '' : 'sm:flex-row-reverse sm:items-start sm:justify-end sm:gap-6'}`}
+      data-testid={p.testIds ? `${p.testIds.grid}-bench` : 'wire-bench'}
+    >
       <div {...scroller(wide, `Test register ${p.test}, scrolls sideways`)}>
-        <div style={wide ? { minWidth: 580, maxWidth: 680 } : { maxWidth: 420 }}>
+        <div style={wide ? { minWidth: 580, maxWidth: 680 } : { width: 'min(100%, 340px)' }}>
           <TestRegister live={register} testLetter={p.test} testId={p.testIds?.register} />
         </div>
       </div>
       <div {...scroller(wide, 'Wire grid, scrolls sideways')}>
-        <div style={wide ? { minWidth: 416, maxWidth: 520 } : { maxWidth: 360 }}>
+        <div style={wide ? { minWidth: 416, maxWidth: 520 } : { width: 'min(100%, 300px)' }}>
           <WireGrid
             state={p.state}
             step={p.step}
@@ -146,4 +149,46 @@ export function describeEvent(state: WireState, k: number, menu: Menu, tables: r
   const other = edge.a === bank ? edge.b : edge.a
   const from = table[e.wire]!
   return `Scrambler ${pos} (${edge.a}–${edge.b}): ${other}↔${from.toLowerCase()} gives ${bank}↔${wire}.`
+}
+
+/**
+ * A crib under its message at an offset: two rows of letters, the crib's columns marked. It scrolls sideways inside a
+ * focusable region on a phone. Nothing moves: the offset is the one without a crash.
+ */
+export function CribLine({ cipher, crib, offset }: { cipher: string; crib: string; offset: number }): JSX.Element {
+  return (
+    <div
+      className="max-w-full overflow-x-auto rounded focus-visible:outline-2 focus-visible:outline-amber-400"
+      role="region"
+      aria-label={`The crib ${crib} under the message, from letter ${offset + 1}`}
+      tabIndex={0}
+      data-testid="crib-line"
+      data-offset={offset}
+    >
+      <table className="border-collapse font-mono text-sm">
+        <tbody>
+          <tr>
+            <th scope="row" className="pr-2 text-left font-sans text-xs font-normal text-stone-400">
+              Message
+            </th>
+            {[...cipher].map((c, k) => (
+              <td key={k} className={`w-5 text-center ${k >= offset && k < offset + crib.length ? 'text-stone-100' : 'text-stone-500'}`}>
+                {c}
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row" className="pr-2 text-left font-sans text-xs font-normal text-stone-400">
+              Crib
+            </th>
+            {[...cipher].map((_, k) => (
+              <td key={k} className="w-5 text-center text-amber-200">
+                {k >= offset && k < offset + crib.length ? crib[k - offset] : ''}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
 }

@@ -417,7 +417,7 @@ export function stopSolution(i: StopInstance): StopAnswer {
   return { verdict: 'consistent', letter: i.stop.stecker, log: c.log }
 }
 
-const machineFail = (message: string, highlight: readonly PartId[] = ['rotor-right']): CheckResult =>
+const machineFail = (message: string, highlight: readonly PartId[] = ['lampboard']): CheckResult =>
   verdict(false, { kind: 'machine', field: 'positions', message, highlight }, message)
 
 export function stopCheck(i: StopInstance, a: unknown): CheckResult {
