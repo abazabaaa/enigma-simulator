@@ -713,7 +713,7 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
         viewBox={`0 0 ${layout.width} ${layout.height}`}
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
-        style={{ minWidth: layout.minWidth, maxWidth: Math.round(layout.width * 1.25) }}
+        style={{ minWidth: layout.minWidth, maxWidth: stageMaxWidth(layout) }}
         className="mx-auto block h-auto w-full font-mono text-stone-300 select-none"
       >
         <Parts {...parts} layer="back" />
@@ -776,6 +776,19 @@ export default function Stage2D({ directive, reducedMotion, onReport }: StageVie
       </svg>
     </div>
   )
+}
+
+/** The share of the viewport height the drawing may take, so the whole stage stays in view. */
+export const STAGE_MAX_VH = 70
+
+/**
+ * The drawing's width cap: at most 1.25× its natural size, and no taller than STAGE_MAX_VH of the
+ * viewport (width = height × aspect). The minimum width (smallest text ≥ MIN_TEXT_PX) still wins
+ * over this cap in CSS, so a short window scrolls the page rather than shrink the text.
+ */
+export function stageMaxWidth(l: CircuitLayout): string {
+  const aspect = (l.width / l.height).toFixed(4)
+  return `min(${Math.round(l.width * 1.25)}px, calc(${STAGE_MAX_VH}vh * ${aspect}))`
 }
 
 /** Whether the element scrolls sideways (its content is wider than its box). */
