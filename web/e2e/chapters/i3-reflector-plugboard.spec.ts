@@ -12,6 +12,7 @@
  * Answers are computed in Node from the pure gates.ts.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -81,6 +82,14 @@ async function plugViaUi(page: Page, pairs: readonly string[]): Promise<void> {
 /** Type letters on the DOM keyboard. */
 async function typeKeys(page: Page, text: string): Promise<void> {
   for (const ch of text) await page.getByTestId(`key-${ch}`).click()
+}
+
+/** Serious or critical axe findings inside one element (other PRs' placeholder stubs excluded), as lesson.spec does. */
+async function axeSerious(page: Page, selector: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
 }
 
 /** Walk the explore scenes (bets and triggers through the UI) up to the gate. */
@@ -203,6 +212,7 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     // plug-to-hit (set-machine): locked keyboard, hidden lamps; plugging cables submits nothing.
     let c = await current(page)
     expect(c).toMatchObject({ itemId: 'plug-to-hit', kind: 'set-machine' })
+    expect(await axeSerious(page, '[data-testid="item-plug-to-hit"]')).toEqual([])
     await assertFocus(page, 'plugboard')
     await expect(page.getByTestId('plug-e0')).toBeVisible()
     await expect(page.getByTestId('key-A')).toBeDisabled()
@@ -243,6 +253,7 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     // why-no-self (choice, once): the distractor, its explanation, then the reflector.
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'why-no-self', kind: 'choice' })
+    expect(await axeSerious(page, '[data-testid="item-why-no-self"]')).toEqual([])
     await assertNoAnswerLeak(page)
     await answerViaUi(page, 'choice', 'plugboard')
     await assertRollback(page, 'none')
@@ -259,6 +270,7 @@ test.describe('chapter i3-reflector-plugboard', { tag: '@chapter:i3-reflector-pl
     // compose-inverse (code): Run waits for the prediction; the prediction and the hidden cases must both be right.
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'compose-inverse', kind: 'code' })
+    expect(await axeSerious(page, '[data-testid="item-compose-inverse"]')).toEqual([])
     const run = page.getByTestId('code-run')
     await expect(run).toBeDisabled()
     await page.getByTestId('code-editor').fill(COMPOSE_REFERENCE)

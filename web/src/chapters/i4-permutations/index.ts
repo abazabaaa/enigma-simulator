@@ -9,12 +9,7 @@ import type { ChapterDef, SceneDef } from '../../contracts/lesson'
 import { bindGates } from '../../lesson/bind'
 import { FACTS } from './facts'
 import { FIXED, GATES, NOTATION_START, READ_ONLY, START, SYMBOLS_KEY } from './gates'
-// The e2e typecheck (tsconfig.node.json, no `jsx`) reaches this file through content/registry.ts: it must not
-// follow the .tsx imports (TS6142). The app and unit-test configs type them normally. Remove these two directives
-// once tsconfig.node.json enables "jsx" (05's fix, pending on chapters-base).
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { ITEM_UI } from './items'
-// @ts-ignore TS6142 under tsconfig.node.json only
 import { SymbolsView, TablesView } from './scenes'
 
 const STORY =

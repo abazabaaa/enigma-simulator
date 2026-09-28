@@ -13,6 +13,7 @@
  * Answers are computed in Node from the pure gates.ts.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 import { gotoApp } from '../helpers/app'
@@ -90,6 +91,14 @@ const pressThrows = (page: Page, key = 'A') =>
   }, key)
 
 const betResults = async (page: Page) => Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
+
+/** Serious or critical axe findings inside one element (other PRs' placeholder stubs excluded), as lesson.spec does. */
+async function axeSerious(page: Page, selector: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
+}
 
 /** Walk the explore scenes (bets and triggers through the UI) up to the gate. */
 async function toGate(page: Page): Promise<void> {
@@ -186,6 +195,7 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     // keypress (code): Run waits for the prediction.
     let c = await current(page)
     expect(c).toMatchObject({ itemId: 'keypress', kind: 'code' })
+    expect(await axeSerious(page, '[data-testid="item-keypress"]')).toEqual([])
     await assertFocus(page, 'wire')
     const run = page.getByTestId('code-run')
     await expect(run).toBeDisabled()
@@ -217,10 +227,13 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     await typeCodeAndRun(page, SWAPPED, keypressProbe(c.instance as KeypressInstance))
     await assertRollback(page, 'path')
     await expect.poll(async () => (await stageInfo(page)).ghost).toBe(true)
-    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(['rotor-middle'])
+    // Hop 4 of the learner's path went through the left rotor, where the middle one belongs: that part is outlined.
+    await expect.poll(async () => (await stageInfo(page)).highlighted).toEqual(['rotor-left'])
     const rb = (await page.evaluate(() => window.__course!.lastCheck()))!.result.rollback
     expect(rb).toMatchObject({ kind: 'path', ghost: { divergeAt: 3 } })
-    await expect(page.getByTestId('rollback')).toContainText('Middle rotor')
+    if (rb.kind === 'path') expect(rb.ghost.hops.map((h) => h.stage).slice(2, 5)).toEqual(['rotor-right-fwd', 'rotor-left-fwd', 'rotor-middle-fwd'])
+    await expect(page.getByTestId('rollback')).toContainText('Left rotor, hop 4')
+    expect(await axeSerious(page, '[data-testid="item-keypress"]')).toEqual([])
     await continueGate(page)
     // Right through the editor: W W C, not passed yet.
     c = await current(page)
@@ -237,6 +250,7 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     // which-wrong (ghost-pick): no ghost and no divergence in the question; the ghost only in the rollback.
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'which-wrong', kind: 'ghost-pick' })
+    expect(await axeSerious(page, '[data-testid="item-which-wrong"]')).toEqual([])
     const w0 = c.instance as WhichWrongInstance
     expect(w0.ghost.divergeAt).toBe(-1)
     expect((await stageInfo(page)).ghost).toBe(false)
@@ -272,6 +286,7 @@ test.describe('chapter i4-permutations', { tag: '@chapter:i4-permutations' }, ()
     // hop-chain-full (chain, its own inputs): the machine shows the start windows; the rollback moves it to the true ones.
     c = await current(page)
     expect(c).toMatchObject({ itemId: 'hop-chain-full', kind: 'chain' })
+    expect(await axeSerious(page, '[data-testid="item-hop-chain-full"]')).toEqual([])
     const h0 = c.instance as ChainFullInstance
     await expect.poll(async () => (await state(page)).positions).toBe(h0.config.positions.join(''))
     await assertNoAnswerLeak(page)
