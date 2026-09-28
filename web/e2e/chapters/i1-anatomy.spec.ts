@@ -99,9 +99,16 @@ const playbackAtEnd = (page: Page) =>
     )
     .toBe(true)
 
-/** Serious or critical axe findings inside one element (the lesson.spec pattern). */
+/**
+ * Serious or critical axe findings inside one element (the lesson.spec pattern). The stage is aria-hidden (the DOM
+ * machine is the accessible surface) and is 04's and 06's to check, so it is left out: that keeps the scan fast.
+ */
 async function axeSerious(page: Page, selector: string): Promise<string[]> {
-  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  const res = await new AxeBuilder({ page })
+    .include(selector)
+    .exclude('[data-stub]')
+    .exclude('[data-testid="stage"]')
+    .analyze()
   return res.violations
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
