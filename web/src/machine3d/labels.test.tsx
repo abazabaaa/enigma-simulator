@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import { STAGE_PRESETS, dimmedParts, type PartId } from '../contracts/stage'
 import { createMachine, pressKey, type MachineConfigInput } from '../engine'
-import { labelPlan, placeLabels, type Rect } from './labels'
+import { LABEL_FONT_RATIO, MIN_LABEL_FONT_PX } from './debugApi'
+import { labelPlan, minLabelPx, placeLabels, type Rect } from './labels'
 import { presentParts } from './Scene'
 import { machineView } from './view'
 
@@ -36,6 +37,21 @@ describe('placeLabels', () => {
     })
   })
 
+  it('prefers a spot off the soft keep-outs (the rings), and takes one only when nothing else is free', () => {
+    const ring: Rect = { x: 100, y: 100, w: 200, h: 100 }
+    const [r] = placeLabels([{ x: 200, y: 150, w: 60, h: 20 }], [], { w: 400, h: 300 }, [ring])
+    expect(overlap(r!, ring)).toBe(false)
+    // a viewport filled by the ring: the label still gets a place
+    const [s] = placeLabels([{ x: 50, y: 50, w: 60, h: 20 }], [], { w: 100, h: 100 }, [{ x: 0, y: 0, w: 100, h: 100 }])
+    expect(s).toBeDefined()
+  })
+
+  it('never shrinks label type below the minimum', () => {
+    expect(minLabelPx(false) * LABEL_FONT_RATIO.name).toBeCloseTo(MIN_LABEL_FONT_PX, 9)
+    expect(minLabelPx(true) * LABEL_FONT_RATIO.symbol).toBeGreaterThanOrEqual(MIN_LABEL_FONT_PX)
+    expect(MIN_LABEL_FONT_PX).toBeGreaterThanOrEqual(9)
+  })
+
   it('leaves a label that fits where it is', () => {
     const [r] = placeLabels([{ x: 100, y: 50, w: 40, h: 20 }], [], { w: 400, h: 300 })
     expect(r).toEqual({ x: 80, y: 40, w: 40, h: 20 })
@@ -56,9 +72,11 @@ describe('labelPlan', () => {
     return labelPlan(view, directive, presentParts('I', directive, view), dimmed)
   }
 
-  it('pawls: pawls are placed first, and every pawl–notch contact is kept clear', () => {
+  it('pawls: pawls are placed first, every label has a leader target, contacts are kept clear, rings avoided', () => {
     for (const presses of ['A', 'AA', 'AAA']) {
-      const { entries, keepOut } = plan('pawls', I, presses)
+      const { entries, keepOut, soft } = plan('pawls', I, presses)
+      expect(entries.every((e) => e.target)).toBe(true)
+      expect(soft).toHaveLength(3)
       expect(entries.map((e) => e.key)).toEqual([
         'pawl-left',
         'pawl-middle',

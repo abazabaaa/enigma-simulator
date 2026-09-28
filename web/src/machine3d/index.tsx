@@ -7,13 +7,14 @@
  *    both renders and reports (onReport) from that snapshot, so the report is what is shown.
  *  - window.__stage.stats(): renderer calls, triangles, geometries, textures and framesWhileIdle.
  *  - A lost WebGL context or a failed shader calls onError: StageHost switches to the 2D view for
- *    the session.
+ *    the session. Only while mounted: the context R3F loses on purpose when the view unmounts (a
+ *    scene change) is not a failure.
  *  - PerformanceMonitor lowers the pixel ratio and drops the effects chunk (PR 11) on a decline.
  */
 
 import { PerformanceMonitor } from '@react-three/drei'
 import { Canvas, type RootState } from '@react-three/fiber'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { StageViewProps } from '../contracts/stage'
 import type { Letter } from '../engine'
 import { useMachineApi } from '../state/activeMachine'
@@ -41,7 +42,24 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
   const [effects, setEffects] = useState(true)
   const onErrorRef = useRef(onError)
   onErrorRef.current = onError
+  // Errors count only while this view is mounted: after unmount R3F tears the renderer down with
+  // forceContextLoss(), and that loss must not send the session to 2D.
+  const mounted = useRef(true)
+  const detach = useRef<(() => void) | null>(null)
+  const fail = useCallback((e: Error) => {
+    if (mounted.current) onErrorRef.current(e)
+  }, [])
 
+  // A layout-effect cleanup: React runs it (parent first) before the Canvas's own, which starts R3F's
+  // teardown; a passive cleanup would come after that loss.
+  useLayoutEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      detach.current?.()
+      detach.current = null
+    }
+  }, [])
   useEffect(() => resetMonitor(), [])
 
   const report = gpu === null ? null : buildReport(state, directive, gpu)
@@ -51,17 +69,20 @@ export default function Machine3DView({ directive, reducedMotion, onReport, onEr
     // reportKey stands for report
   }, [reportKey, onReport])
 
-  const onCreated = useCallback((root: RootState) => {
-    root.gl.domElement.addEventListener(
-      'webglcontextlost',
-      () => onErrorRef.current(new Error('The WebGL context was lost')),
-      { once: true },
-    )
-    // A shader that fails to compile is not a React error: hand it to StageHost too (and keep three
-    // from logging it as a console error; StageHost warns instead).
-    root.gl.debug.onShaderError = () => onErrorRef.current(new Error('A WebGL shader failed to compile'))
-    setGpu(gpuString(root))
-  }, [])
+  const onCreated = useCallback(
+    (root: RootState) => {
+      const canvas = root.gl.domElement
+      const lost = () => fail(new Error('The WebGL context was lost'))
+      canvas.addEventListener('webglcontextlost', lost, { once: true })
+      detach.current?.()
+      detach.current = () => canvas.removeEventListener('webglcontextlost', lost)
+      // A shader that fails to compile is not a React error: hand it to StageHost too (and keep three
+      // from logging it as a console error; StageHost warns instead).
+      root.gl.debug.onShaderError = () => fail(new Error('A WebGL shader failed to compile'))
+      setGpu(gpuString(root))
+    },
+    [fail],
+  )
 
   const { interactive, source } = directive
   const onPress = useCallback(

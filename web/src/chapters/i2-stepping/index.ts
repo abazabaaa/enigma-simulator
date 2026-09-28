@@ -39,7 +39,7 @@ const scenes: readonly SceneDef[] = [
   {
     id: 'step-first',
     kind: 'explore',
-    title: 'The rotors step before the current flows',
+    title: 'One key press',
     stage: 'pawls',
     worked: true,
     setup: { machine: START, locks: FIXED },
@@ -48,16 +48,17 @@ const scenes: readonly SceneDef[] = [
     bets: [
       {
         id: 'first-press',
-        prompt: 'The windows show AAA. You press A. What happens to the rotors?',
+        prompt: 'The windows show AAA. You press a key. What happens to the rotors?',
         kind: 'choice',
         options: [
           { id: 'none', label: 'No rotor moves', misconception: true },
-          { id: 'right', label: 'The right rotor moves first, before the current flows' },
+          { id: 'right', label: 'Only the right rotor moves, one place' },
           { id: 'all', label: 'All three rotors move', misconception: true },
         ],
       },
     ],
-    reveals: [{ bet: 'first-press', trigger: 'press', key: 'A' }],
+    // Any key fires the reveal (review m2): once the bet is committed every key is unlocked.
+    reveals: [{ bet: 'first-press', trigger: 'press' }],
     tasks: [{ id: 'press1', label: 'Press one more key and watch the right rotor step again' }],
     View: StepFirstView,
   },
