@@ -1,36 +1,131 @@
 /**
- * PLACEHOLDER (02 → the chapter PR). One story scene reading "Being written". The chapter PR
- * replaces this folder: index.ts, gates.ts, items.tsx, facts.ts, scenes/ (PLAN §2.4).
+ * Chapter I.3 · Reflector, plugboard, reciprocity (PLAN §4.4 "i3-reflector-plugboard"). A story, four explore
+ * scenes (the reflector's 13 wires; the plugboard crossed twice; reciprocity; the search for a letter that lights
+ * itself) and gate `reflector`, whose code item compose/inverse is paired with the in-page plug-to-hit.
  */
 
-import type { ChapterDef, Fact } from '../../contracts/lesson'
+import type { ChapterDef, SceneDef } from '../../contracts/lesson'
+import { bindGates } from '../../lesson/bind'
+import { FACTS } from './facts'
+import { DEMO_CABLES, DEMO_KEY, FIXED, GATES, PLUG_START, READ_ONLY, RECIPROCITY_START, SEARCH_START, START } from './gates'
+import { ITEM_UI } from './items'
+import { PlugboardTwiceView, ReciprocityView, ReflectorPairsView, SelfSearchView } from './scenes'
 
-/** Marks a placeholder chapter (lesson/validate can skip it); the real chapter drops this export. */
-export const PLACEHOLDER = true
+const STORY =
+  'Bletchley Park, 4 September 1939, the day after Britain declared war. Alan Turing and Gordon Welchman report for work. The ' +
+  'machine they face has two more parts than its rotors: a reflector at the far end, which sends the current back through ' +
+  'the rotors, and a plugboard at the front, where cables swap letters. The reflector let one setting both encipher and ' +
+  'decipher, and it also carried what has been called "a severe cryptological flaw", which the codebreakers exploited; ' +
+  'Turing designed the bombe that year. This chapter finds out, on the machine itself, what the two parts do.'
 
-const FACTS: readonly Fact[] = [
-  { id: 'scherbius', kind: 'person', text: 'Arthur Scherbius', source: 'https://en.wikipedia.org/wiki/Enigma_machine' },
+const scenes: readonly SceneDef[] = [
   {
-    id: 'patent',
-    kind: 'date',
-    text: 'Arthur Scherbius filed his cipher-machine patent on 23 February 1918.',
-    value: '1918-02-23',
-    source: 'https://en.wikipedia.org/wiki/Enigma_machine',
+    id: 'bletchley',
+    kind: 'story',
+    title: 'Two parts that make a flaw',
+    stage: null,
+    story: { text: STORY, people: ['turing', 'welchman'], date: 'bletchley', facts: ['flaw', 'bombe'] },
+  },
+  {
+    id: 'reflector-pairs',
+    kind: 'explore',
+    title: 'The reflector: 26 contacts',
+    stage: 'reflector',
+    worked: true,
+    // G14: no cables in the reflector scene (the reflector preset hides the plugboard).
+    setup: { machine: START, locks: { ...FIXED, keyboard: true } },
+    introduces: ['reflector'],
+    bets: [
+      {
+        id: 'pairs',
+        prompt: 'The reflector has 26 contacts, joined by wires inside it. How many wires does it hold?',
+        kind: 'number',
+      },
+    ],
+    reveals: [{ bet: 'pairs', trigger: 'play', label: 'Play: light the wires' }],
+    tasks: [{ id: 'seen', label: 'Watch every wire light' }],
+    View: ReflectorPairsView,
+  },
+  {
+    id: 'plugboard-twice',
+    kind: 'explore',
+    title: 'Cables on the plugboard',
+    stage: 'plugboard',
+    setup: { machine: PLUG_START, locks: { ...FIXED, plugboard: false } },
+    panels: { plugboard: true, keyboard: true, trace: true },
+    introduces: ['plugboard'],
+    bets: [
+      {
+        id: 'twice',
+        prompt: `Cables ${DEMO_CABLES.join(' and ')} are plugged. You press a key (try ${DEMO_KEY}). How many times does the current cross the plugboard?`,
+        kind: 'choice',
+        options: [
+          { id: 'once', label: 'Once, on its way in', misconception: true },
+          { id: 'twice', label: 'Twice: on its way in and on its way out' },
+          { id: 'if-plugged', label: 'Only when the pressed key has a cable', misconception: true },
+        ],
+      },
+    ],
+    // Any key reveals: every key is unlocked once the bet is in, and every press crosses the plugboard the same way.
+    reveals: [{ bet: 'twice', trigger: 'press' }],
+    tasks: [
+      { id: 'add2', label: 'Plug two cables of your own' },
+      { id: 'press-plugged', label: 'Press a key on one of your cables and follow its letter through the trace' },
+    ],
+    View: PlugboardTwiceView,
+  },
+  {
+    id: 'reciprocity',
+    kind: 'explore',
+    title: 'The same setting deciphers',
+    stage: 'wire',
+    setup: { machine: RECIPROCITY_START, locks: FIXED },
+    panels: { keyboard: true, lamps: true, tape: true },
+    // 'path' (PLAN §4.4) is introduced by I.1, still a placeholder on this base: the scene shows the two parts
+    // introduced in this chapter instead.
+    shows: ['reflector', 'plugboard'],
+    freePress: true,
+    tasks: [{ id: 'roundtrip', label: 'Type a word, rewind the tape, type the ciphertext: read your word back' }],
+    View: ReciprocityView,
+  },
+  {
+    id: 'self-search',
+    kind: 'explore',
+    title: 'A letter that lights itself?',
+    stage: 'wire',
+    setup: { machine: SEARCH_START, locks: { ...FIXED, positions: false } },
+    panels: { keyboard: true, lamps: true, rotors: true },
+    introduces: ['no-self'],
+    bets: [
+      {
+        id: 'self',
+        prompt: 'Somewhere among all 17,576 rotor positions, will key A ever light lamp A?',
+        kind: 'choice',
+        options: [
+          { id: 'yes', label: 'Yes, at some positions', misconception: true },
+          { id: 'no', label: 'No, never' },
+          { id: 'cables', label: 'Only when A has a cable', misconception: true },
+        ],
+      },
+    ],
+    reveals: [{ bet: 'self', trigger: 'run', label: 'Run: try every position' }],
+    tasks: [{ id: 'searched', label: 'Search all 17,576 positions, every key' }],
+    View: SelfSearchView,
+  },
+  {
+    id: 'gate',
+    kind: 'gate',
+    title: 'Reflector and plugboard',
+    stage: 'plugboard',
+    setup: { machine: START, locks: READ_ONLY },
+    gate: 'reflector',
   },
 ]
 
 const chapter = {
   id: 'i3-reflector-plugboard',
-  scenes: [
-    {
-      id: 'being-written',
-      kind: 'story',
-      title: 'Being written',
-      stage: null,
-      story: { text: 'Being written', people: ['scherbius'], date: 'patent' },
-    },
-  ],
-  gates: {},
+  scenes,
+  gates: bindGates(GATES, ITEM_UI),
   facts: FACTS,
 } satisfies ChapterDef
 
