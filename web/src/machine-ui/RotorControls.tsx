@@ -65,7 +65,7 @@ export function RotorControls({
     <div className="flex flex-col gap-2">
       <div role="group" aria-label="Rotors" data-testid="rotor-controls" className="flex flex-wrap items-start justify-center gap-2">
         {rotorSelect ? (
-          <div className="flex flex-col items-center gap-1 self-stretch rounded-lg border border-stone-800 bg-stone-900/60 p-1.5">
+          <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-800 bg-stone-900/60 p-1.5 sm:w-[4.75rem] sm:flex-col sm:gap-1">
             <label htmlFor={reflectorId} className="text-xs text-stone-300">
               Reflector
             </label>

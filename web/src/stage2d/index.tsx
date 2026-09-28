@@ -243,8 +243,8 @@ const Parts = memo(function Parts(p: PartsProps): JSX.Element {
         x={(c.x0 + c.x1) / 2}
         y={14}
         textAnchor="middle"
-        fontSize={p.labels === 'symbols' ? 13 : name.length > 6 ? 8 : 10}
-        fontWeight={p.labels === 'symbols' ? 700 : 400}
+        fontSize={p.labels === 'symbols' && sym ? 13 : 10}
+        fontWeight={p.labels === 'symbols' && sym ? 700 : 400}
         fill={p.labels === 'symbols' && sym ? `var(--sym-${sym})` : 'currentColor'}
       >
         {p.labels === 'symbols' && sym ? sym : name}
