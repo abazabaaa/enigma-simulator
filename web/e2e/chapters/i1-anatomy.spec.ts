@@ -217,7 +217,9 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
       await page.getByTestId('chain-next').click()
       await expect(page.getByTestId(`chain-hop-${k}`)).toHaveAttribute('data-shown', 'true')
       await expect(page.getByTestId(`chain-hop-${k}`)).toContainText(`${hop.input} → ${hop.output}`)
-      await expect.poll(async () => (await info(page)).highlighted).toEqual([partForStage(hop.stage)])
+      // Only the parts that change the letter are outlined: no cables on the plugboard, the entry wheel in order.
+      const outlined = hop.kind === 'rotor' || hop.kind === 'reflector' ? [partForStage(hop.stage)] : []
+      await expect.poll(async () => (await info(page)).highlighted).toEqual(outlined)
       if (k < chain.length - 1) expect((await info(page)).hop).toBe(k)
     }
     await expect(page.getByTestId('chain-next')).toBeDisabled()
@@ -242,7 +244,20 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
     await expect(page.getByTestId(`key-${PATH_KEY}`)).toBeEnabled()
     await expect(page.getByTestId('key-A')).toHaveCount(0)
     expect((await info(page)).directive?.interactive).toBe(false)
-    await fireReveal(page, q!)
+    // Q on the physical keyboard fires the reveal as the on-screen key does (another letter does nothing).
+    const revealsBefore = (await eventsOf(page, 'reveal')).length
+    await page.keyboard.press('a')
+    await page.keyboard.press(PATH_KEY.toLowerCase())
+    await expect.poll(async () => (await eventsOf(page, 'reveal')).length).toBe(revealsBefore + 1)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const pb = window.__stage!.playback()
+          return !pb.playing && pb.hops > 0 && pb.t === 1 + pb.hops
+        }),
+      )
+      .toBe(true)
+    expect(await page.evaluate(() => window.__enigma!.getState().input)).toBe(PATH_KEY)
     await expect(page.getByTestId('key-A')).toBeEnabled()
     expect((await info(page)).directive?.interactive).toBe(true)
     expect((await betResults(page))['q-lamp']).toBe(true)
@@ -315,6 +330,9 @@ test.describe('chapter i1-anatomy', { tag: '@chapter:i1-anatomy' }, () => {
           .poll(async () => (await info(page)).highlighted)
           .toEqual([partForStage(rb.ghost.hops[rb.ghost.divergeAt]!.stage)])
         if (id === 'toy-lamp') await expect(page.getByTestId('rollback')).toContainText(`Lamp ${String(wrong)}`)
+        // The chain's feedback names the first wrong hop and how to read it.
+        if (id === 'hop-chain')
+          await expect(page.getByTestId('rollback')).toContainText(`Hop ${rb.ghost.divergeAt + 1}, `)
       } else {
         await expect(page.getByTestId('rollback').locator('[data-first-wrong="true"]')).toHaveCount(1)
       }

@@ -9,6 +9,7 @@ import { useStore } from 'zustand'
 import type { SceneProps } from '../../../contracts/lesson'
 import { Mono, useRevealFired } from '../../../lesson'
 import { Keyboard } from '../../../machine-ui'
+import { isTextEntry, letterOf } from '../../../machine-ui/Keyboard'
 import { usePlaybackStore } from '../../../state/playbackStore'
 import { PATH_KEY, PATH_LAMP, PATH_TRACE, changesOf } from '../gates'
 import { useStageKeysOff } from './stage'
@@ -19,6 +20,19 @@ export function Path26View(p: SceneProps): JSX.Element {
   const { completeTask, bet, store } = p
   const locked = useStore(store, (s) => !!s.locks.keyboard)
   useStageKeysOff('wire-noplug', !fired)
+
+  // Before the reveal only Q is offered, on screen and on the physical keyboard (the whole keyboard comes after).
+  useEffect(() => {
+    if (fired) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat || isTextEntry(e.target)) return
+      if (letterOf(e) !== PATH_KEY || store.getState().locks.keyboard) return
+      e.preventDefault()
+      store.getState().pressKey(PATH_KEY)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fired, store])
 
   useEffect(() => {
     if (!fired || resolved.current) return
@@ -44,34 +58,36 @@ export function Path26View(p: SceneProps): JSX.Element {
         The same machine, now with its lamps and the trace. The rotors are still held, so a key lights the same lamp
         every time.
       </p>
-      {fired ? (
-        <>
-          <Keyboard store={store} />
-          <p data-testid="path-26-result" className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
-            <Mono>{PATH_KEY}</Mono> lights <Mono>{PATH_LAMP}</Mono>; on the way the letter changed{' '}
-            {changesOf(PATH_TRACE)} times, as the trace shows hop by hop. Now slow the playback down with the speed
-            menu, press keys of your own, and drag the bar to stop the current anywhere on its path.
-          </p>
-        </>
-      ) : (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            data-testid={`key-${PATH_KEY}`}
-            disabled={locked}
-            onClick={() => {
-              if (!store.getState().locks.keyboard) store.getState().pressKey(PATH_KEY)
-            }}
-            className="h-9 w-9 rounded-md border border-stone-600 bg-stone-800 font-mono text-sm text-stone-100 shadow-sm hover:bg-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {PATH_KEY}
-          </button>
-          <span>
-            {locked ? 'Bet first, then press ' : 'Press '}
-            <Mono>{PATH_KEY}</Mono>: the other keys come after it.
-          </span>
-        </div>
-      )}
+      <div aria-live="polite">
+        {fired ? (
+          <>
+            <Keyboard store={store} />
+            <p data-testid="path-26-result" className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
+              <Mono>{PATH_KEY}</Mono> lights <Mono>{PATH_LAMP}</Mono>; on the way the letter changed{' '}
+              {changesOf(PATH_TRACE)} times, as the trace shows hop by hop. Now slow the playback down with the speed
+              menu, press keys of your own, and drag the bar to stop the current anywhere on its path.
+            </p>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              data-testid={`key-${PATH_KEY}`}
+              disabled={locked}
+              onClick={() => {
+                if (!store.getState().locks.keyboard) store.getState().pressKey(PATH_KEY)
+              }}
+              className="h-9 w-9 rounded-md border border-stone-600 bg-stone-800 font-mono text-sm text-stone-100 shadow-sm hover:bg-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {PATH_KEY}
+            </button>
+            <span>
+              {locked ? 'Bet first, then press ' : 'Press '}
+              <Mono>{PATH_KEY}</Mono> (here or on your keyboard): the other keys come after it.
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

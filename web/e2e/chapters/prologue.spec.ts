@@ -27,7 +27,7 @@ import {
   sceneReveals,
   where,
 } from '../helpers/course'
-import { START } from '../../src/chapters/prologue/gates'
+import { START, formatYears, yearsToTry } from '../../src/chapters/prologue/gates'
 import { dimmedParts } from '../../src/contracts/stage'
 import { createMachine, encipher, pressKey } from '../../src/engine'
 import { formatSci, keyspace } from '../../src/lib/keyspace'
@@ -89,14 +89,18 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     expect(await where(page)).toMatchObject({ scene: 'type-a-word', kind: 'explore' })
     await assertFocus(page, 'overview')
     expect(dimmedParts('overview', 'I')).toEqual([])
-    await expect(page.getByTestId('type-hint')).toContainText('Type a word')
+    await expect(page.getByTestId('type-hint')).toContainText('first bet below')
+    await expect(page.getByTestId('bet-pointer')).toBeVisible()
     await expectNextDisabled(page)
     const [press] = await sceneReveals(page)
     expect(press).toMatchObject({ bet: 'own-letter', trigger: 'press' })
     await assertRevealGated(page, press!)
     await expect(page.getByTestId('key-H')).toBeDisabled()
     await commitBet(page, 'own-letter', 'own')
+    await expect(page.getByTestId('type-hint')).toContainText('Your bet is in')
+    await expect(page.getByTestId('bet-pointer')).toHaveCount(0)
     await fireReveal(page, press!)
+    await expect(page.getByTestId('type-hint')).toContainText('Type a word')
     const first = pressKey(createMachine(START), 'A').output
     expect(await page.evaluate(() => window.__stage!.info().litLamp)).toBe(first)
     await expect(page.getByTestId(`lamp-${first}`)).toHaveAttribute('data-lit', 'true')
@@ -110,6 +114,19 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await assertFocus(page, 'overview')
     await page.getByTestId('lid-slider').fill('0')
     await expect.poll(() => page.evaluate(() => window.__stage!.info().directive?.lid)).toBe('closed')
+
+    // The stage draws no trace here, so a press has nothing to animate: its playback ends as the key goes down.
+    await page.getByTestId('key-B').click()
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const pb = window.__stage!.playback()
+            return !pb.playing && pb.t === 1 + pb.hops
+          }),
+        { timeout: 300 },
+      )
+      .toBe(true)
 
     // Five letters, then the round trip: clear and rewind, type the ciphertext, the word comes back.
     await page.getByTestId('tape-rewind').click()
@@ -148,6 +165,10 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     const before = await years.textContent()
     await page.getByTestId('rate-slider').fill('0')
     await expect(years).not.toHaveText(before ?? '')
+    // The answer quotes the figures at the fastest rate on the slider, a million settings a second.
+    const answer = page.getByTestId('brute-force-answer')
+    await expect(answer).toContainText(formatYears(yearsToTry(keyspace(), 10n ** 6n)))
+    await expect(answer).toContainText(formatYears(yearsToTry(keyspace({ rings: true }), 10n ** 6n)))
     expect(await betResults(page)).toEqual({ 'own-letter': false, brute: true })
     expect(await axeSerious(page, '[data-testid="scene"]')).toEqual([])
 
@@ -159,6 +180,33 @@ test.describe('chapter prologue', { tag: '@chapter:prologue' }, () => {
     await gotoApp(page, '/course')
     await expect(page.getByTestId('chapter-link-prologue')).toHaveAttribute('data-completed', 'true')
     await expect(page.getByTestId('chapter-link-i1-anatomy')).toHaveAttribute('data-locked', 'false')
+  })
+
+  test('the locked keys point to the bet: a pointer stays in view, and a letter typed brings the bet into view', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await enter(page, CHAPTER)
+    await nextScene(page)
+    expect((await where(page)).scene).toBe('type-a-word')
+    const pointer = page.getByTestId('bet-pointer')
+    const panel = page.getByTestId('bet-own-letter')
+    // The top of the scene, as a learner arriving sees it: the stage and the lampboard, the bet below the fold.
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(pointer).toBeInViewport()
+    await expect(panel).not.toBeInViewport()
+    // A letter on the locked keyboard types nothing: it brings the bet into view and focuses its first option.
+    await page.keyboard.press('h')
+    await expect(panel).toBeInViewport()
+    await expect(page.getByTestId('bet-option-own-letter-own')).toBeFocused()
+    expect(await page.evaluate(() => window.__enigma!.getState().input)).toBe('')
+    // The pointer does the same from anywhere on the page.
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await pointer.click()
+    await expect(panel).toBeInViewport()
+    await commitBet(page, 'own-letter', 'other')
+    await expect(pointer).toHaveCount(0)
+    await expect(page.getByTestId('type-hint')).toContainText('Your bet is in')
   })
 
   test('a revisit: the bets stay committed, and the reveals fire again in any order', async ({ page }) => {

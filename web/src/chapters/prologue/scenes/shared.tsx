@@ -10,7 +10,86 @@ import { useShallow } from 'zustand/react/shallow'
 import type { MachineStoreHook } from '../../../contracts/machine'
 import type { StageDirective } from '../../../contracts/stage'
 import { groups5 } from '../../../machine-ui/hooks'
+import { isTextEntry, letterOf } from '../../../machine-ui/Keyboard'
+import { usePlaybackStore } from '../../../state/playbackStore'
+import { useStageStore } from '../../../state/stageStore'
 import { roundtripDone, type Tape } from '../gates'
+
+/**
+ * While the stage draws no trace ('type-a-word': trace 'off'), a press has nothing to animate: finish its playback
+ * at once, so the lamp lights as the key goes down instead of after the whole path's timing.
+ */
+export function useFinishWhenTraceOff(): void {
+  useEffect(
+    () =>
+      usePlaybackStore.subscribe((s, prev) => {
+        if (!s.playing || (prev.playing && prev.seq === s.seq && prev.source === s.source)) return
+        if (useStageStore.getState().directive?.trace === 'off') usePlaybackStore.getState().finish()
+      }),
+    [],
+  )
+}
+
+/** Bring a bet panel into view and put focus on its first option. */
+export function showBet(bet: string, reducedMotion: boolean): void {
+  const panel = document.querySelector<HTMLElement>(`[data-testid="bet-${bet}"]`)
+  if (!panel) return
+  panel.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' })
+  panel.querySelector<HTMLElement>(`[data-testid^="bet-option-${bet}-"], [data-testid="bet-input-${bet}"]`)?.focus({
+    preventScroll: true,
+  })
+}
+
+/**
+ * Until a bet is committed the keys are locked (G10) and the bet may sit below the fold. A pointer stays in view
+ * at the foot of the window, and a letter typed on the locked keyboard (or a click on it) brings the bet into view.
+ */
+export function BetPointer(p: {
+  bet: string
+  pending: boolean
+  text: string
+  reducedMotion: boolean
+}): JSX.Element | null {
+  const { bet, pending, reducedMotion } = p
+  useEffect(() => {
+    if (!pending) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || isTextEntry(e.target) || !letterOf(e)) return
+      showBet(bet, reducedMotion)
+    }
+    const onPointer = (e: PointerEvent) => {
+      const keys = document.querySelector('[data-testid="keyboard"]')?.getBoundingClientRect()
+      if (
+        keys &&
+        e.clientX >= keys.left &&
+        e.clientX <= keys.right &&
+        e.clientY >= keys.top &&
+        e.clientY <= keys.bottom
+      ) {
+        showBet(bet, reducedMotion)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointer)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointer)
+    }
+  }, [bet, pending, reducedMotion])
+  if (!pending) return null
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-3 z-20 flex justify-center px-4">
+      <button
+        type="button"
+        data-testid="bet-pointer"
+        onClick={() => showBet(bet, reducedMotion)}
+        className="pointer-events-auto rounded-full border border-violet-400/70 bg-violet-950/95 px-4 py-2 text-sm text-violet-100 shadow-lg hover:bg-violet-900"
+      >
+        ↓ {p.text}
+      </button>
+    </div>
+  )
+}
 
 export type Lid = StageDirective['lid']
 export const LIDS: readonly Lid[] = ['closed', 'open', 'cutaway']

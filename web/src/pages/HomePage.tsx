@@ -9,7 +9,13 @@
 import { useLayoutEffect, useState, type JSX } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { START } from '../chapters/prologue/gates'
-import { LidSlider, RoundtripNote, useRoundtrip, type Lid } from '../chapters/prologue/scenes/shared'
+import {
+  LidSlider,
+  RoundtripNote,
+  useFinishWhenTraceOff,
+  useRoundtrip,
+  type Lid,
+} from '../chapters/prologue/scenes/shared'
 import { CHAPTERS } from '../content/registry'
 import type { ChapterMeta } from '../contracts/lesson'
 import type { ProgressV1 } from '../contracts/progress'
@@ -38,6 +44,7 @@ export function HomePage(): JSX.Element {
   const chapters = useProgress(useShallow((s) => s.chapters))
   const resume = resumeTarget(chapters)
   const trip = useRoundtrip(useMachineStore)
+  useFinishWhenTraceOff()
 
   // Before the first paint: no bet, no locks but the settings, a fresh machine at I II III, AAA (the Prologue's).
   useLayoutEffect(() => {

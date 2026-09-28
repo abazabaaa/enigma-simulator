@@ -38,6 +38,17 @@ test.describe('home', { tag: '@area:home' }, () => {
     expect(await page.evaluate(() => window.__stage!.playback().gated)).toBe(false)
     await expect(page.getByTestId('key-H')).toBeEnabled()
     await page.getByTestId('key-H').click()
+    // No trace to draw: the press's playback ends as the key goes down, so the lamp lights at once.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const pb = window.__stage!.playback()
+            return !pb.playing && pb.t === 1 + pb.hops
+          }),
+        { timeout: 300 },
+      )
+      .toBe(true)
     const lamp = pressKey(createMachine(START), 'H').output
     await expect.poll(() => page.evaluate(() => window.__stage!.info().litLamp)).toBe(lamp)
     await expect(page.getByTestId(`lamp-${lamp}`)).toHaveAttribute('data-lit', 'true')

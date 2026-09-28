@@ -14,6 +14,8 @@ export const LINE_MS = 700
 
 /** Settings tried per second, as powers of ten: one (a person at a machine), a thousand, a million. */
 const RATES = [0, 3, 6] as const
+/** The fastest rate on the slider, which the resolution quotes. */
+const FASTEST = 10n ** BigInt(RATES[RATES.length - 1]!)
 const RATE_TEXT: Readonly<Record<(typeof RATES)[number], string>> = {
   0: 'one',
   3: 'a thousand',
@@ -115,8 +117,10 @@ export function BruteForceView(p: SceneProps): JSX.Element {
               <strong>{formatYears(yearsToTry(total, perSecond))}</strong>, and{' '}
               <strong>{formatYears(yearsToTry(withRings, perSecond))}</strong> once the ring settings count.
             </p>
-            <p className="text-stone-200">
-              So the answer is no: nobody broke Enigma by trying every key. This course follows the people who found how
+            <p className="text-stone-200" data-testid="brute-force-answer">
+              So the answer is no, not with the machines of the day: even at a million settings a second, trying them
+              all takes {formatYears(yearsToTry(total, FASTEST))} ({formatYears(yearsToTry(withRings, FASTEST))} with
+              the ring settings). Nobody broke Enigma by trying every key. This course follows the people who found how
               to throw almost all of them away without trying them. First, the machine itself.
             </p>
           </section>

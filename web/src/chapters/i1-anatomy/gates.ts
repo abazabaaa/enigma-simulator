@@ -297,8 +297,8 @@ export function slipText(i: ToyLampInstance, lamp: string, e: LampExplanation): 
 
 /**
  * The lamps the misconceptions predict (the misconception bot's answers): stopping before or after the reflector,
- * reading every table downwards on the way back, a reflector that does not swap, forgetting one rotor, and every
- * table read the wrong way round. The generator draws only toys where none of them is the true lamp, so every
+ * reading every table downwards on the way back, a reflector that does not swap, every table read the wrong way
+ * round, going back through the rotors in the same order as the way in, and forgetting one rotor. The generator draws only toys where none of them is the true lamp, so every
  * instance needs the whole round trip.
  */
 export function naiveLamps(spec: ToySpec, key: Letter): Letter[] {
@@ -319,6 +319,10 @@ export function naiveLamps(spec: ToySpec, key: Letter): Letter[] {
     run(perms.map((p, j) => (j === refl ? ident : p))), // the reflector passes the letter straight back
     run(perms.map((p, j) => (j > 0 && j < perms.length - 1 && j !== refl ? invert(p) : p))), // every table the wrong way
   ]
+  // Back through the rotors in the same order as the way in (right first), each read the right way.
+  const sameOrder = [...perms]
+  for (let j = 0; j < k; j++) sameOrder[refl + 1 + j] = perms[refl + k - j]!
+  out.push(run(sameOrder))
   // One rotor forgotten, both ways.
   for (let i = 0; i < k; i++) {
     const fwd = refl - 1 - i // the way in crosses the rotors right to left
@@ -450,6 +454,20 @@ export function naiveChains(config: MachineConfig, key: Letter): string[][] {
   return [walk(STAGES, down), walk(swapped, right)]
 }
 
+/** The feedback for the first wrong hop of a chain: which row to read, and the letter it gives. */
+export function hopText(hop: PathHop, k: number, got: string): string {
+  const label = `Hop ${k + 1}, ${STAGE_LABEL[hop.stage] ?? hop.stage}`
+  const not = got ? `, not ${got}` : ''
+  if (hop.kind === 'plugboard')
+    return `${label}: no cable, so ${hop.input} passes straight through → ${hop.output}${not}.`
+  if (hop.kind === 'etw')
+    return `${label}: wired in order, so ${hop.input} passes straight through → ${hop.output}${not}.`
+  if (hop.kind === 'reflector') return `${label}: ${hop.input} is paired with ${hop.output}${not}.`
+  return hop.stage.endsWith('-bwd')
+    ? `${label}: find ${hop.input} in the lower row of its strip and read the letter above it → ${hop.output}${not}.`
+    : `${label}: find ${hop.input} in the upper row of its strip and read the letter below it → ${hop.output}${not}.`
+}
+
 export const hopChain = chainItem<ChainInstance>({
   id: 'hop-chain',
   rule: WINDOW,
@@ -467,13 +485,10 @@ export const hopChain = chainItem<ChainInstance>({
   check(i, a) {
     const ref = traceOf(i.config, i.key)
     const got = Array.isArray(a) ? a.map((t) => String(t ?? '').toUpperCase()) : []
-    return verdict(
-      sameJson(
-        got,
-        ref.map((h) => h.output),
-      ),
-      { kind: 'path', ghost: ghostFromOutputs(ref, got) },
-    )
+    const want = ref.map((h) => h.output)
+    if (sameJson(got, want)) return verdict(true)
+    const k = Math.max(0, firstDiff(want, got))
+    return verdict(false, { kind: 'path', ghost: ghostFromOutputs(ref, got) }, hopText(ref[k]!, k, got[k] ?? ''))
   },
   setup: (i) => ({ machine: i.config, locks: READ_ONLY, stage: WIRE_STAGE }),
   highlight(i, lastWrong) {

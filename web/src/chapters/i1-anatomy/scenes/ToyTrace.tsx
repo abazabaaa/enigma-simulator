@@ -67,23 +67,25 @@ export function ToyTraceView(p: SceneProps): JSX.Element {
           <TracePanel source="toy" />
         </div>
       </div>
-      {fired ? (
-        <p data-testid="toy-trace-result" className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
-          Key <Mono>{TOY_TRACE_KEY}</Mono>
-          {letters.map((h, k) => (
-            <span key={k}>
-              {' '}
-              → {HOP_NAME(h.stage)} <Mono>{h.output}</Mono>
-            </span>
-          ))}
-          . <Mono>{TOY_TRACE_REFLECTOR.input}</Mono> entered the reflector. Now drag the playback bar back until the
-          reflector&apos;s row is the last one lit, and press three keys of your own.
-        </p>
-      ) : (
-        <p>
-          Bet first, then press <Mono>{TOY_TRACE_KEY}</Mono>.
-        </p>
-      )}
+      <div aria-live="polite">
+        {fired ? (
+          <p data-testid="toy-trace-result" className="rounded-md border border-stone-700 bg-stone-900/60 p-2">
+            Key <Mono>{TOY_TRACE_KEY}</Mono>
+            {letters.map((h, k) => (
+              <span key={k}>
+                {' '}
+                → {HOP_NAME(h.stage)} <Mono>{h.output}</Mono>
+              </span>
+            ))}
+            . <Mono>{TOY_TRACE_REFLECTOR.input}</Mono> entered the reflector. Now drag the playback bar back until the
+            reflector&apos;s row is the last one lit, and press three keys of your own.
+          </p>
+        ) : (
+          <p>
+            Bet first, then press <Mono>{TOY_TRACE_KEY}</Mono>.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

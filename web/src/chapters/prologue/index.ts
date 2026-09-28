@@ -73,7 +73,7 @@ const scenes: readonly SceneDef[] = [
         options: [
           { id: 'year', label: 'Yes, within a year', misconception: true },
           { id: 'thousands', label: 'Only with thousands of machines', misconception: true },
-          { id: 'no', label: 'No, not in the lifetime of the universe' },
+          { id: 'no', label: 'No, not with the machines of the day' },
         ],
       },
     ],

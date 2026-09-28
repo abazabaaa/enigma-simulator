@@ -240,6 +240,12 @@ describe('hop-chain', () => {
             ? 'plugboard'
             : 'reflector'
       expect(hopChain.highlight(i, bad)).toEqual([{ part, tone: 'hint' }])
+      // The feedback names the hop, the row to read and the letter it gives.
+      const hop = traceOf(i.config, i.key)[k]!
+      expect(res.feedback).toContain(`Hop ${k + 1}`)
+      expect(res.feedback).toContain(`${hop.output}, not ${bad[k]}.`)
+      if (hop.kind === 'rotor' && hop.stage.endsWith('-bwd'))
+        expect(res.feedback).toContain(`find ${hop.input} in the lower row`)
       expect(
         hopChain.check(
           i,
@@ -384,6 +390,7 @@ describe('the misconception bot never passes (300 runs per misconception)', () =
     'reads the tables downwards on the way back',
     'the reflector does not swap',
     'reads every table the wrong way',
+    'goes back through the rotors in the same order (right, then middle)',
     'forgets the middle rotor',
     'forgets the right rotor',
   ]
@@ -418,6 +425,11 @@ describe('the misconception bot never passes (300 runs per misconception)', () =
     expect(naive[0]).toBe('E') // stops before the reflector
     expect(naive[1]).toBe('B') // stops after it
     expect(naive[3]).toBe(toyPress({ ...TOY_TWO, reflector: [0, 1, 2, 3, 4, 5] }, 'A').lamp) // no swap
+    // Back in the same order as the way in: B leaves the reflector, then the right rotor's table read upwards, then
+    // the middle rotor's.
+    const perms = toyStagePerms(TOY_TWO)
+    const viaRight = perms[5]![1]!
+    expect(naive[5]).toBe(LETTERS[perms[4]![viaRight]!])
   })
 
   const MISCONCEPTIONS_CHAIN = [

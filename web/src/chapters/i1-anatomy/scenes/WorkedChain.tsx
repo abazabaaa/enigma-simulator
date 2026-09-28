@@ -53,7 +53,11 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
       return
     }
     usePlaybackStore.getState().scrub(count >= hops ? 1 + hops : 1 + count - 0.001)
-    setHighlight([{ part: partForStage(CHAIN[count - 1]!.stage), tone: 'hint' }])
+    // The plugboard is hidden on this stage and the entry wheel passes letters straight through: nothing to outline.
+    const hop = CHAIN[count - 1]!
+    setHighlight(
+      hop.kind === 'rotor' || hop.kind === 'reflector' ? [{ part: partForStage(hop.stage), tone: 'hint' }] : [],
+    )
   }
 
   useEffect(() => () => setHighlight([]), [setHighlight])
@@ -130,8 +134,8 @@ export function WorkedChainView(p: SceneProps): JSX.Element {
             <p data-testid="chain-summary" className="rounded-md border border-stone-700 bg-stone-900/60 p-2 font-sans">
               <Mono>{CHAIN_KEY}</Mono> lights <Mono>{lamp}</Mono>. On the way the letter changed {changes} times: at the
               three rotors on the way in, at the reflector, and at the three rotors on the way back. The plugboard and
-              the entry wheel are crossed twice too, but with no cables they pass it straight through. The reflector
-              joins the 26 contacts in 13 pairs:{' '}
+              the entry wheel are crossed twice too, and change nothing here: the plugboard has no cables, and the entry
+              wheel is wired in order (A to A, B to B…). The reflector joins the 26 contacts in 13 pairs:{' '}
               <Mono>{reflectorPairs(REFLECTOR_PERMS[MACHINE.reflector]).join(' ')}</Mono>.
             </p>
           ) : null}
