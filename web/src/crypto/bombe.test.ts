@@ -98,7 +98,8 @@ describe('scramblers', () => {
   })
 })
 
-describe('propagate and the test register', () => {
+// Load-sensitive (PR 17): the 50-menu and 26-wire checks can pass the 30 s default on a shared box; same assertions.
+describe('propagate and the test register', { timeout: 120_000 }, () => {
   it('the toy bombe: 1 live wire for the true hypothesis, 7 for every false one, consistent everywhere', () => {
     const r = createRng(8)
     for (let s = 0; s < 100; s++) {
@@ -197,7 +198,7 @@ describe('runBombe', () => {
       }
     }
     console.info(`[timing] runBombe, one wheel order (17,576 positions, ${CRIB}, board on): ${(ms / 5).toFixed(0)} ms per run`)
-  }, 180_000)
+  }, 300_000)
 
   it('without the board: the true stop is found and checkStop rejects every false stop (20 runs)', () => {
     let falseStops = 0
@@ -222,7 +223,7 @@ describe('runBombe', () => {
       }
     }
     expect(falseStops).toBeGreaterThan(20)
-  }, 180_000)
+  }, 300_000)
 
   it('reports the same live count as propagate, and the scan order and limit', () => {
     const c = cribCase(7)

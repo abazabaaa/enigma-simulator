@@ -67,12 +67,15 @@ describe('L2 guess bot: P(pass) < 1% over 1,000 runs', () => {
       }
       expect(passes / RUNS).toBeLessThan(0.01)
     },
-    // 1,000 bot runs of a capstone recall set take ~10 s alone and can pass 30 s on a loaded machine.
-    120_000,
+    // 1,000 bot runs of a capstone recall set take ~10 s alone and can pass 30 s on a loaded machine. Every chapter's
+    // gates join these sources, and the box is shared by several agents (load average 15–25): PR 17 raised the
+    // limit from 120 s. Same assertion, more time.
+    300_000,
   )
 })
 
 describe('L3 CC learner', () => {
+  // Load-sensitive (PR 17): three salts through a searching generator can pass the 30 s default on a shared box.
   it.each(sources.map((s) => [s.name, s] as const))('%s', (_name, s) => {
     for (const salt of ['cc-1', 'cc-2', 'cc-3']) {
       const ctx: GateCtx = { key: s.key as GateCtx['key'], logic: s.logic, salt }
@@ -100,5 +103,5 @@ describe('L3 CC learner', () => {
         if (item.transfer) expect(used.get(item.id)).toBe(1)
       }
     }
-  })
+  }, 120_000)
 })

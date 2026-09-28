@@ -38,6 +38,11 @@ const SIZES = [
   { width: 390, height: 844 },
 ] as const
 const MOTIONS = ['reduce', 'full'] as const
+/**
+ * Per chapter: screenshots at two sizes and two motions (plus 3D) of every scene, axe, and the gates. Load-sensitive:
+ * a long chapter passed 240 s at load average 20+ on the shared box, so PR 17 raised it; the checks are unchanged.
+ */
+const REVIEW_TIMEOUT = 600_000
 
 const consoleLog: { chapter: string; scene: string | null; type: string; text: string }[] = []
 const stageLog: { chapter: string; scene: string; renderer: string; info: unknown; stats: unknown }[] = []
@@ -165,14 +170,14 @@ test.afterAll(async () => {
 
 test.describe('review walk', () => {
   test('lab-fixture', { tag: ['@chapter:lab-fixture', '@area:lesson'] }, async ({ page }) => {
-    test.setTimeout(240_000)
+    test.setTimeout(REVIEW_TIMEOUT)
     await reviewChapter(page, 'lab-fixture')
     expect(consoleLog.filter((m) => m.type === 'error' || m.type === 'pageerror')).toEqual([])
   })
 
   for (const meta of [...CHAPTERS].sort((a, b) => a.order - b.order)) {
     test(meta.id, { tag: `@chapter:${meta.id}` }, async ({ page }) => {
-      test.setTimeout(240_000)
+      test.setTimeout(REVIEW_TIMEOUT)
       await reviewChapter(page, meta.id)
     })
   }
