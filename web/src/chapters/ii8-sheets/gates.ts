@@ -306,6 +306,9 @@ export const naiveNeeded = (i: NeededInstance): number => femalesNeeded(i.n, 1 -
 
 export const expected = (n: number, p: number, k: number): number => n * p ** k
 
+/** A power written with superscript digits: 16 → '¹⁶'. */
+export const sup = (k: number): string => [...String(k)].map((d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)] ?? d).join('')
+
 const fmtNum = (x: number): string => (x >= 10 ? Math.round(x).toLocaleString('en-US') : x.toFixed(1))
 
 /** Every (N, p) the item can ask, grouped by its answer: the answer is drawn uniformly, then an (N, p) giving it. */
@@ -342,7 +345,8 @@ export const femalesNeededItem = numbersItem<NeededInstance>({
       { kind: 'none' },
       Number.isFinite(left)
         ? `With ${k} females, about ${fmtNum(left)} of the ${i.n.toLocaleString('en-US')} settings would still let light ` +
-            `through (${i.n.toLocaleString('en-US')} × ${i.p}^${k}). Stack until about one or two are left.`
+            `through (${i.n.toLocaleString('en-US')} × ${i.p}${sup(k)}). ` +
+            (left > 2 ? 'That is more than two: more females are needed.' : 'Fewer females already leave two or fewer.')
         : 'Type the number of females.',
     )
   },
