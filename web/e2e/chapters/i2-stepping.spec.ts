@@ -75,6 +75,13 @@ const pressThrows = (page: Page, key = 'A') =>
 
 const betResults = async (page: Page) => Object.fromEntries((await eventsOf(page, 'bet.resolve')).map((e) => [e.bet.split('/')[1]!, e.correct]))
 
+/** Gate `stepping` alone (#/lab/gate), with the e2e configuration: the ladder, reload and gaming tests. */
+async function openGateLab(page: Page): Promise<void> {
+  await gotoApp(page, '/lab/gate/i2-stepping/stepping', { stage: '2d' })
+  await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
+  await current(page)
+}
+
 /** Walk the explore scenes (bets and triggers through the UI) up to the gate. */
 async function toGate(page: Page): Promise<void> {
   for (let k = 0; k < 6 && (await where(page)).kind !== 'gate'; k++) await completeScene(page)
@@ -318,8 +325,7 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('the hint ladder on windows: L1 highlight, L2 worked example on another instance, L3 reveal', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await assertLadder(page)
     await expect(page.getByTestId('item-windows')).toHaveAttribute('data-passed', 'false')
     const shows = (await eventsOf(page, 'item.show')).filter((e) => e.item.endsWith('/windows'))
@@ -327,8 +333,7 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('a reload mid-gate keeps the seed and the instance', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await answerViaApi(page, 'windows', await wrongAnswer(page))
     await reloadKeepsSeed(page)
     await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
@@ -343,12 +348,11 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
   })
 
   test('gaming: two instant answers bring the left-steps fallback, keyboard locked, answered on the machine', async ({ page }) => {
-    await enter(page, CHAPTER)
-    await toGate(page)
+    await openGateLab(page)
     await configure(page, { minLatencyMs: 2000 })
     await answerViaApi(page, 'windows', await wrongAnswer(page))
     await answerViaApi(page, 'windows', await wrongAnswer(page))
-    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'i2-stepping/stepping/windows', reason: 'fast' }])
+    expect(await eventsOf(page, 'gaming')).toEqual([{ type: 'gaming', item: 'i2-stepping/lab:stepping/windows', reason: 'fast' }])
     const c = await current(page)
     expect(c).toMatchObject({ itemId: 'windows', fallback: true, kind: 'set-machine' })
     await expect(page.getByTestId('item-windows')).toHaveAttribute('data-fallback', 'true')
@@ -359,7 +363,7 @@ test.describe('chapter i2-stepping', { tag: '@chapter:i2-stepping' }, () => {
     await answerViaUi(page, 'set-machine', solution)
     await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'true')
     await continueGate(page)
-    const rec = (await progress(page)).gates['i2-stepping/stepping']!.items['windows']!
+    const rec = (await progress(page)).gates['i2-stepping/lab:stepping']!.items['windows']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
     expect(await current(page)).toMatchObject({ itemId: 'windows', fallback: false, kind: 'letters' })
   })
