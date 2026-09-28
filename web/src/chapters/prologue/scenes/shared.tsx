@@ -50,6 +50,8 @@ export function LidSlider({ value, onChange }: { value: Lid; onChange(lid: Lid):
 export interface Roundtrip {
   /** The word came back: an earlier tape's output was typed and lit that tape's input. */
   readonly done: boolean
+  /** The word that came back first (kept while the learner types on). */
+  readonly word: string | null
   /** Tapes cleared since the view mounted, oldest first. */
   readonly earlier: readonly Tape[]
   readonly current: Tape
@@ -62,7 +64,7 @@ export function useRoundtrip(store: MachineStoreHook): Roundtrip {
     useShallow((s) => ({ input: s.input, output: s.output })),
   )
   const [earlier, setEarlier] = useState<readonly Tape[]>([])
-  const [done, setDone] = useState(false)
+  const [word, setWord] = useState<string | null>(null)
   useEffect(
     () =>
       store.subscribe((s, prev) => {
@@ -72,10 +74,11 @@ export function useRoundtrip(store: MachineStoreHook): Roundtrip {
     [store],
   )
   const now = roundtripDone(earlier, current)
+  const back = now ? (earlier.find((t) => t.output === current.input)?.input ?? current.output) : null
   useEffect(() => {
-    if (now) setDone(true)
-  }, [now])
-  return { done: done || now, earlier, current }
+    if (back !== null) setWord((w) => w ?? back)
+  }, [back])
+  return { done: word !== null || back !== null, word: word ?? back, earlier, current }
 }
 
 /** What the round trip asks for next, and (once done) the word that came back. */
@@ -83,17 +86,21 @@ export function RoundtripNote({ trip, testId = 'roundtrip' }: { trip: Roundtrip;
   const last = trip.earlier.at(-1)
   let text: string
   if (trip.done) {
-    const word = trip.earlier.find((t) => t.output === trip.current.input)?.input ?? trip.current.output
-    text = `You typed the ciphertext and got ${groups5(word)} back: from the same start, the machine undoes itself.`
+    text = `You typed the ciphertext and got ${groups5(trip.word ?? '')} back: from the same start, the machine undoes itself.`
   } else if (last && last.input.length > 0 && trip.current.input === '') {
-    text = `Now type the ciphertext ${groups5(last.output)} from the tape, and watch the output.`
+    text = `Now type the ciphertext ${groups5(last.output)}, and watch the output.`
   } else if (trip.current.input.length > 0) {
     text = 'When your word is on the tape, press “Clear and rewind” to start the machine from the same windows again.'
   } else {
     text = 'Type a word: the tape keeps what you typed (in) and what lit (out).'
   }
   return (
-    <p data-testid={testId} data-done={String(trip.done)} className={trip.done ? 'text-emerald-300' : 'text-stone-300'}>
+    <p
+      data-testid={testId}
+      data-done={String(trip.done)}
+      aria-live="polite"
+      className={trip.done ? 'text-emerald-300' : 'text-stone-300'}
+    >
       {text}
     </p>
   )

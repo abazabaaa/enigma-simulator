@@ -183,12 +183,6 @@ export function toyTables(spec: ToySpec): { slot: string; perm: number[] }[] {
   return [...out, { slot: 'reflector', perm: perms[1 + k]! }]
 }
 
-/** The letters of a toy press: the key, then the letter after every hop (plugboard hops included). */
-export function toyPathLetters(spec: ToySpec, key: Letter): Letter[] {
-  const press = toyPress(spec, key)
-  return [key, ...press.hops.map((h) => h.output)]
-}
-
 // ---------------------------------------------------------------------------
 // toy-lamp: letter(6), rollback 'path' (a single-slip ghost)
 // ---------------------------------------------------------------------------

@@ -23,10 +23,11 @@ import { ITEM_UI } from './items'
 import { Path26View, ToyTraceView, ToyWireView, WorkedChainView } from './scenes'
 
 const STORY =
-  'In 1927 the British bought a commercial Enigma. Ten years later, in April 1937, Dilly Knox read his first Enigma ' +
-  'messages: Spanish Civil War traffic, enciphered on machines without a plugboard. He attacked them with methods he ' +
-  "called 'buttoning up' and 'rodding'. A machine without a plugboard is where this chapter starts: a battery, keys, wired " +
-  'rotors, a reflector and lamps. Follow one key press through it, wire by wire, and every lamp becomes predictable.'
+  'In 1927 the British bought a commercial Enigma. Ten years later, in April 1937, Dilly Knox read his first ' +
+  'Enigma messages: Spanish Civil War traffic, enciphered on machines without a plugboard. He attacked them with ' +
+  "methods known as 'buttoning up' and 'rodding'. A machine without a plugboard is where this chapter starts: a " +
+  'battery, keys, wired rotors, a reflector and lamps. Follow one key press through it, wire by wire, and every lamp ' +
+  'becomes predictable.'
 
 const scenes: readonly SceneDef[] = [
   {
