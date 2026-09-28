@@ -1,0 +1,81 @@
+/**
+ * Public API of the Enigma engine: pure TypeScript, no dependencies, no React.
+ * See web/README.md ("Engine conventions") for rotor order, composition order and trace stages.
+ */
+
+export { ALPHABET, LETTERS, SIZE, type Letter, indexToLetter, isLetter, letterToIndex, mod, toLetters } from './alphabet'
+
+export {
+  type Perm,
+  apply,
+  compose,
+  conjugate,
+  cycleSignature,
+  cycles,
+  equals,
+  fixedPoints,
+  formatCycles,
+  fromCycles,
+  fromPairs,
+  fromWiring,
+  identity,
+  inverse,
+  isInvolution,
+  isPermutation,
+  shift,
+  toWiring,
+} from './permutation'
+
+export {
+  type ModelName,
+  type ModelSpec,
+  type ReflectorName,
+  type ReflectorSpec,
+  type RotorName,
+  type RotorSpec,
+  ETW_WIRING,
+  KEYBOARD_ROWS,
+  MODELS,
+  MODEL_NAMES,
+  REFLECTORS,
+  REFLECTOR_NAMES,
+  REFLECTOR_PERMS,
+  ROTORS,
+  ROTOR_NAMES,
+  ROTOR_PERMS,
+} from './wiring'
+
+export {
+  type EncipherOptions,
+  type EncodeResult,
+  type EtwTraceStep,
+  type MachineConfig,
+  type MachineConfigInput,
+  type MachineState,
+  type PlugboardTraceStep,
+  type PressResult,
+  type ReflectorTraceStep,
+  type RotorDirection,
+  type RotorSlot,
+  type RotorTraceStep,
+  type StepInfo,
+  type StepResult,
+  type Stepped,
+  type TraceStage,
+  type TraceStep,
+  DEFAULT_CONFIG,
+  EnigmaConfigError,
+  createMachine,
+  encipher,
+  encodeLetter,
+  isAtTurnover,
+  machinePermutation,
+  normalizeConfig,
+  positionsToString,
+  pressKey,
+  rotorPermutation,
+  slotNames,
+  step,
+  validateConfig,
+  withPositions,
+} from './machine'
