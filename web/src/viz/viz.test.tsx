@@ -1,14 +1,15 @@
 // @vitest-environment happy-dom
-import { act, type ReactElement } from 'react'
+import { act, useState, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { formatCycles, fromCycles, fromPairs, conjugate } from '../engine'
 import { createRng } from '../lib/rng'
 import { propagate, toyBombe } from '../crypto/bombe'
 import { buildCatalogue, catalogueStats } from '../crypto/catalogue'
-import { menuFromCrib, menuFromEdges } from '../crypto/menu'
+import { menuFromCrib, menuFromEdges, type Menu } from '../crypto/menu'
 import { REJEWSKI_65, alignmentPairs, pairedCycles, products } from '../crypto/rejewski'
 import { histogramBins } from './CatalogueHistogram'
+import { menuPieces } from './MenuGraph'
 import { stackedApertures } from './LightTable'
 import { CatalogueHistogram, CribStrip, CycleAlign, CycleDiagram, LightTable, MenuGraph, TestRegister, WireGrid } from '.'
 
@@ -101,6 +102,11 @@ describe('CatalogueHistogram', () => {
     expect(el.dataset.distinct).toBe(String(stats.distinct))
     expect(el.dataset.highlightBin).toBe('3–4')
     expect(q('catalogue-histogram-table').querySelectorAll('tbody tr')).toHaveLength(bins.length)
+    const regions = [...q('catalogue-histogram').querySelectorAll<HTMLElement>('[role="region"]')]
+    expect(regions.map((r) => [r.getAttribute('aria-label'), r.tabIndex])).toEqual([
+      ['Catalogue histogram', 0],
+      ['Catalogue histogram table', 0],
+    ])
   })
 })
 
@@ -140,6 +146,12 @@ describe('CribStrip', () => {
     await render(<CribStrip cipher="WSNPNLKLSTCS" crib="ATTACKATDAWN" offset={0} readOnly onOffset={() => {}} />)
     expect(q('crib-strip-slider')).toBeNull()
     expect(q('crib-strip').dataset.crashCount).toBe('0')
+    // M1: a read-only strip is a labelled region the keyboard can focus (and so scroll), never role="img"
+    const region = q('crib-strip-scroller')
+    expect(region.getAttribute('role')).toBe('region')
+    expect(region.tabIndex).toBe(0)
+    expect(region.getAttribute('aria-label')).toMatch(/^Crib ATTACKATDAWN under WSNPNLKLSTCS at offset 0: no crash/)
+    expect(container.querySelector('[role="img"]')).toBeNull()
   })
 })
 
@@ -165,6 +177,40 @@ describe('MenuGraph', () => {
     expect(q('menu-graph-add-1')).toBeNull() // already in the menu
   })
 
+  it('counts links, letters and pieces so that the closure sum adds up (m2)', async () => {
+    const two = menuFromEdges([...v14.edges.slice(0, 3), { a: 'X', b: 'Y', pos: 20 }, { a: 'Y', b: 'X', pos: 21 }])
+    await render(<MenuGraph menu={two} />)
+    // A–W, T–S, T–N and a doubled X–Y: 5 links, 7 letters, 3 pieces, 1 closure (the X–Y pair)
+    expect(q('menu-graph').dataset.pieces).toBe('3')
+    expect(q('menu-graph-closures').textContent).toBe(
+      'Closures: 1 — 5 links, 7 letters, 3 pieces (links − letters + pieces = 1)')
+    expect(menuPieces(two.edges).map((p) => p.join(''))).toEqual(['TNS', 'AW', 'XY'])
+  })
+
+  it('moves focus to the link’s new button after Enter adds it or Delete removes it (m3)', async () => {
+    function Harness() {
+      const [added, setAdded] = useState<readonly number[]>([1, 2, 3])
+      const menu: Menu = menuFromEdges(v14.edges.filter((e) => added.includes(e.pos)))
+      return <MenuGraph menu={menu} available={v14.edges} onAddEdge={(pos) => setAdded((a) => [...a, pos])}
+        onRemoveEdge={(pos) => setAdded((a) => a.filter((x) => x !== pos))} />
+    }
+    await render(<Harness />)
+    q('menu-graph-add-4').focus()
+    await click(q('menu-graph-add-4'))
+    expect(document.activeElement).toBe(q('menu-graph-remove-4'))
+    await key(q('menu-graph-remove-2'), 'Delete')
+    expect(q('menu-graph-remove-2')).toBeNull()
+    expect(document.activeElement).toBe(q('menu-graph-add-2'))
+  })
+
+  it('draws each connected piece on its own circle and scrolls on narrow screens', async () => {
+    await render(<MenuGraph menu={v14} />)
+    const drawing = q('menu-graph-drawing')
+    expect(drawing.getAttribute('role')).toBe('region')
+    expect(drawing.tabIndex).toBe(0)
+    expect(drawing.querySelector('svg')?.style.minWidth).toMatch(/px$/)
+  })
+
   it('shows vector 14 with 3 closures', async () => {
     await render(<MenuGraph menu={v14} />)
     expect(q('menu-graph').dataset.closures).toBe('3')
@@ -183,6 +229,8 @@ describe('WireGrid and TestRegister', () => {
     expect(q('wire-grid').querySelector('[data-via="hypothesis"]')).not.toBeNull()
     await render(<WireGrid state={ws} diagonal testLetter={toy.truth.bank} />)
     expect(q('wire-grid').dataset.liveTotal).toBe(String(ws.order.length))
+    expect(q('wire-grid-scroller').tabIndex).toBe(0) // read-only: the scroller itself takes focus
+    expect(q('wire-grid-scroller').getAttribute('role')).toBe('region')
   })
 
   it('is a keyboard grid of buttons when onToggleWire is given', async () => {
@@ -190,6 +238,7 @@ describe('WireGrid and TestRegister', () => {
     await render(<WireGrid state={ws} diagonal={false} testLetter="C" onToggleWire={toggle} />)
     const start = q('wire-grid-cell-C-A')
     expect(start.tabIndex).toBe(0)
+    expect(q('wire-grid-scroller').hasAttribute('tabindex')).toBe(false) // the cells are the tab stop
     start.focus()
     await key(start, 'ArrowRight')
     expect(document.activeElement).toBe(q('wire-grid-cell-C-B'))
