@@ -5,7 +5,7 @@
 
 import type { JSX } from 'react'
 import type { CheckResult, ItemUiMap } from '../../contracts/lesson'
-import { LETTERS, createMachine, positionsToString, pressKey } from '../../engine'
+import { LETTERS, ROTORS, createMachine, positionsToString, pressKey } from '../../engine'
 import { LetterTable, Mono } from '../ui/controls'
 import {
   crashIndices,
@@ -22,11 +22,14 @@ const L = (i: number) => LETTERS[i]!
 const ring = (r: string) => String(r.charCodeAt(0) - 64).padStart(2, '0')
 const perm = (p: readonly number[]) => p.map(L).join('')
 
+/** Everything the windows item needs on screen (review m5: prompts inside the return check stand alone). */
 function MachineLine({ c }: { c: WindowsInstance['config'] }): JSX.Element {
   return (
     <p>
       Rotors <Mono>{c.rotors.join(' ')}</Mono> (left to right), rings <Mono>{c.rings.map(ring).join(' ')}</Mono>,
-      windows <Mono>{c.positions.join('')}</Mono>.
+      windows <Mono>{c.positions.join('')}</Mono>. Turnover letters:{' '}
+      {c.rotors.map((r) => `${r} ${ROTORS[r].turnovers}`).join(', ')} (a rotor carries its left neighbour when it steps
+      on from that letter).
     </p>
   )
 }

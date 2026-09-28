@@ -7,6 +7,8 @@ import { BUTTON, INPUT, QUIET_BUTTON } from './controls'
 export interface SceneRuntime {
   readonly fired: ReadonlySet<string>
   isCommitted(bet: string): boolean
+  /** Committed, and every earlier reveal of the scene has fired (reveals fire in order). */
+  isAllowed(bet: string): boolean
   fire(bet: string): void
 }
 
@@ -28,7 +30,8 @@ const TRIGGER_LABEL: Record<RevealSpec['trigger'], string> = {
 /** The trigger of a reveal (reveal-<bet>): disabled until its bet is committed. */
 export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: string }): JSX.Element {
   const rt = useContext(SceneRuntimeContext)
-  const allowed = rt?.isCommitted(reveal.bet) ?? false
+  const committed = rt?.isCommitted(reveal.bet) ?? false
+  const allowed = rt?.isAllowed(reveal.bet) ?? false
   return (
     <button
       type="button"
@@ -39,7 +42,7 @@ export function RevealButton({ reveal, label }: { reveal: RevealSpec; label?: st
       onClick={() => rt?.fire(reveal.bet)}
     >
       {label ?? TRIGGER_LABEL[reveal.trigger]}
-      {!allowed ? ' (bet first)' : ''}
+      {!committed ? ' (bet first)' : !allowed ? ' (after the earlier reveal)' : ''}
     </button>
   )
 }

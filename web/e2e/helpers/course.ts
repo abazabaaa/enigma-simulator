@@ -25,9 +25,17 @@ export type GateState = NonNullable<ReturnType<NonNullable<Window['__course']>['
 // Page state
 // ---------------------------------------------------------------------------
 
-export const where = (page: Page) => page.evaluate(() => window.__course!.where())
-export const gate = (page: Page) => page.evaluate(() => window.__course!.gate())
-export const events = (page: Page) => page.evaluate(() => window.__course!.events()) as Promise<LessonEvent[]>
+/**
+ * Chapters, and the lesson runtime itself, load lazily after the route: until they have, where() reads as
+ * nowhere and gate() as null (never a thrown error), so callers poll instead of racing the chunk.
+ */
+export const where = (page: Page) =>
+  page.evaluate(
+    () =>
+      window.__course?.where() ?? { chapter: null, scene: null, index: -1, kind: null, canNext: false, locked: false },
+  )
+export const gate = (page: Page) => page.evaluate(() => window.__course?.gate() ?? null)
+export const events = (page: Page) => page.evaluate(() => window.__course?.events() ?? []) as Promise<LessonEvent[]>
 export const progress = (page: Page) => page.evaluate(() => window.__course!.progress())
 
 /** The event variant(s) whose `type` can be T ('scene.enter' and 'scene.complete' share one variant). */
@@ -82,6 +90,7 @@ export async function enter(
   if (o.configure !== false) await configure(page, { minLatencyMs: 0, burstMs: 0, playback: 'instant' })
   if (o.unlock ?? chapter !== 'prologue') await page.evaluate(() => window.__course!.unlockAll())
   await expect.poll(async () => (await where(page)).scene, { message: `${chapter} opened` }).not.toBeNull()
+  await settled(page)
 }
 
 /** Jump to a scene already reached (through the URL), and wait until it shows. */
@@ -89,6 +98,29 @@ export async function sceneTo(page: Page, scene: string): Promise<void> {
   const w = await where(page)
   await page.evaluate((hash) => (location.hash = hash), `#${chapterPath(w.chapter!)}/${scene}`)
   await expect.poll(async () => (await where(page)).scene).toBe(scene)
+  await settled(page)
+}
+
+/**
+ * The page has settled after a navigation: the (lazily loaded) chapter shows its scene, or a gate page its
+ * gate; a gate or recall scene also shows its gate with a current item (or has passed).
+ */
+export async function settled(page: Page): Promise<void> {
+  await expect
+    .poll(async () => (await where(page)).scene !== null || (await gate(page)) !== null, {
+      message: 'the page has loaded',
+    })
+    .toBe(true)
+  const w = await where(page)
+  if (w.scene === null || w.kind === 'gate' || w.kind === 'recall') {
+    await expect(page.getByTestId('gate').first()).toBeVisible()
+    await expect
+      .poll(async () => {
+        const g = await gate(page)
+        return !!g && (g.passed || (g.current?.attempt ?? 0) > 0)
+      })
+      .toBe(true)
+  }
 }
 
 /** Click scene-next (asserting it is enabled first) and wait for the next scene or the chapter's completion. */
@@ -104,6 +136,7 @@ export async function nextScene(page: Page): Promise<void> {
       return w.index > before.index || (await eventsOf(page, 'chapter.complete')).length > completions
     })
     .toBe(true)
+  await settled(page)
 }
 
 /** scene-next is aria-disabled until the scene can advance. */
@@ -341,7 +374,7 @@ export async function answerViaUi(page: Page, kind: ItemRuntimeView['kind'], ans
         const item = page.getByTestId(`answer-order-${id}`)
         const at = Number(await item.getAttribute('data-index'))
         for (let n = at; n > k; n--) {
-          await page.getByTestId(`answer-order-${id}`).focus()
+          await page.getByTestId(`answer-order-grab-${id}`).focus()
           await page.keyboard.press('Alt+ArrowUp')
         }
         await expect(page.getByTestId(`answer-order-${id}`)).toHaveAttribute('data-index', String(k))
@@ -437,6 +470,14 @@ export async function assertNoAnswerLeak(page: Page): Promise<void> {
   const c = await current(page)
   const l = await logicFor(c.gateKey, c.itemId, c.fallback)
   const solution = l.solve(c.instance)
+  // Nothing answer-bearing on the stage during a question: no ghost, no reference, no divergence marker.
+  await expect
+    .poll(() => page.evaluate(() => window.__stage!.info().ghost), { message: 'a ghost is drawn during the question' })
+    .toBe(false)
+  if (l.kind === 'ghost-pick') {
+    const divergeAt = (c.instance as { ghost?: { divergeAt?: number } }).ghost?.divergeAt ?? -1
+    expect(divergeAt, 'the ghost-pick question carries its divergence').toBeLessThan(0)
+  }
   const scan = await page.evaluate(() => {
     const root = document.body.cloneNode(true) as HTMLElement
     // Worked examples show other instances; the editor and inputs hold the learner's own text.
@@ -526,6 +567,7 @@ export async function reloadKeepsSeed(page: Page): Promise<void> {
   const before = await current(page)
   await page.reload()
   await waitForApp(page)
+  await settled(page)
   const after = await current(page)
   expect(after.seed).toBe(before.seed)
   expect(after.attempt).toBe(before.attempt)
@@ -564,6 +606,7 @@ export async function completeTasks(page: Page): Promise<void> {
  * trigger, then completeTasks for free exploration; gate/recall → every item via the API. Then Next.
  */
 export async function completeScene(page: Page, o: { onScene?: (scene: string) => Promise<void> } = {}): Promise<void> {
+  await settled(page)
   const w = await where(page)
   await o.onScene?.(w.scene!)
   if (w.kind === 'explore') {

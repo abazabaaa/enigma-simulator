@@ -84,6 +84,8 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
 
   if (MACHINE_3D_READY && (await page.getByTestId('stage').count())) {
     await gotoApp(page, `${chapterPath(chapter)}/${scene}`, { stage: '3d' })
+    // A chapter loads lazily after the route: wait for its scene before the shots.
+    await expect.poll(async () => (await where(page)).scene).toBe(scene)
     for (const motion of MOTIONS) {
       await page.emulateMedia({ reducedMotion: motion === 'reduce' ? 'reduce' : 'no-preference' })
       await shoot(page, `${base}-1280-${motion}-3d`)
@@ -97,9 +99,12 @@ async function captureScene(page: Page, chapter: AnyChapterId, scene: string): P
     })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await gotoApp(page, `${chapterPath(chapter)}/${scene}`, { stage: '2d' })
+    // A chapter loads lazily after the route: wait for its scene (and gate) before going on. (Found by PR 07.)
+    await expect.poll(async () => (await where(page)).scene).toBe(scene)
   }
 
   const w = await where(page)
+  if (w.kind === 'gate' || w.kind === 'recall') await expect(page.getByTestId('gate').first()).toBeVisible()
   if ((w.kind === 'gate' || w.kind === 'recall') && (await page.getByTestId('gate').count())) {
     // The first item's rollback and its L2 hint, for the R4 teaching pass.
     const c = await current(page)

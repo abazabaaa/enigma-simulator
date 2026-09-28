@@ -188,58 +188,61 @@ export function ChapterPlayer(p: {
   const upcoming = nextChapter(CHAPTERS, chapterId)
   return (
     <div className="flex flex-col gap-4">
-      <ProgressNotices />
-      <ol className="flex flex-wrap gap-1" aria-label="Scenes">
-        {scenes.map((s, k) => (
-          <li key={s.id}>
-            <a
-              href={k <= reached ? `#${p.basePath}/${s.id}` : undefined}
-              aria-current={k === index ? 'step' : undefined}
-              aria-disabled={k > reached ? true : undefined}
-              title={s.title}
-              className={`block h-2 w-6 rounded ${k === index ? 'bg-amber-400' : k <= reached ? 'bg-stone-500' : 'bg-stone-800'}`}
-            >
-              <span className="sr-only">
-                {k + 1}. {s.title}
-              </span>
-            </a>
-          </li>
-        ))}
-      </ol>
-      {scene && actor ? (
-        <SceneFrame
-          key={scene.id}
-          chapter={chapterId}
-          def={def}
-          scene={scene}
-          index={index}
-          canNext={canNext}
-          isLast={index === scenes.length - 1}
-          recallUi={RECALL_UI}
-          onNext={() => void next()}
-          onBack={() => actor.send({ type: 'BACK' })}
-        />
-      ) : (
-        <p className="text-sm text-stone-400">Loading the chapter…</p>
-      )}
-      {done || progress.chapters[chapterId]?.completed ? (
-        <section
-          data-testid="chapter-complete"
-          className="rounded-lg border border-emerald-700 bg-emerald-950/30 p-3 text-sm"
-        >
-          <p className="font-semibold text-emerald-200">Chapter complete.</p>
-          <p className="mt-1 flex flex-wrap gap-3">
-            {upcoming ? (
-              <a data-testid="chapter-next-link" className="text-amber-300 underline" href={`#/c/${upcoming.id}`}>
-                Next: {upcoming.title}
+      {/* While the return check is open, the chapter behind it is inert (no focus, no clicks). */}
+      <div className="flex flex-col gap-4" inert={check ? true : undefined}>
+        <ProgressNotices />
+        <ol className="flex flex-wrap gap-1" aria-label="Scenes">
+          {scenes.map((s, k) => (
+            <li key={s.id}>
+              <a
+                href={k <= reached ? `#${p.basePath}/${s.id}` : undefined}
+                aria-current={k === index ? 'step' : undefined}
+                aria-disabled={k > reached ? true : undefined}
+                title={s.title}
+                className={`block h-2 w-6 rounded ${k === index ? 'bg-amber-400' : k <= reached ? 'bg-stone-500' : 'bg-stone-800'}`}
+              >
+                <span className="sr-only">
+                  {k + 1}. {s.title}
+                </span>
               </a>
-            ) : null}
-            <a className="text-amber-300 underline" href="#/course">
-              The course map
-            </a>
-          </p>
-        </section>
-      ) : null}
+            </li>
+          ))}
+        </ol>
+        {scene && actor ? (
+          <SceneFrame
+            key={scene.id}
+            chapter={chapterId}
+            def={def}
+            scene={scene}
+            index={index}
+            canNext={canNext}
+            isLast={index === scenes.length - 1}
+            recallUi={RECALL_UI}
+            onNext={() => void next()}
+            onBack={() => actor.send({ type: 'BACK' })}
+          />
+        ) : (
+          <p className="text-sm text-stone-400">Loading the chapter…</p>
+        )}
+        {done || progress.chapters[chapterId]?.completed ? (
+          <section
+            data-testid="chapter-complete"
+            className="rounded-lg border border-emerald-700 bg-emerald-950/30 p-3 text-sm"
+          >
+            <p className="font-semibold text-emerald-200">Chapter complete.</p>
+            <p className="mt-1 flex flex-wrap gap-3">
+              {upcoming ? (
+                <a data-testid="chapter-next-link" className="text-amber-300 underline" href={`#/c/${upcoming.id}`}>
+                  Next: {upcoming.title}
+                </a>
+              ) : null}
+              <a className="text-amber-300 underline" href="#/course">
+                The course map
+              </a>
+            </p>
+          </section>
+        ) : null}
+      </div>
       {check ? (
         <ReturnCheck
           chapter={chapterId}

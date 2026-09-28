@@ -4,6 +4,7 @@
  * return-check and double-submit tests of brief 05.
  */
 
+import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { gotoApp, waitForApp } from './helpers/app'
@@ -54,6 +55,17 @@ async function openGateLab(page: Page, gateId = 'main'): Promise<void> {
 async function advanceTo(page: Page, itemId: string): Promise<void> {
   for (let k = 0; k < 40 && (await current(page)).itemId !== itemId; k++) await answerCorrect(page)
   expect((await current(page)).itemId).toBe(itemId)
+}
+
+/**
+ * Serious or critical axe findings inside one element. The page around it, and other PRs' placeholder stubs
+ * inside it ([data-stub]), are not this PR's to judge.
+ */
+async function axeSerious(page: Page, selector: string): Promise<string[]> {
+  const res = await new AxeBuilder({ page }).include(selector).exclude('[data-stub]').analyze()
+  return res.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.nodes.map((n) => String(n.target)).join(' ')}`)
 }
 
 /** Drive the custom toy-set Answer to position `p` and submit. */
@@ -170,6 +182,8 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
         expect((await eventsOf(page, 'item.submit')).length).toBe(submits)
       }
 
+      // Each widget is accessible (review M2: the order list has no nested interactive roles).
+      expect(await axeSerious(page, `[data-testid="item-${id}"]`)).toEqual([])
       // a. One wrong answer through the UI, its rollback, then the L1 hint.
       await assertNoAnswerLeak(page)
       let wrong: unknown = null
@@ -271,9 +285,7 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await expect(page.getByTestId('rollback')).toHaveAttribute('data-correct', 'false')
     await continueGate(page)
 
-    // Agent paste: the reference and the Node-computed probe pass the code item …
-    expect((await agentPasteProbe(page)).correct).toBe(true)
-    await continueGate(page)
+    // Agent paste: the reference and the Node-computed probe pass the code item (once: its probe is constant) …
     expect((await agentPasteProbe(page)).correct).toBe(true)
     await continueGate(page)
     expect(await page.getByTestId('item-double').getAttribute('data-passed')).toBe('true')
@@ -333,7 +345,10 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
       { type: 'gaming', item: 'lab-fixture/lab:main/toy-lamp', reason: 'fast' },
     ])
     const c = await current(page)
-    expect(c).toMatchObject({ itemId: 'toy-lamp', fallback: true, kind: 'set-machine' })
+    // Review M1: the fallback starts fresh at hint level 0, with its own widget and Submit.
+    expect(c).toMatchObject({ itemId: 'toy-lamp', fallback: true, kind: 'set-machine', hintLevel: 0 })
+    await expect(page.getByTestId('hint-panel')).toHaveCount(0)
+    await expect(page.getByTestId('gate-submit')).toBeVisible()
     await expect(page.getByTestId('item-toy-lamp')).toHaveAttribute('data-fallback', 'true')
     await expect(page.getByTestId('key-A')).toBeDisabled()
     await expect(page.getByTestId('set-machine')).toBeVisible()
@@ -343,6 +358,93 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     const rec = (await progress(page)).gates['lab-fixture/lab:main']!.items['toy-lamp']!
     expect(rec.outcomes.at(-1)).toMatchObject({ result: 'correct', fallback: true })
     expect(await current(page)).toMatchObject({ fallback: false, kind: 'letter' })
+  })
+
+  test('ghost-pick: nothing answer-bearing during the question; the ghost appears only in the rollback', async ({
+    page,
+  }) => {
+    await openGateLab(page)
+    await advanceTo(page, 'which-wrong')
+    const c = await current(page)
+    // Review B1: no ghost/reference on the stage and no divergence in the instance while the question is open.
+    expect(await page.evaluate(() => window.__stage!.info().ghost)).toBe(false)
+    expect((c.instance as { ghost: { divergeAt: number } }).ghost.divergeAt).toBe(-1)
+    expect(JSON.stringify(await page.evaluate(() => window.__course!.gate()))).not.toMatch(/"divergeAt":\d/)
+    await assertNoAnswerLeak(page)
+    const picked = String(await wrongAnswer(page))
+    await answerViaUi(page, 'ghost-pick', picked)
+    await assertRollback(page, 'path')
+    await expect.poll(() => page.evaluate(() => window.__stage!.info().ghost)).toBe(true)
+    // Review m6: the rollback contrasts the pick with the faulty part, and calls red the fault, not the learner's path.
+    await expect(page.getByTestId('ghost-pick-verdict')).toContainText('You picked')
+    await continueGate(page)
+    await expect.poll(() => page.evaluate(() => window.__stage!.info().ghost)).toBe(false)
+    await assertNoAnswerLeak(page)
+  })
+
+  test('honest 2.5 s answers never trip the ladder: the item itself climbs to L3', async ({ page }) => {
+    await openGateLab(page)
+    await configure(page, { minLatencyMs: 2000, burstMs: 5000 })
+    // Move the lesson clock instead of waiting: after one right answer, three wrong answers each come 2.5 s
+    // after their instance was shown.
+    let t = Date.now() + 3_600_000
+    await configure(page, { now: t })
+    await answerViaApi(page, 'toy-lamp', await solveInNode(page), { continue: false })
+    for (let k = 0; k < 3; k++) {
+      t += 10_000
+      await configure(page, { now: t })
+      await continueGate(page)
+      await configure(page, { now: t + 2_500 })
+      await answerViaApi(page, 'toy-lamp', await wrongAnswer(page), { continue: false })
+    }
+    await configure(page, { now: t + 10_000 })
+    await continueGate(page)
+    expect(await eventsOf(page, 'gaming')).toEqual([])
+    expect(await current(page)).toMatchObject({ itemId: 'toy-lamp', fallback: false, hintLevel: 3 })
+    const outcomes = (await progress(page)).gates['lab-fixture/lab:main']!.items['toy-lamp']!.outcomes
+    expect(outcomes.map((o) => o.result)).toEqual(['correct', 'wrong', 'wrong', 'wrong'])
+    for (const o of outcomes.slice(1)) expect(o.ms).toBeGreaterThan(2_400)
+  })
+
+  test('focus follows the gate, and one live region reports each step', async ({ page }) => {
+    await openGateLab(page)
+    const status = page.getByTestId('gate-status')
+    await expect(status).toContainText('Item 1 of 10, attempt 1')
+    await page.getByTestId('answer-letter').fill(String(await wrongAnswer(page)))
+    await page.getByTestId('gate-submit').click()
+    await expect(page.getByTestId('gate-continue')).toBeFocused()
+    await expect(status).toContainText('Not quite')
+    await page.getByTestId('gate-continue').click()
+    await expect(page.getByTestId('answer-letter')).toBeFocused()
+    await expect(status).toContainText('attempt 2. Hint level 1.')
+    for (let k = 0; k < 2; k++) {
+      await answerViaApi(page, 'toy-lamp', await wrongAnswer(page))
+    }
+    // L3: the only control is "Got it", and it has the focus; afterwards the new instance's input does.
+    await expect(page.getByTestId('gate-continue')).toBeFocused()
+    await page.getByTestId('gate-continue').click()
+    await expect(page.getByTestId('answer-letter')).toBeFocused()
+    expect(await page.locator('[role="status"][aria-live="polite"]').count()).toBeGreaterThanOrEqual(1)
+    expect(
+      await page.locator('[data-testid="rollback"][aria-live], [data-testid="hint-panel"][aria-live]').count(),
+    ).toBe(0)
+  })
+
+  test('reveals fire in scene order', async ({ page }) => {
+    await enter(page, 'lab-fixture')
+    await nextScene(page)
+    // Review m8: committing the second bet first does not let its trigger jump the queue.
+    await commitBet(page, 'steps', 'right')
+    await expect(page.getByTestId('reveal-steps')).toBeDisabled()
+    await expect(page.getByTestId('reveal-steps')).toContainText('after the earlier reveal')
+    const [press, step] = await sceneReveals(page)
+    await commitBet(page, 'first-lamp', 'B')
+    await expect(page.getByTestId('reveal-steps')).toBeDisabled()
+    await fireReveal(page, press!)
+    await expect(page.getByTestId('reveal-steps')).toBeEnabled()
+    await fireReveal(page, step!)
+    expect((await eventsOf(page, 'reveal')).map((e) => e.bet)).toEqual(['lab-fixture/first-lamp', 'lab-fixture/steps'])
+    expect(await page.evaluate(() => window.__enigma!.getState().positions)).toBe('AAC')
   })
 
   test('a double submit records one outcome', async ({ page }) => {
@@ -379,6 +481,16 @@ test.describe('lesson engine on the fixture chapter', { tag: '@area:lesson' }, (
     await expect(page.getByTestId('return-check')).toHaveCount(0)
     await configure(page, { now: Date.now() + 7 * 3600_000 })
     await expect(page.getByTestId('return-check')).toBeVisible()
+    // Review m2: the dialog takes focus and keeps it; the chapter behind it is inert.
+    const inDialog = () => page.evaluate(() => !!document.activeElement?.closest('[data-testid="return-check"]'))
+    await expect.poll(inDialog).toBe(true)
+    for (let k = 0; k < 12; k++) {
+      await page.keyboard.press(k % 3 === 2 ? 'Shift+Tab' : 'Tab')
+      expect(await inDialog(), `Tab #${k + 1} left the dialog`).toBe(true)
+    }
+    expect(await page.evaluate(() => !!document.querySelector('[data-testid="scene-next"]')?.closest('[inert]'))).toBe(
+      true,
+    )
     const [check] = await eventsOf(page, 'return-check')
     expect(check!.items).toHaveLength(2)
     for (let k = 0; k < 2; k++) {

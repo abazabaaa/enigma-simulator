@@ -153,10 +153,20 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     [chapter],
   )
 
+  // Reveals fire in the scene's order (review m8): a reveal is allowed once its bet is committed and every
+  // earlier reveal has fired. Repeats of a fired reveal stay allowed. Views must not assume any other order.
+  const isAllowed = useCallback(
+    (bet: string) => {
+      const k = reveals.findIndex((x) => x.bet === bet)
+      return k !== -1 && isCommitted(bet) && reveals.slice(0, k).every((x) => firedRef.current.has(x.bet))
+    },
+    [reveals, isCommitted],
+  )
+
   const fire = useCallback(
     (bet: string) => {
       const r = reveals.find((x) => x.bet === bet)
-      if (!r || !isCommitted(bet)) return
+      if (!r || !isAllowed(bet)) return
       if (r.trigger === 'step') stepPress(r.key ?? 'A')
       if (firedRef.current.has(bet)) return
       const next = new Set(firedRef.current).add(bet)
@@ -164,7 +174,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       setFired(next)
       emit({ type: 'reveal', bet: betKey(chapter, bet), trigger: r.trigger })
     },
-    [chapter, reveals, isCommitted],
+    [chapter, reveals, isAllowed],
   )
 
   // G10 gating for the next reveal that has not fired.
@@ -180,7 +190,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     if (!reveals.some((r) => r.trigger === 'press')) return
     const onPress = (key: string | undefined) => {
       const r = reveals.find(
-        (x) => x.trigger === 'press' && !firedRef.current.has(x.bet) && isCommitted(x.bet) && (!x.key || x.key === key),
+        (x) => x.trigger === 'press' && !firedRef.current.has(x.bet) && isAllowed(x.bet) && (!x.key || x.key === key),
       )
       if (r) fire(r.bet)
     }
@@ -194,9 +204,12 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
       a()
       b()
     }
-  }, [reveals, fire, isCommitted])
+  }, [reveals, fire, isAllowed])
 
-  const runtime: SceneRuntime = useMemo(() => ({ fired, isCommitted, fire }), [fired, isCommitted, fire])
+  const runtime: SceneRuntime = useMemo(
+    () => ({ fired, isCommitted, isAllowed, fire }),
+    [fired, isCommitted, isAllowed, fire],
+  )
 
   const betHandle = useCallback(
     (id: string): BetHandle => {
@@ -218,7 +231,7 @@ export function SceneFrame(p: SceneFrameProps): JSX.Element {
     store: useMachineStore,
     completeTask: (id) => useProgress.getState().addTask(chapter, taskKey(scene.id, id)),
     bet: betHandle,
-    reveal: (id) => ({ allowed: isCommitted(id), fire: () => fire(id) }),
+    reveal: (id) => ({ allowed: isAllowed(id), fire: () => fire(id) }),
     gate: gateHandle,
   }
 

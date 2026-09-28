@@ -78,14 +78,15 @@ const toyLamp = {
       <ToyTables spec={instance.spec} />
     </div>
   ),
-  Worked: ({ instance, solution }: { instance: ToyLampInstance; solution: Letter }) => {
-    const hops = toyLampPath(instance)
-    return (
-      <p className="text-sm">
-        Key {instance.key}: <Mono>{hops}</Mono>, so lamp <Mono>{solution}</Mono> lights.
+  Worked: ({ instance, solution }: { instance: ToyLampInstance; solution: Letter }) => (
+    <div className="flex flex-col gap-2 text-sm">
+      <p>
+        Key {instance.key} on this toy: <Mono>{toyLampPath(instance)}</Mono>, so lamp <Mono>{solution}</Mono> lights.
+        Follow each hop in its table:
       </p>
-    )
-  },
+      <ToyTables spec={instance.spec} />
+    </div>
+  ),
 }
 
 function toyLampPath(i: { spec: ToySpec; key: Letter }): string {
@@ -174,9 +175,12 @@ const toyChain = {
     </div>
   ),
   Worked: ({ instance, solution }: { instance: ChainInstance; solution: string[] }) => (
-    <p className="text-sm">
-      {instance.key} → {solution.join(' → ')}.
-    </p>
+    <div className="flex flex-col gap-2 text-sm">
+      <p>
+        {instance.key} → {solution.join(' → ')}, one table per stage:
+      </p>
+      <ToyTables spec={instance.spec} />
+    </div>
   ),
 }
 
@@ -319,7 +323,13 @@ const puzzleLamps = {
     </div>
   ),
   Worked: ({ instance, solution }: { instance: LampsInstance; solution: string }) => (
-    <p className="text-sm">{instance.keys.map((k, j) => `${k} → ${solution[j]}`).join('; ')}.</p>
+    <div className="flex flex-col gap-2 text-sm">
+      <p>
+        {instance.keys.map((k, j) => `${k} → ${solution[j]}`).join('; ')}. For example{' '}
+        <Mono>{toyLampPath({ spec: instance.spec, key: instance.keys[0]! })}</Mono> through these tables:
+      </p>
+      <ToyTables spec={instance.spec} />
+    </div>
   ),
 }
 

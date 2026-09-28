@@ -8,14 +8,21 @@ import { BUTTON, QUIET_BUTTON } from './controls'
 
 type Of<K extends Rollback['kind']> = Extract<Rollback, { kind: K }>
 
-function PathView({ rb }: { rb: Of<'path'> }): JSX.Element {
+function PathView({ rb, picked, correct }: { rb: Of<'path'>; picked?: string; correct?: string }): JSX.Element {
   const hop = rb.ghost.hops[rb.ghost.divergeAt]
+  const where = hop ? ` at the ${partName(partForStage(hop.stage))}, hop ${rb.ghost.divergeAt + 1}` : ''
   return (
     <div className="flex flex-col gap-1">
-      <p>
-        Your path (red on the stage) leaves the reference (gold)
-        {hop ? ` at the ${partName(partForStage(hop.stage))}, hop ${rb.ghost.divergeAt + 1}` : ''}.
-      </p>
+      {picked !== undefined ? (
+        // ghost-pick: the red path is the seeded fault, not the learner's path.
+        <p data-testid="ghost-pick-verdict">
+          You picked the <strong>{partName(picked as never)}</strong>; the fault is in the{' '}
+          <strong>{partName(correct as never)}</strong>. The faulty path (red on the stage) leaves the reference (gold)
+          {where}.
+        </p>
+      ) : (
+        <p>Your path (red on the stage) leaves the reference (gold){where}.</p>
+      )}
       <ol className="flex flex-wrap gap-1 font-mono text-xs" aria-label="Your path, hop by hop">
         {rb.ghost.hops.map((h, k) => (
           <li
@@ -164,12 +171,17 @@ export function RollbackView(p: {
       data-testid="rollback"
       data-kind={rb.kind}
       data-correct={String(result.correct)}
-      aria-live="polite"
       className={`flex flex-col gap-2 rounded-md border p-3 text-sm ${result.correct ? 'border-emerald-700 bg-emerald-950/30' : 'border-red-800 bg-red-950/20'}`}
     >
       <p className="font-semibold">{result.correct ? 'Correct.' : 'Not quite.'}</p>
       {result.feedback && !(rb.kind === 'machine' && rb.message === result.feedback) ? <p>{result.feedback}</p> : null}
-      {!result.correct && rb.kind === 'path' ? <PathView rb={rb} /> : null}
+      {!result.correct && rb.kind === 'path' ? (
+        p.logic.kind === 'ghost-pick' ? (
+          <PathView rb={rb} picked={String(p.answer)} correct={String(p.logic.solve(p.instance))} />
+        ) : (
+          <PathView rb={rb} />
+        )
+      ) : null}
       {!result.correct && rb.kind === 'windows' ? <WindowsView rb={rb} /> : null}
       {!result.correct && rb.kind === 'machine' ? (
         <p>
@@ -185,7 +197,7 @@ export function RollbackView(p: {
       {p.passed ? <p className="text-emerald-300">Item passed.</p> : null}
       {p.gatePassed ? <p className="text-emerald-300">Gate passed.</p> : null}
       <div>
-        <button type="button" data-testid="gate-continue" className={BUTTON} onClick={p.onContinue} autoFocus>
+        <button type="button" data-testid="gate-continue" className={BUTTON} onClick={p.onContinue}>
           {p.gatePassed ? 'Done' : 'Continue'}
         </button>
       </div>

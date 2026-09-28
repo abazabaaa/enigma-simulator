@@ -23,7 +23,6 @@ export function HintPanel(p: {
     <section
       data-testid="hint-panel"
       data-hint-level={p.level}
-      aria-live="polite"
       className="rounded-md border border-sky-700/60 bg-sky-950/30 p-3 text-sm"
     >
       {p.level < 3 ? (
