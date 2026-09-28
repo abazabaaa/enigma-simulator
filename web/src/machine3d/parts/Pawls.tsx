@@ -18,8 +18,8 @@ import type { RotorView } from '../view'
 const PIVOT_R = 7.4
 const PIVOT_ANGLE = PAWL_ANGLE - 0.14
 /** Tip radius resting on the notch ring, and dropped into the notch. */
-const TIP_UP_R = ROTOR.notchR + 0.78
-const TIP_DOWN_R = ROTOR.notchR + 0.32
+const TIP_UP_R = ROTOR.notchR + 1.0
+const TIP_DOWN_R = ROTOR.notchR + 0.3
 /** Pawl x relative to its rotor's centre: in the gap towards the right-hand neighbour. */
 export const PAWL_DX = 1.72
 
